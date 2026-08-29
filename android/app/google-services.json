@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1072772990739",
+    "project_id": "delex-mobile",
+    "storage_bucket": "delex-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1072772990739:android:911a81b16044cb0529bce6",
+        "android_client_info": {
+          "package_name": "com.delex.andriod.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIP4L0MjjVIsv3zY42_av8X8KaJ90eI0A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1072772990739:android:3d1efce14f545ef629bce6",
+        "android_client_info": {
+          "package_name": "com.delex.android.app.staging"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIP4L0MjjVIsv3zY42_av8X8KaJ90eI0A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
