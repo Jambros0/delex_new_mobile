@@ -8,6 +8,7 @@ import 'package:deex_bloc_mobile_app_dev/src/features/login/data/models/user_det
 import 'package:deex_bloc_mobile_app_dev/src/features/notification/bloc/notification_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/notification/bloc/notification_events.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/notification/ui/screens/notification_screen.dart';
+import 'package:deex_bloc_mobile_app_dev/src/features/profile/ui/screens/profile_screen.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/network_util.dart';
@@ -44,6 +45,7 @@ class HomeScreenState extends State<HomeScreen> {
   String? _token = "";
   final DBHelper _dbHelper = DBHelper();
   UserDetails? loggedInUser;
+  String? _userType;
   @override
   void initState() {
     super.initState();
@@ -89,18 +91,24 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchLoggedInUser() async {
+    final userType = await AuthUtils().getUserType();
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('userId');
     if (userId != null) {
       final user = await _dbHelper.getLoggedInUserByUserId(userId);
       setState(() {
         loggedInUser = user;
+        _userType = userType;
       });
       // if (user != null && (user.signature.isEmpty)) {
       BlocProvider.of<NotificationBloc>(
         context,
       ).add(NotificationsFetchNotification(loggedInUser: loggedInUser));
       // }
+    } else {
+      setState(() {
+        _userType = userType;
+      });
     }
   }
 
@@ -229,7 +237,9 @@ class HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 24),
               GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: () {},
+                onTap: () {
+                  Get.to(() => const ProfileScreen());
+                },
                 child: SvgPicture.asset(
                   'lib/src/features/home/assets/svg/profile-icon.svg',
                   height: 32,
@@ -278,8 +288,9 @@ class HomeScreenState extends State<HomeScreen> {
       case 'Ex Register':
         title = 'Ex Register';
         break;
+      case 'Locator':
       case 'Equipment Locator':
-        title = 'Equipment Locator';
+        title = 'Locator';
         break;
       case 'Landing Screen':
         title = '';
@@ -310,6 +321,7 @@ class HomeScreenState extends State<HomeScreen> {
     final ToDatefilter = Get.arguments?['ToDatefilter'] as DateTime?;
     // final isSelectedScreen = Get.arguments?['isSelectedScreen'] as String?;
     final isSelectedScreen = Get.arguments?['isSelectedScreenFlag'] as bool?;
+    final fetchApiOnce = Get.arguments?['fetchApiOnce'] as bool?;
 
     final effectiveMenu =
         (_selectedMenu == 'To Device' || _selectedMenu == 'To Server')
@@ -326,19 +338,24 @@ class HomeScreenState extends State<HomeScreen> {
           fromExRegister: fromExRegister,
         );
       case 'Ex Register':
+        final defaultStartDate = (_userType == 'onshore')
+            ? DateTime(2023, 6, 13)
+            : DateTime(2022, 5, 18);
         return ExRegisterScreen(
           equipmentId: isSelectedScreenFlag == true ? '' : equipmentId,
           filter: isSelectedScreenFlag == true ? 'Show All' : filter,
           fltertype: isSelectedScreenFlag == true ? 'Year to Date' : fltertype,
           fromDatefilter: isSelectedScreenFlag == true
-              ? DateTime(2024, 1, 1)
+              ? defaultStartDate
               : fromDatefilter,
           ToDatefilter: isSelectedScreenFlag == true
               ? DateTime(now.year, now.month, now.day)
               : ToDatefilter,
           isSelectedScreen: "home",
           isSelectedScreenFlag: isSelectedScreen ?? isSelectedScreenFlag,
+          fetchApiOnce: fetchApiOnce,
         );
+      case 'Locator':
       case 'Equipment Locator':
         return EquipmentLocatorScreen(gpsCord: gpsCord, assetId: moreassetId);
       case 'Landing Screen':
@@ -485,38 +502,41 @@ class HomeScreenState extends State<HomeScreen> {
                     children: [
                       Padding(
                         padding: _isCollapsed
-                            ? const EdgeInsets.fromLTRB(30, 26, 0, 0)
-                            : const EdgeInsets.fromLTRB(16, 26, 0, 16),
+                            ? const EdgeInsets.fromLTRB(0, 20, 0, 0)
+                            : const EdgeInsets.fromLTRB(16, 20, 16, 16),
                         child: Row(
                           mainAxisAlignment: _isCollapsed
-                              ? MainAxisAlignment.spaceBetween
+                              ? MainAxisAlignment.center
                               : MainAxisAlignment.spaceBetween,
                           children: [
                             if (!_isCollapsed)
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  SizedBox(width: screenWidth * 0.007),
-                                  Flexible(
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.translucent,
-                                      onTap: _toggleMenu,
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: _toggleMenu,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6.0),
                                       child: SvgPicture.asset(
                                         'lib/src/features/home/assets/svg/hamburger_expand.svg',
-                                        height: screenWidth * 0.017,
+                                        height: 22,
+                                        width: 22,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
                             if (_isCollapsed)
-                              Flexible(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.translucent,
-                                  onTap: _toggleMenu,
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: _toggleMenu,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6.0),
                                   child: SvgPicture.asset(
                                     'lib/src/features/home/assets/svg/hamburger_collapse.svg',
-                                    height: screenWidth * 0.017,
+                                    height: 22,
+                                    width: 22,
                                   ),
                                 ),
                               ),
@@ -524,13 +544,11 @@ class HomeScreenState extends State<HomeScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Flexible(
-                                    child: SvgPicture.asset(
-                                      'lib/src/features/home/assets/svg/delex_logo_home_page.svg',
-                                      height: screenWidth * 0.017,
-                                    ),
+                                  SvgPicture.asset(
+                                    'lib/src/features/home/assets/svg/delex_logo_home_page.svg',
+                                    height: 26,
                                   ),
-                                  SizedBox(width: screenWidth * 0.016),
+                                  const SizedBox(width: 8),
                                 ],
                               ),
                           ],
@@ -630,11 +648,11 @@ class HomeScreenState extends State<HomeScreen> {
                             _buildMenuItem(
                               iconPath:
                                   'lib/src/features/home/assets/svg/equipment_locator_icon.svg',
-                              label: 'Equipment Locator',
-                              isSelected: _selectedMenu == 'Equipment Locator',
+                              label: 'Locator',
+                              isSelected: _selectedMenu == 'Locator' || _selectedMenu == 'Equipment Locator',
                               onTap: () {
                                 setState(() {
-                                  _selectedMenu = 'Equipment Locator';
+                                  _selectedMenu = 'Locator';
                                   _isCollapsed = true;
                                   gpsCord = null;
                                 });
@@ -723,18 +741,6 @@ class HomeScreenState extends State<HomeScreen> {
                             ),
                             _buildMenuItem(
                               iconPath:
-                                  'lib/src/features/home/assets/svg/settings_icon.svg',
-                              label: 'Settings',
-                              isSelected: _selectedMenu == 'Settings',
-                              onTap: () {
-                                setState(() {
-                                  _selectedMenu = 'Settings';
-                                  _isCollapsed = true;
-                                });
-                              },
-                            ),
-                            _buildMenuItem(
-                              iconPath:
                                   'lib/src/features/home/assets/svg/logout_icon.svg',
                               label: 'Logout',
                               isSelected: false,
@@ -755,11 +761,9 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   void _toggleMenu() {
-    if (_selectedMenu != 'Landing Screen') {
-      setState(() {
-        _isCollapsed = !_isCollapsed;
-      });
-    }
+    setState(() {
+      _isCollapsed = !_isCollapsed;
+    });
   }
 
   Widget _buildMenuItem({

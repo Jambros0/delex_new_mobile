@@ -84,6 +84,32 @@ class ExRegisterTableState extends State<ExRegisterTable> {
   //   });
   // }
 
+  String _formatEquipmentProtection(ExRegister asset) {
+    List<String> parts = [];
+    String getCleanString(List<String>? items) {
+      if (items == null || items.isEmpty) return '';
+      final filtered = items.where((e) {
+        final val = e.trim().toLowerCase();
+        return val.isNotEmpty &&
+            val != 'not available' &&
+            val != 'n/a' &&
+            val != 'na' &&
+            val != 'null';
+      }).toList();
+      return filtered.join(', ');
+    }
+
+    final protType = getCleanString(asset.protectionType);
+    final gasGroup = getCleanString(asset.equipmentGasGroup);
+    final tempClass = getCleanString(asset.equipmentTClass);
+
+    if (protType.isNotEmpty) parts.add(protType);
+    if (gasGroup.isNotEmpty) parts.add(gasGroup);
+    if (tempClass.isNotEmpty) parts.add(tempClass);
+
+    return parts.join(' ');
+  }
+
   List<ExRegister> _filterExRegister(List<ExRegister> assets, String query) {
     if (query.isEmpty) {
       return assets;
@@ -95,6 +121,10 @@ class ExRegisterTableState extends State<ExRegisterTable> {
           asset.area.toLowerCase().contains(lowerQuery) ||
           (asset.eqpmtTag ?? '').toLowerCase().contains(lowerQuery) ||
           asset.description.toLowerCase().contains(lowerQuery) ||
+          _formatEquipmentProtection(asset).toLowerCase().contains(lowerQuery) ||
+          (asset.equipmentTClass.any(
+            (group) => group.toLowerCase().contains(lowerQuery),
+          )) ||
           (asset.epl.any(
             (group) => group.toLowerCase().contains(lowerQuery),
           )) ||
@@ -173,7 +203,7 @@ class ExRegisterTableState extends State<ExRegisterTable> {
         asset.eqpmtTag?.isNotEmpty == true ? asset.eqpmtTag! : '',
         asset.description.isNotEmpty ? asset.description : '',
         asset.manufacturer.isNotEmpty ? asset.manufacturer : '',
-        asset.epl.isNotEmpty == true ? asset.epl.join(', ') : '',
+        _formatEquipmentProtection(asset),
         inspectedCheck
             ? ""
             : asset.faultyItems?.toString().isNotEmpty == true

@@ -115,7 +115,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       _equipmentDescription.clear();
       _selectedAtexCategory = '';
       _selectedEpl = '';
-      _selectedProtectionStandard = null;
+      _selectedProtectionStandard = 'IEC / ATEX';
       _selectedProtectionType = '';
       _selectedGasGroup = null;
       _selectedTClass = null;
@@ -167,8 +167,21 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     _equipmentDescription.text = request?.description ?? '';
     _manufacturerController.text = request?.manufacturer ?? '';
     _typeController.text = request?.type ?? '';
-    _serialNumberController.text = request?.serialNumber ?? '';
-    _selectedProtectionStandard = request?.protectionStd;
+    final loadedStd = request?.protectionStd?.toString();
+    if (loadedStd != null && loadedStd.isNotEmpty) {
+      final lower = loadedStd.toLowerCase();
+      if (lower == 'iec' || lower.contains('iec') || lower.contains('atex')) {
+        _selectedProtectionStandard = 'IEC / ATEX';
+      } else if (lower == 'nec' || lower.contains('nec') || lower.contains('cec')) {
+        _selectedProtectionStandard = 'NEC / CEC';
+      } else if (lower.contains('applicable')) {
+        _selectedProtectionStandard = 'Not Applicable';
+      } else {
+        _selectedProtectionStandard = loadedStd;
+      }
+    } else {
+      _selectedProtectionStandard = 'IEC / ATEX';
+    }
     //
     // _selectedAtexCategory = request?.atexCatg ?? '';
     // _selectedEpl = request?.epl ?? '';
@@ -324,53 +337,114 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
   }
 
   Widget _buildForm(Map<String, dynamic> getAllDropDowns) {
-    final exRegisterDropDown = getAllDropDowns['result']['exResiterDropDown'][0]
-        as Map<String, dynamic>;
-    final discipline = (exRegisterDropDown['discipline'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    final rawExResiter = getAllDropDowns['result']?['exResiterDropDown'];
+    final exRegisterDropDown = (rawExResiter != null &&
+            rawExResiter is List &&
+            rawExResiter.isNotEmpty &&
+            rawExResiter[0] is Map)
+        ? rawExResiter[0] as Map<String, dynamic>
+        : <String, dynamic>{};
 
-    final filteredEquipmentCategory =
-        (exRegisterDropDown['equipmentCategory'] as List<dynamic>)
-            .map((item) => item.toString())
-            .toList();
+    final discipline = (exRegisterDropDown['discipline'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .toList() ??
+        ['Electrical', 'Instrumentation', 'Mechanical'];
 
-    // final epl = (exRegisterDropDown['epl'] as List<dynamic>)
-    //     .map((item) => item.toString())
-    //     .toList();
+    Map<String, dynamic> protectionStandardMap = {};
+    if (exRegisterDropDown['protectionStandard'] != null &&
+        exRegisterDropDown['protectionStandard'] is List &&
+        (exRegisterDropDown['protectionStandard'] as List).isNotEmpty &&
+        exRegisterDropDown['protectionStandard'][0] is Map) {
+      protectionStandardMap = Map<String, dynamic>.from(
+          exRegisterDropDown['protectionStandard'][0] as Map);
+    }
+    if (protectionStandardMap.isEmpty) {
+      protectionStandardMap =
+          Map<String, dynamic>.from(_defaultProtectionStandardMap);
+    }
 
-    final protectionStandardMap =
-        exRegisterDropDown['protectionStandard'][0] as Map<String, dynamic>;
+    final List<String> availableStandards = [
+      'IEC / ATEX',
+      'NEC / CEC',
+      'Not Applicable'
+    ];
+    for (final key in protectionStandardMap.keys) {
+      final strKey = key.toString();
+      if (!availableStandards.contains(strKey) &&
+          strKey != 'IEC' &&
+          strKey != 'NEC' &&
+          strKey != 'Not Available') {
+        availableStandards.add(strKey);
+      }
+    }
+
+    if (_selectedProtectionStandard == null ||
+        _selectedProtectionStandard!.isEmpty) {
+      _selectedProtectionStandard = 'IEC / ATEX';
+    } else if (!availableStandards.contains(_selectedProtectionStandard)) {
+      final lower = _selectedProtectionStandard!.toLowerCase();
+      if (lower == 'iec' || lower.contains('iec') || lower.contains('atex')) {
+        _selectedProtectionStandard = 'IEC / ATEX';
+      } else if (lower == 'nec' ||
+          lower.contains('nec') ||
+          lower.contains('cec')) {
+        _selectedProtectionStandard = 'NEC / CEC';
+      } else if (lower.contains('applicable')) {
+        _selectedProtectionStandard = 'Not Applicable';
+      } else {
+        availableStandards.add(_selectedProtectionStandard!);
+      }
+    }
+
     _filteredProtectionType = _getProtectionTypeForProtectionStandard(
       protectionStandardMap,
       _selectedProtectionStandard,
+      exRegisterDropDown,
     );
     _filteredGasGroup = _getGasGroupForProtectionStandard(
       protectionStandardMap,
       _selectedProtectionStandard,
+      exRegisterDropDown,
     );
     _filteredAtexCategoey = _getAtexCategoryProtectionStandard(
       protectionStandardMap,
       _selectedProtectionStandard,
+      exRegisterDropDown,
     );
-    // _filteredEquipmentCategory = _getEquipmentCategoryProtectionStandard(
-    //     protectionStandardMap, _selectedProtectionStandard);
     _filteredEPL = _getEPLProtectionStandard(
       protectionStandardMap,
       _selectedProtectionStandard,
+      exRegisterDropDown,
     );
-    final ipRating = (exRegisterDropDown['ipRating'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    final ipRating = (exRegisterDropDown['ipRating'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .toList() ??
+        [
+          'IP54',
+          'IP55',
+          'IP56',
+          'IP65',
+          'IP66',
+          'IP67',
+          'IP68',
+          'Not Applicable'
+        ];
 
     final specialCondition =
-        (exRegisterDropDown['specialCondition'] as List<dynamic>)
-            .map((item) => item.toString())
-            .toList();
+        (exRegisterDropDown['specialCondition'] as List<dynamic>?)
+                ?.map((item) => item.toString())
+                .toList() ??
+            [
+              'None',
+              'X - Specific Condition',
+              'U - Ex Component',
+              'Not Applicable'
+            ];
 
-    final tClass = (exRegisterDropDown['temperatureClass'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    final tClass = (exRegisterDropDown['temperatureClass'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .toList() ??
+        ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'Not Applicable'];
 
     final descriptions = (exRegisterDropDown['equipementDescription'] as List<dynamic>?)
         ?.map((item) => item.toString())
@@ -378,6 +452,15 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         .toList() ?? [];
     if (!descriptions.contains('Others')) {
       descriptions.insert(0, 'Others');
+    }
+
+    final filteredEquipmentCategory =
+        (exRegisterDropDown['equipmentCategory'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .where((item) => item != 'Others' && !item.toLowerCase().startsWith('other ('))
+            .toList() ?? [];
+    if (!filteredEquipmentCategory.contains('Others')) {
+      filteredEquipmentCategory.insert(0, 'Others');
     }
 
     final manufacturers = (exRegisterDropDown['manufacturer'] as List<dynamic>?)
@@ -411,6 +494,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'UL DEMKO',
       ];
     }
+    if (!certificationBody.contains('Others')) {
+      certificationBody.insert(0, 'Others');
+    }
 
     final areaStatusList = (exRegisterDropDown['areaStatus'] as List<dynamic>?)
         ?.map((item) => item.toString())
@@ -425,6 +511,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           _selectedDescription = 'Others';
         }
       }
+    } else if (!descriptions.contains(_selectedDescription) && _selectedDescription != 'Others') {
+      _equipmentDescription.text = _selectedDescription;
+      _selectedDescription = 'Others';
     }
 
     if (_selectedManufacturer.isEmpty) {
@@ -436,6 +525,23 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           _selectedManufacturer = 'Others';
         }
       }
+    } else if (!manufacturers.contains(_selectedManufacturer) && _selectedManufacturer != 'Others') {
+      _manufacturerController.text = _selectedManufacturer;
+      _selectedManufacturer = 'Others';
+    }
+
+    if (_selectedEquipmentCategory == null || _selectedEquipmentCategory!.isEmpty) {
+      final loadedCat = _equipmentCategoryController.text;
+      if (loadedCat.isNotEmpty) {
+        if (filteredEquipmentCategory.contains(loadedCat)) {
+          _selectedEquipmentCategory = loadedCat;
+        } else {
+          _selectedEquipmentCategory = 'Others';
+        }
+      }
+    } else if (!filteredEquipmentCategory.contains(_selectedEquipmentCategory) && _selectedEquipmentCategory != 'Others') {
+      _equipmentCategoryController.text = _selectedEquipmentCategory!;
+      _selectedEquipmentCategory = 'Others';
     }
 
     if (_selectedCertificationBody == null || _selectedCertificationBody!.isEmpty) {
@@ -443,14 +549,13 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       if (loadedCertBody.isNotEmpty) {
         if (certificationBody.contains(loadedCertBody)) {
           _selectedCertificationBody = loadedCertBody;
-        } else if (certificationBody.isNotEmpty) {
-          _selectedCertificationBody = certificationBody.first;
+        } else {
+          _selectedCertificationBody = 'Others';
         }
       }
-    } else {
-      if (!certificationBody.contains(_selectedCertificationBody)) {
-        _selectedCertificationBody = certificationBody.isNotEmpty ? certificationBody.first : null;
-      }
+    } else if (!certificationBody.contains(_selectedCertificationBody) && _selectedCertificationBody != 'Others') {
+      _certificationBodyController.text = _selectedCertificationBody!;
+      _selectedCertificationBody = 'Others';
     }
 
     return Form(
@@ -494,61 +599,98 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                 controller: _equipmentIdController,
               ),
 
-              _buildLabeledDropdownField(
-                label: 'Equipment Description',
-                value: _selectedDescription.isEmpty ? null : _selectedDescription,
-                items: descriptions,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedDescription = value ?? '';
-                    if (_selectedDescription == 'Others' ||
-                        _selectedDescription == 'Other (New Description to be added)') {
-                      _equipmentDescription.clear();
-                    } else {
-                      _equipmentDescription.text = _selectedDescription;
-                    }
-                  });
-                },
-                isMandatory: true,
-                customTextField: (_selectedDescription == 'Others')
-                    ? _buildLabeledTextField(
-                        label: 'New Equipment Description',
-                        controller: _equipmentDescription,
-                        isMandatory: true,
-                      )
-                    : null,
-              ),
-              _buildLabeledDropdownField(
-                label: 'Equipment Category',
-                value: _selectedEquipmentCategory,
-                items: filteredEquipmentCategory,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedEquipmentCategory = value;
-                  });
-                },
-              ),
-              _buildLabeledDropdownField(
-                label: 'Equipment Manufacturer',
-                value: _selectedManufacturer.isEmpty ? null : _selectedManufacturer,
-                items: manufacturers,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedManufacturer = value ?? '';
-                    if (_selectedManufacturer == 'Others') {
-                      _manufacturerController.clear();
-                    } else {
-                      _manufacturerController.text = _selectedManufacturer;
-                    }
-                  });
-                },
-                customTextField: (_selectedManufacturer == 'Others')
-                    ? _buildLabeledTextField(
-                        label: 'New Equipment Manufacturer',
-                        controller: _manufacturerController,
-                      )
-                    : null,
-              ),
+              _selectedDescription == 'Others'
+                  ? _buildLabeledTextField(
+                      label: 'Equipment Description',
+                      controller: _equipmentDescription,
+                      isMandatory: true,
+                      hintText: 'Type New Description',
+                      onSwitchToList: () {
+                        setState(() {
+                          _selectedDescription = '';
+                          _equipmentDescription.clear();
+                        });
+                      },
+                    )
+                  : _buildLabeledDropdownField(
+                      label: 'Equipment Description',
+                      value: _selectedDescription.isEmpty
+                          ? null
+                          : _selectedDescription,
+                      items: descriptions,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedDescription = value ?? '';
+                          if (_selectedDescription == 'Others' ||
+                              _selectedDescription ==
+                                  'Other (New Description to be added)') {
+                            _selectedDescription = 'Others';
+                            _equipmentDescription.clear();
+                          } else {
+                            _equipmentDescription.text = _selectedDescription;
+                          }
+                        });
+                      },
+                      isMandatory: true,
+                    ),
+              _selectedEquipmentCategory == 'Others'
+                  ? _buildLabeledTextField(
+                      label: 'Equipment Category',
+                      controller: _equipmentCategoryController,
+                      hintText: 'Type New Category',
+                      onSwitchToList: () {
+                        setState(() {
+                          _selectedEquipmentCategory = null;
+                          _equipmentCategoryController.clear();
+                        });
+                      },
+                    )
+                  : _buildLabeledDropdownField(
+                      label: 'Equipment Category',
+                      value: _selectedEquipmentCategory,
+                      items: filteredEquipmentCategory,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedEquipmentCategory = value;
+                          if (_selectedEquipmentCategory == 'Others') {
+                            _equipmentCategoryController.clear();
+                          } else {
+                            _equipmentCategoryController.text =
+                                _selectedEquipmentCategory ?? '';
+                          }
+                        });
+                      },
+                    ),
+              _selectedManufacturer == 'Others'
+                  ? _buildLabeledTextField(
+                      label: 'Equipment Manufacturer',
+                      controller: _manufacturerController,
+                      hintText: 'Type New Manufacturer',
+                      onSwitchToList: () {
+                        setState(() {
+                          _selectedManufacturer = '';
+                          _manufacturerController.clear();
+                        });
+                      },
+                    )
+                  : _buildLabeledDropdownField(
+                      label: 'Equipment Manufacturer',
+                      value: _selectedManufacturer.isEmpty
+                          ? null
+                          : _selectedManufacturer,
+                      items: manufacturers,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedManufacturer = value ?? '';
+                          if (_selectedManufacturer == 'Others') {
+                            _manufacturerController.clear();
+                          } else {
+                            _manufacturerController.text =
+                                _selectedManufacturer;
+                          }
+                        });
+                      },
+                    ),
               _buildLabeledTextField(
                 label: 'Equipment Type/Model',
                 controller: _typeController,
@@ -561,7 +703,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
               _buildLabeledDropdownField(
                 label: 'Protection Standard',
                 value: _selectedProtectionStandard,
-                items: protectionStandardMap.keys.toList(),
+                items: availableStandards,
                 onChanged: (value) {
                   setState(() {
                     if (value != _selectedProtectionStandard) {
@@ -584,22 +726,22 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                         _getProtectionTypeForProtectionStandard(
                       protectionStandardMap,
                       _selectedProtectionStandard,
+                      exRegisterDropDown,
                     );
                     _filteredGasGroup = _getGasGroupForProtectionStandard(
                       protectionStandardMap,
                       _selectedProtectionStandard,
+                      exRegisterDropDown,
                     );
                     _filteredAtexCategoey = _getAtexCategoryProtectionStandard(
                       protectionStandardMap,
                       _selectedProtectionStandard,
+                      exRegisterDropDown,
                     );
-                    // _filteredEquipmentCategory =
-                    //     _getEquipmentCategoryProtectionStandard(
-                    //         protectionStandardMap,
-                    //         _selectedProtectionStandard);
                     _filteredEPL = _getEPLProtectionStandard(
                       protectionStandardMap,
                       _selectedProtectionStandard,
+                      exRegisterDropDown,
                     );
                   });
                 },
@@ -634,7 +776,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                   });
                   // Zone validation
                   final zone =
-                      widget.exInspectionRequest.functionalAreaRequest?.zone ?? '';
+                      (widget.exInspectionRequest.functionalAreaRequest?.zone.isNotEmpty == true)
+                          ? widget.exInspectionRequest.functionalAreaRequest!.zone
+                          : (widget.exInspectionRequest.equipmentTagRequest?.zone ?? '');
                   if (zone.isNotEmpty && value.isNotEmpty) {
                     final invalidEPL = _getInvalidEPLForZone(zone, value);
                     if (invalidEPL != null) {
@@ -664,7 +808,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                   });
                   // Zone validation
                   final zone =
-                      widget.exInspectionRequest.functionalAreaRequest?.zone ?? '';
+                      (widget.exInspectionRequest.functionalAreaRequest?.zone.isNotEmpty == true)
+                          ? widget.exInspectionRequest.functionalAreaRequest!.zone
+                          : (widget.exInspectionRequest.equipmentTagRequest?.zone ?? '');
                   if (zone.isNotEmpty && value.isNotEmpty) {
                     final invalidType =
                         _getInvalidProtectionTypeForZone(zone, value);
@@ -693,11 +839,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                     _selectedGasGroup = value.isEmpty ? null : value.join(', ');
                   });
                   // Gas Group compatibility validation against area gas group
-                  final areaGasGroups = widget
-                          .exInspectionRequest
-                          .functionalAreaRequest
-                          ?.locationGasGroup ??
-                      [];
+                  final areaGasGroups = (widget.exInspectionRequest.functionalAreaRequest?.locationGasGroup.isNotEmpty == true)
+                          ? widget.exInspectionRequest.functionalAreaRequest!.locationGasGroup
+                          : (widget.exInspectionRequest.equipmentTagRequest?.locationGasGroup ?? []);
                   if (areaGasGroups.isNotEmpty && value.isNotEmpty) {
                     final warning =
                         _getGasGroupValidationWarning(areaGasGroups, value);
@@ -744,20 +888,38 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                 isEditModeNotifier: widget.isEditModeNotifier,
               ),
 
-              _buildLabeledDropdownField(
-                label: 'Certification Body',
-                value: _selectedCertificationBody,
-                items: certificationBody,
-                onChanged: (value) {
-                  setState(() {
-                    final String oldPrefixText = _selectedCertificationBody ?? '';
-                    _selectedCertificationBody = value;
-                    final String newPrefixText = value ?? '';
-                    _certificationBodyController.text = value ?? '';
-                    _updateCertificationNumberPrefix(oldPrefixText, newPrefixText);
-                  });
-                },
-              ),
+              _selectedCertificationBody == 'Others'
+                  ? _buildLabeledTextField(
+                      label: 'Certification Body',
+                      controller: _certificationBodyController,
+                      hintText: 'Type New Certification Body',
+                      onSwitchToList: () {
+                        setState(() {
+                          _selectedCertificationBody = null;
+                          _certificationBodyController.clear();
+                        });
+                      },
+                    )
+                  : _buildLabeledDropdownField(
+                      label: 'Certification Body',
+                      value: _selectedCertificationBody,
+                      items: certificationBody,
+                      onChanged: (value) {
+                        setState(() {
+                          final String oldPrefixText =
+                              _selectedCertificationBody ?? '';
+                          _selectedCertificationBody = value;
+                          if (_selectedCertificationBody == 'Others') {
+                            _certificationBodyController.clear();
+                          } else {
+                            final String newPrefixText = value ?? '';
+                            _certificationBodyController.text = value ?? '';
+                            _updateCertificationNumberPrefix(
+                                oldPrefixText, newPrefixText);
+                          }
+                        });
+                      },
+                    ),
               _buildLabeledTextField(
                 label: 'Certification Number',
                 controller: _certificationNumberController,
@@ -809,69 +971,334 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     );
   }
 
-  List<String> _getProtectionTypeForProtectionStandard(
+  static const Map<String, Map<String, List<String>>> _defaultProtectionStandardMap = {
+    'IEC / ATEX': {
+      'atexCategory': [
+        '1G',
+        '2G',
+        '3G',
+        '1D',
+        '2D',
+        '3D',
+        'M1',
+        'M2',
+        'Not Applicable'
+      ],
+      'epl': [
+        'Ga',
+        'Gb',
+        'Gc',
+        'Da',
+        'Db',
+        'Dc',
+        'Ma',
+        'Mb',
+        'Not Applicable'
+      ],
+      'protectionType': [
+        'Ex d',
+        'Ex db',
+        'Ex e',
+        'Ex eb',
+        'Ex ec',
+        'Ex ia',
+        'Ex ib',
+        'Ex ic',
+        'Ex m',
+        'Ex ma',
+        'Ex mb',
+        'Ex mc',
+        'Ex nA',
+        'Ex nC',
+        'Ex nR',
+        'Ex o',
+        'Ex ob',
+        'Ex oc',
+        'Ex p',
+        'Ex px',
+        'Ex py',
+        'Ex pz',
+        'Ex pxb',
+        'Ex pyb',
+        'Ex pzc',
+        'Ex q',
+        'Ex qb',
+        'Ex s',
+        'Ex op is',
+        'Ex op pr',
+        'Ex op sh',
+        'Ex ta',
+        'Ex tb',
+        'Ex tc',
+        'Ex ia D',
+        'Ex ib D',
+        'Ex ma D',
+        'Ex mb D',
+        'Ex pD',
+        'Ex tD',
+        'Not Applicable',
+        'Others'
+      ],
+      'gasGroup': [
+        'I',
+        'IIA',
+        'IIB',
+        'IIC',
+        'IIIA',
+        'IIIB',
+        'IIIC',
+        'Not Applicable'
+      ],
+      'temperatureClass': [
+        'T1',
+        'T2',
+        'T3',
+        'T4',
+        'T5',
+        'T6',
+        'Not Applicable'
+      ]
+    },
+    'NEC / CEC': {
+      'atexCategory': ['Not Applicable'],
+      'epl': [
+        'Class I, Div 1',
+        'Class I, Div 2',
+        'Class II, Div 1',
+        'Class II, Div 2',
+        'Class III, Div 1',
+        'Class III, Div 2',
+        'Zone 0',
+        'Zone 1',
+        'Zone 2',
+        'Zone 20',
+        'Zone 21',
+        'Zone 22',
+        'Ga',
+        'Gb',
+        'Gc',
+        'Da',
+        'Db',
+        'Dc',
+        'Not Applicable'
+      ],
+      'protectionType': [
+        'Explosionproof (XP)',
+        'Dust-Ignitionproof (DIP)',
+        'Intrinsically Safe (IS)',
+        'Non-Incendive (NI)',
+        'Purged/Pressurized (Type X)',
+        'Purged/Pressurized (Type Y)',
+        'Purged/Pressurized (Type Z)',
+        'Oil-Immersed',
+        'Hermetically Sealed',
+        'Encapsulated',
+        'Class I, Div 1',
+        'Class I, Div 2',
+        'Class II, Div 1',
+        'Class II, Div 2',
+        'Class III',
+        'Not Applicable',
+        'Others'
+      ],
+      'gasGroup': [
+        'Group A',
+        'Group B',
+        'Group C',
+        'Group D',
+        'Group E',
+        'Group F',
+        'Group G',
+        'Class I (A, B, C, D)',
+        'Class II (E, F, G)',
+        'Class III',
+        'Not Applicable'
+      ],
+      'temperatureClass': [
+        'T1',
+        'T2',
+        'T2A',
+        'T2B',
+        'T2C',
+        'T2D',
+        'T3',
+        'T3A',
+        'T3B',
+        'T3C',
+        'T4',
+        'T4A',
+        'T5',
+        'T6',
+        'Not Applicable'
+      ]
+    },
+    'Not Applicable': {
+      'atexCategory': ['Not Applicable'],
+      'epl': ['Not Applicable'],
+      'protectionType': ['Not Applicable'],
+      'gasGroup': ['Not Applicable'],
+      'temperatureClass': ['Not Applicable']
+    },
+    'Not Available': {
+      'atexCategory': ['Not Available', 'Not Applicable'],
+      'epl': ['Not Available', 'Not Applicable'],
+      'protectionType': ['Not Available', 'Not Applicable'],
+      'gasGroup': ['Not Available', 'Not Applicable'],
+      'temperatureClass': ['Not Available', 'Not Applicable']
+    }
+  };
+
+  Map<String, dynamic>? _getStandardData(
     Map<String, dynamic> protectionStandardMap,
     String? standardKey,
   ) {
-    if (standardKey == null || protectionStandardMap[standardKey] == null) {
-      return [];
+    if (standardKey == null || standardKey.trim().isEmpty) {
+      return (protectionStandardMap['IEC / ATEX'] as Map<String, dynamic>?) ??
+          (protectionStandardMap['IEC'] as Map<String, dynamic>?) ??
+          _defaultProtectionStandardMap['IEC / ATEX'];
     }
-    final protectionStandard = protectionStandardMap[standardKey];
-    return (protectionStandard['protectionType'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    final cleanKey = standardKey.trim();
+    if (protectionStandardMap.containsKey(cleanKey)) {
+      final val = protectionStandardMap[cleanKey];
+      if (val is Map<String, dynamic>) return val;
+      if (val is Map) return Map<String, dynamic>.from(val);
+    }
+    final lower = cleanKey.toLowerCase();
+    for (final entry in protectionStandardMap.entries) {
+      final entryLower = entry.key.toLowerCase();
+      if (entryLower == lower) {
+        if (entry.value is Map<String, dynamic>) {
+          return entry.value as Map<String, dynamic>;
+        }
+        if (entry.value is Map) {
+          return Map<String, dynamic>.from(entry.value as Map);
+        }
+      }
+      if ((lower.contains('iec') || lower.contains('atex')) &&
+          (entryLower.contains('iec') || entryLower.contains('atex'))) {
+        if (entry.value is Map<String, dynamic>) {
+          return entry.value as Map<String, dynamic>;
+        }
+        if (entry.value is Map) {
+          return Map<String, dynamic>.from(entry.value as Map);
+        }
+      }
+      if ((lower.contains('nec') || lower.contains('cec')) &&
+          (entryLower.contains('nec') || entryLower.contains('cec'))) {
+        if (entry.value is Map<String, dynamic>) {
+          return entry.value as Map<String, dynamic>;
+        }
+        if (entry.value is Map) {
+          return Map<String, dynamic>.from(entry.value as Map);
+        }
+      }
+      if (lower.contains('applicable') && entryLower.contains('applicable')) {
+        if (entry.value is Map<String, dynamic>) {
+          return entry.value as Map<String, dynamic>;
+        }
+        if (entry.value is Map) {
+          return Map<String, dynamic>.from(entry.value as Map);
+        }
+      }
+    }
+    for (final entry in _defaultProtectionStandardMap.entries) {
+      final entryLower = entry.key.toLowerCase();
+      if (entryLower == lower ||
+          ((lower.contains('iec') || lower.contains('atex')) &&
+              (entryLower.contains('iec') || entryLower.contains('atex'))) ||
+          ((lower.contains('nec') || lower.contains('cec')) &&
+              (entryLower.contains('nec') || entryLower.contains('cec'))) ||
+          (lower.contains('applicable') && entryLower.contains('applicable'))) {
+        return entry.value;
+      }
+    }
+    return _defaultProtectionStandardMap['IEC / ATEX'];
+  }
+
+  List<String> _getProtectionTypeForProtectionStandard(
+    Map<String, dynamic> protectionStandardMap,
+    String? standardKey, [
+    Map<String, dynamic>? exRegisterDropDown,
+  ]) {
+    final standard = _getStandardData(protectionStandardMap, standardKey);
+    if (standard != null && standard['protectionType'] != null) {
+      final list = (standard['protectionType'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    if (exRegisterDropDown != null &&
+        exRegisterDropDown['protectionType'] != null) {
+      final list = (exRegisterDropDown['protectionType'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    return _defaultProtectionStandardMap['IEC / ATEX']!['protectionType']!;
   }
 
   List<String> _getGasGroupForProtectionStandard(
     Map<String, dynamic> protectionStandardMap,
-    String? standardKey,
-  ) {
-    if (standardKey == null || protectionStandardMap[standardKey] == null) {
-      return [];
+    String? standardKey, [
+    Map<String, dynamic>? exRegisterDropDown,
+  ]) {
+    final standard = _getStandardData(protectionStandardMap, standardKey);
+    if (standard != null && standard['gasGroup'] != null) {
+      final list = (standard['gasGroup'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
     }
-    final protectionStandard = protectionStandardMap[standardKey];
-    return (protectionStandard['gasGroup'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    if (exRegisterDropDown != null && exRegisterDropDown['gasGroup'] != null) {
+      final list = (exRegisterDropDown['gasGroup'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    return _defaultProtectionStandardMap['IEC / ATEX']!['gasGroup']!;
   }
 
   List<String> _getAtexCategoryProtectionStandard(
     Map<String, dynamic> protectionStandardMap,
-    String? standardKey,
-  ) {
-    if (standardKey == null || protectionStandardMap[standardKey] == null) {
-      return [];
+    String? standardKey, [
+    Map<String, dynamic>? exRegisterDropDown,
+  ]) {
+    final standard = _getStandardData(protectionStandardMap, standardKey);
+    if (standard != null && standard['atexCategory'] != null) {
+      final list = (standard['atexCategory'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
     }
-    final protectionStandard = protectionStandardMap[standardKey];
-    return (protectionStandard['atexCategory'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    if (exRegisterDropDown != null &&
+        exRegisterDropDown['atexCategory'] != null) {
+      final list = (exRegisterDropDown['atexCategory'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    return _defaultProtectionStandardMap['IEC / ATEX']!['atexCategory']!;
   }
-
-  // List<String> _getEquipmentCategoryProtectionStandard(
-  //   Map<String, dynamic> protectionStandardMap,
-  //   String? standardKey,
-  // ) {
-  //   if (standardKey == null || protectionStandardMap[standardKey] == null) {
-  //     return [];
-  //   }
-  //   final protectionStandard = protectionStandardMap[standardKey];
-  //   return (protectionStandard['equipmentCategory'] as List<dynamic>)
-  //       .map((item) => item.toString())
-  //       .toList();
-  // }
 
   List<String> _getEPLProtectionStandard(
     Map<String, dynamic> protectionStandardMap,
-    String? standardKey,
-  ) {
-    if (standardKey == null || protectionStandardMap[standardKey] == null) {
-      return [];
+    String? standardKey, [
+    Map<String, dynamic>? exRegisterDropDown,
+  ]) {
+    final standard = _getStandardData(protectionStandardMap, standardKey);
+    if (standard != null && standard['epl'] != null) {
+      final list = (standard['epl'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
     }
-    final protectionStandard = protectionStandardMap[standardKey];
-    return (protectionStandard['epl'] as List<dynamic>)
-        .map((item) => item.toString())
-        .toList();
+    if (exRegisterDropDown != null && exRegisterDropDown['epl'] != null) {
+      final list = (exRegisterDropDown['epl'] as List<dynamic>)
+          .map((item) => item.toString())
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    return _defaultProtectionStandardMap['IEC / ATEX']!['epl']!;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -897,13 +1324,14 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       'Ex maD',
     ];
 
+    final trimmedZone = zone.trim().toLowerCase();
     for (final type in selectedTypes) {
-      if (zone == 'Zone 0') {
+      if (trimmedZone == 'zone 0' || trimmedZone == 'class 1, div 1' || trimmedZone == 'class 1 div 1') {
         final normalized = type.trim();
         final isAllowed = zone0Allowed.any((allowed) =>
             normalized.toLowerCase().startsWith(allowed.toLowerCase()));
         if (!isAllowed) return type;
-      } else if (zone == 'Zone 20') {
+      } else if (trimmedZone == 'zone 20' || trimmedZone == 'class 2, div 1' || trimmedZone == 'class 2 div 1') {
         final normalized = type.trim();
         final isAllowed = zone20Allowed.any((allowed) =>
             normalized.toLowerCase().startsWith(allowed.toLowerCase()));
@@ -923,21 +1351,25 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     const zone21AllowedEPL = ['Da', 'Db'];
     // Zone 2, Zone 22 allow all EPL values
 
+    final trimmedZone = zone.trim().toLowerCase();
     List<String>? allowedList;
-    if (zone == 'Zone 0') {
+    if (trimmedZone == 'zone 0' || trimmedZone == 'class 1, div 1' || trimmedZone == 'class 1 div 1') {
       allowedList = zone0RequiredEPL;
-    } else if (zone == 'Zone 1') {
+    } else if (trimmedZone == 'zone 1') {
       allowedList = zone1AllowedEPL;
-    } else if (zone == 'Zone 20') {
+    } else if (trimmedZone == 'zone 20' || trimmedZone == 'class 2, div 1' || trimmedZone == 'class 2 div 1') {
       allowedList = zone20RequiredEPL;
-    } else if (zone == 'Zone 21') {
+    } else if (trimmedZone == 'zone 21') {
       allowedList = zone21AllowedEPL;
     }
 
     if (allowedList == null) return null;
 
     for (final epl in selectedEPLs) {
-      if (!allowedList.contains(epl.trim())) return epl;
+      final normalized = epl.trim();
+      if (!allowedList.any((a) => a.toLowerCase() == normalized.toLowerCase())) {
+        return epl;
+      }
     }
     return null;
   }
@@ -948,16 +1380,45 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
   /// Area IIA → equipment can have IIA, IIB, or IIC
   String? _getGasGroupValidationWarning(
       List<String> areaGasGroups, List<String> equipmentGasGroups) {
-    // Gas group hierarchy: IIA < IIB < IIC (higher covers lower zones)
-    const gasGroupRank = {'IIA': 1, 'IIB': 2, 'IIC': 3};
+    // Gas group hierarchy:
+    // IEC: IIA (1) < IIB (2) < IIC (3)
+    // NEC: D (1) < C (2) < B (3) < A (4)
+    // Dust: IIIA (1) < IIIB (2) < IIIC (3)
+    const gasGroupRank = {
+      'IIA': 1,
+      'GROUP IIA': 1,
+      'GAS GROUP IIA': 1,
+      'IIB': 2,
+      'GROUP IIB': 2,
+      'GAS GROUP IIB': 2,
+      'IIC': 3,
+      'GROUP IIC': 3,
+      'GAS GROUP IIC': 3,
+      'IIIA': 1,
+      'GROUP IIIA': 1,
+      'IIIB': 2,
+      'GROUP IIIB': 2,
+      'IIIC': 3,
+      'GROUP IIIC': 3,
+      'D': 1,
+      'GROUP D': 1,
+      'C': 2,
+      'GROUP C': 2,
+      'B': 3,
+      'GROUP B': 3,
+      'A': 4,
+      'GROUP A': 4,
+    };
 
     for (final areaGroup in areaGasGroups) {
-      final areaRank = gasGroupRank[areaGroup.trim().toUpperCase()];
+      final cleanArea = areaGroup.trim().toUpperCase();
+      final areaRank = gasGroupRank[cleanArea];
       if (areaRank == null) continue;
 
       bool covered = false;
       for (final equipGroup in equipmentGasGroups) {
-        final equipRank = gasGroupRank[equipGroup.trim().toUpperCase()];
+        final cleanEquip = equipGroup.trim().toUpperCase();
+        final equipRank = gasGroupRank[cleanEquip];
         if (equipRank != null && equipRank >= areaRank) {
           covered = true;
           break;
@@ -994,6 +1455,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     bool isMandatory = false,
     String? hintText,
     ValueChanged<String>? onChanged,
+    VoidCallback? onSwitchToList,
   }) {
     return StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
@@ -1148,9 +1610,22 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                       fontSize: 12.0,
                                       height: 0.1,
                                     ),
-                              suffixIcon: (label == 'GPS Coordinates' ||
-                                      label == 'RFID Reference')
+                              suffixIcon: onSwitchToList != null
                                   ? GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onTap: isEditMode ? onSwitchToList : null,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        child: const Icon(
+                                          Icons.format_list_bulleted,
+                                          color: Color(0xFF1E90FF),
+                                          size: 24,
+                                        ),
+                                      ),
+                                    )
+                                  : (label == 'GPS Coordinates' ||
+                                          label == 'RFID Reference')
+                                      ? GestureDetector(
                                       behavior: HitTestBehavior.translucent,
                                       onTap: !isEditMode
                                           ? null
@@ -2436,11 +2911,10 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     required ValueChanged<String?>? onChanged,
     bool isMandatory = false,
     bool disabled = false,
-    Widget? customTextField,
   }) {
     final bool showErrorColor =
         _isSubmitting && isMandatory && (value == null || value.isEmpty);
-    final dropdownWidget = SizedBox(
+    return SizedBox(
       width: MediaQuery.of(context).size.width * 0.275,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2491,23 +2965,6 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         ],
       ),
     );
-
-    if (customTextField != null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          dropdownWidget,
-          const SizedBox(width: 24.0),
-          SizedBox(
-            width: MediaQuery.of(context).size.width * 0.275,
-            child: customTextField,
-          ),
-        ],
-      );
-    }
-
-    return dropdownWidget;
   }
 
   String _getTextFieldValue(TextEditingController controller) {

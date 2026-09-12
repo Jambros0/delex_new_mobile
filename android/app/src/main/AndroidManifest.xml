@@ -23,7 +23,7 @@
 
 
     <application
-        android:label="Delex Staging"
+        android:label="DelEx"
         android:requestLegacyExternalStorage="true"
         android:enableOnBackInvokedCallback="true"
         android:name="${applicationName}"

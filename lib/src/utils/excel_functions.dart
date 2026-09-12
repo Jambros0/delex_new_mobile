@@ -261,6 +261,7 @@ class ExcelFunctions {
   Future<Map<String, dynamic>> downloadAssetExcel(
     List<ExRegister> assets,
   ) async {
+    await initialize();
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['Ex Register'];
     sheetObject.setRowHeight(0, 18);
@@ -327,6 +328,7 @@ class ExcelFunctions {
     // End of Sub Header
 
     // Asset Header
+    // Section Headers
     sheetObject.cell(CellIndex.indexByString("A3")).value = TextCellValue(
       'Equipment References',
     );
@@ -349,7 +351,7 @@ class ExcelFunctions {
     );
     sheetObject.merge(
       CellIndex.indexByString("D3"),
-      CellIndex.indexByString("P3"),
+      CellIndex.indexByString("N3"),
     );
     sheetObject.cell(CellIndex.indexByString("D3")).cellStyle = CellStyle(
       backgroundColorHex: ExcelColor.blue600,
@@ -360,14 +362,14 @@ class ExcelFunctions {
       bold: true,
     );
 
-    sheetObject.cell(CellIndex.indexByString("Q3")).value = TextCellValue(
+    sheetObject.cell(CellIndex.indexByString("O3")).value = TextCellValue(
       'Equipment Tag Details',
     );
     sheetObject.merge(
-      CellIndex.indexByString("Q3"),
-      CellIndex.indexByString("AA3"),
+      CellIndex.indexByString("O3"),
+      CellIndex.indexByString("Y3"),
     );
-    sheetObject.cell(CellIndex.indexByString("Q3")).cellStyle = CellStyle(
+    sheetObject.cell(CellIndex.indexByString("O3")).cellStyle = CellStyle(
       backgroundColorHex: ExcelColor.blue400,
       fontFamily: getFontFamily(FontFamily.Calibri),
       fontSize: 7,
@@ -376,14 +378,14 @@ class ExcelFunctions {
       bold: true,
     );
 
-    sheetObject.cell(CellIndex.indexByString("AB3")).value = TextCellValue(
+    sheetObject.cell(CellIndex.indexByString("Z3")).value = TextCellValue(
       'Ex Protection Details',
     );
     sheetObject.merge(
-      CellIndex.indexByString("AB3"),
-      CellIndex.indexByString("AL3"),
+      CellIndex.indexByString("Z3"),
+      CellIndex.indexByString("AJ3"),
     );
-    sheetObject.cell(CellIndex.indexByString("AB3")).cellStyle = CellStyle(
+    sheetObject.cell(CellIndex.indexByString("Z3")).cellStyle = CellStyle(
       backgroundColorHex: ExcelColor.blue200,
       fontFamily: getFontFamily(FontFamily.Calibri),
       fontSize: 7,
@@ -392,14 +394,14 @@ class ExcelFunctions {
       bold: true,
     );
 
-    sheetObject.cell(CellIndex.indexByString("AM3")).value = TextCellValue(
+    sheetObject.cell(CellIndex.indexByString("AK3")).value = TextCellValue(
       'Inspection Overview',
     );
     sheetObject.merge(
-      CellIndex.indexByString("AM3"),
-      CellIndex.indexByString("BE3"),
+      CellIndex.indexByString("AK3"),
+      CellIndex.indexByString("BC3"),
     );
-    sheetObject.cell(CellIndex.indexByString("AM3")).cellStyle = CellStyle(
+    sheetObject.cell(CellIndex.indexByString("AK3")).cellStyle = CellStyle(
       backgroundColorHex: ExcelColor.blue100,
       fontFamily: getFontFamily(FontFamily.Calibri),
       fontSize: 7,
@@ -408,14 +410,14 @@ class ExcelFunctions {
       bold: true,
     );
 
-    sheetObject.cell(CellIndex.indexByString("BF3")).value = TextCellValue(
+    sheetObject.cell(CellIndex.indexByString("BD3")).value = TextCellValue(
       'Corrective Actions',
     );
     sheetObject.merge(
-      CellIndex.indexByString("BF3"),
-      CellIndex.indexByString("BS3"),
+      CellIndex.indexByString("BD3"),
+      CellIndex.indexByString("BQ3"),
     );
-    sheetObject.cell(CellIndex.indexByString("BF3")).cellStyle = CellStyle(
+    sheetObject.cell(CellIndex.indexByString("BD3")).cellStyle = CellStyle(
       backgroundColorHex: ExcelColor.blue50,
       fontFamily: getFontFamily(FontFamily.Calibri),
       fontSize: 7,
@@ -423,7 +425,7 @@ class ExcelFunctions {
       verticalAlign: VerticalAlign.Center,
       bold: true,
     );
-    // End of Asset Header
+    // End of Section Headers
 
     // Asset Sub Header
     CellStyle assetSubHeaderCell = CellStyle(
@@ -450,7 +452,6 @@ class ExcelFunctions {
         borderColorHex: ExcelColor.grey400,
       ),
     );
-    // sheetObject.setRowHeight(3, 25);
 
     for (int i = 0; i < assetExcelHeaders.length; i++) {
       sheetObject
@@ -464,985 +465,324 @@ class ExcelFunctions {
     }
     // End of Asset Sub Header
 
-    // Assets List
-    // final String? userType = await authUtils.getUserType();
-    // double column3Width = (userType == 'onshore') ? 10 : 5;
+    // Column Widths
+    for (int colIndex = 0; colIndex < assetExcelHeaders.length; colIndex++) {
+      sheetObject.setColumnWidth(colIndex, 14);
+    }
+    sheetObject.setColumnWidth(0, 5); // Sl.No
+    sheetObject.setColumnWidth(1, 15); // RFID
+    sheetObject.setColumnWidth(2, 15); // Inspection Ref
+    sheetObject.setColumnWidth(19, 20); // Description
+    sheetObject.setColumnWidth(40, 25); // Findings
+    sheetObject.setColumnWidth(41, 25); // Remedial Actions
+    sheetObject.setColumnWidth(42, 20); // Photos
+    sheetObject.setColumnWidth(52, 25); // Material Requirements
+    sheetObject.setColumnWidth(55, 25); // Repairs Done
+    sheetObject.setColumnWidth(64, 25); // Supplementary Material
+    sheetObject.setColumnWidth(66, 20); // Current Photos
 
-    CellStyle cellStyle2 = CellStyle(
-      backgroundColorHex: ExcelColor.white,
-      fontFamily: getFontFamily(FontFamily.Calibri),
-      horizontalAlign: HorizontalAlign.Center,
-      verticalAlign: VerticalAlign.Center,
-      fontSize: 5,
-      bottomBorder: Border(
-        borderStyle: BorderStyle.Thin,
-        borderColorHex: ExcelColor.grey400,
-      ),
-      topBorder: Border(
-        borderStyle: BorderStyle.Thin,
-        borderColorHex: ExcelColor.grey400,
-      ),
-      rightBorder: Border(
-        borderStyle: BorderStyle.Thin,
-        borderColorHex: ExcelColor.grey400,
-      ),
-      leftBorder: Border(
-        borderStyle: BorderStyle.Thin,
-        borderColorHex: ExcelColor.grey400,
-      ),
-    );
+    CellStyle defaultCell({
+      int fontSize = 5,
+      HorizontalAlign align = HorizontalAlign.Center,
+      bool bold = false,
+      bool wrap = true,
+      dynamic bgHex,
+    }) {
+      return CellStyle(
+        fontFamily: getFontFamily(FontFamily.Calibri),
+        fontSize: fontSize,
+        horizontalAlign: align,
+        verticalAlign: VerticalAlign.Center,
+        bold: bold,
+        textWrapping: wrap ? TextWrapping.WrapText : TextWrapping.Clip,
+        backgroundColorHex: bgHex ?? ExcelColor.white,
+        bottomBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+        topBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+        leftBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+        rightBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+      );
+    }
+
+    CellStyle statusCell(String status) {
+      dynamic bg = ExcelColor.white;
+      if (status == "Yellow") {
+        bg = ExcelColor.yellow;
+      } else if (status == "Red") {
+        bg = ExcelColor.red;
+      } else if (status == "Green") {
+        bg = ExcelColor.green;
+      }
+      return CellStyle(
+        backgroundColorHex: bg,
+        fontFamily: getFontFamily(FontFamily.Calibri),
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        fontColorHex: ExcelColor.black,
+        fontSize: 7,
+        bold: true,
+        bottomBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+        topBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+        leftBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+        rightBorder: Border(
+          borderStyle: BorderStyle.Thin,
+          borderColorHex: ExcelColor.grey400,
+        ),
+      );
+    }
 
     for (int i = 0; i < assets.length; i++) {
-      sheetObject.setRowHeight(i + 4, 40);
-      sheetObject.setColumnWidth(0, 5);
-      sheetObject.setColumnWidth(2, 13);
-      sheetObject.setColumnWidth(3, 13);
-      sheetObject.setColumnWidth(4, 14);
-      sheetObject.setColumnWidth(5, 14);
-      sheetObject.setColumnWidth(6, 18);
-      sheetObject.setColumnWidth(7, 18);
-      sheetObject.setColumnWidth(8, 13);
-      sheetObject.setColumnWidth(9, 9);
-      sheetObject.setColumnWidth(10, 13);
-      sheetObject.setColumnWidth(11, 13);
-      sheetObject.setColumnWidth(12, 13);
-      sheetObject.setColumnWidth(13, 11);
-      sheetObject.setColumnWidth(14, 13);
-      sheetObject.setColumnWidth(15, 13);
-      sheetObject.setColumnWidth(16, 13);
-      sheetObject.setColumnWidth(17, 13);
-      sheetObject.setColumnWidth(18, 13);
-      sheetObject.setColumnWidth(19, 13);
-      sheetObject.setColumnWidth(20, 13);
-      sheetObject.setColumnWidth(21, 13);
-      sheetObject.setColumnWidth(22, 13);
-      sheetObject.setColumnWidth(23, 13);
-      sheetObject.setColumnWidth(24, 13);
-      sheetObject.setColumnWidth(25, 13);
-      sheetObject.setColumnWidth(26, 13);
-      sheetObject.setColumnWidth(27, 13);
-      sheetObject.setColumnWidth(28, 13);
-      sheetObject.setColumnWidth(29, 13);
-      sheetObject.setColumnWidth(30, 13);
-      sheetObject.setColumnWidth(31, 13);
-      sheetObject.setColumnWidth(32, 13);
-      sheetObject.setColumnWidth(33, 13);
-      sheetObject.setColumnWidth(34, 13);
-      sheetObject.setColumnWidth(35, 13);
-      sheetObject.setColumnWidth(36, 13);
-      sheetObject.setColumnWidth(37, 13);
-      sheetObject.setColumnWidth(38, 13);
-      sheetObject.setColumnWidth(39, 13);
-      sheetObject.setColumnWidth(40, 25);
-      sheetObject.setColumnWidth(41, 25);
-      sheetObject.setColumnWidth(42, 25);
-      sheetObject.setColumnWidth(43, 25);
-      sheetObject.setColumnWidth(44, 13);
-      // sheetObject.setColumnWidth(44, 14);
-      // sheetObject.setColumnWidth(45, 14);
-      // sheetObject.setColumnWidth(46, 14);
-      // sheetObject.setColumnWidth(47, 14);
-      // sheetObject.setColumnWidth(48, 12);
-      // sheetObject.setColumnWidth(49, 12);
-      // sheetObject.setColumnWidth(50, 14);
-      // sheetObject.setColumnWidth(51, 14);
-      // sheetObject.setColumnWidth(52, 14);
-      sheetObject.setColumnWidth(45, 14);
-      sheetObject.setColumnWidth(46, 14);
-      sheetObject.setColumnWidth(47, 14);
-      sheetObject.setColumnWidth(48, 15);
-      sheetObject.setColumnWidth(49, 15);
-      sheetObject.setColumnWidth(50, 14);
-      sheetObject.setColumnWidth(51, 15);
-      sheetObject.setColumnWidth(52, 14);
-      sheetObject.setColumnWidth(53, 18);
-      sheetObject.setColumnWidth(54, 15);
-      sheetObject.setColumnWidth(55, 15);
-      sheetObject.setColumnWidth(56, 14);
-      sheetObject.setColumnWidth(57, 14);
-      sheetObject.setColumnWidth(58, 14);
-      sheetObject.setColumnWidth(59, 14);
-      sheetObject.setColumnWidth(60, 14);
-      sheetObject.setColumnWidth(61, 15);
-      sheetObject.setColumnWidth(62, 15);
-      sheetObject.setColumnWidth(63, 15);
-      sheetObject.setColumnWidth(64, 15);
-      sheetObject.setColumnWidth(65, 18);
-      sheetObject.setColumnWidth(66, 14);
-      sheetObject.setColumnWidth(67, 14);
-      sheetObject.setColumnWidth(68, 14);
-      sheetObject.setColumnWidth(69, 25);
-      // sheetObject.setColumnWidth(79, 13);
-      CellStyle defaultCellStyle({
-        int fontSize = 5,
-        HorizontalAlign horizontalAlign = HorizontalAlign.Left,
-        bool bold = false,
-        bool wrapText = true,
-      }) {
-        return CellStyle(
-          fontFamily: getFontFamily(FontFamily.Calibri),
-          fontSize: fontSize,
-          horizontalAlign: horizontalAlign,
-          verticalAlign: VerticalAlign.Center,
-          bold: bold,
-          textWrapping: wrapText ? TextWrapping.WrapText : TextWrapping.Clip,
-          backgroundColorHex: ExcelColor.white,
-          bottomBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-          topBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-          leftBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-          rightBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-        );
-      }
+      final asset = assets[i];
+      sheetObject.setRowHeight(i + 4, 38);
 
-      CellStyle statusCellStyle(String status) {
-        return CellStyle(
-          backgroundColorHex: status == ""
-              ? ExcelColor.white
-              : status == "Yellow"
-                  ? ExcelColor.yellow
-                  : status == "Red"
-                      ? ExcelColor.red
-                      : ExcelColor.green,
-          fontFamily: getFontFamily(FontFamily.Calibri),
-          horizontalAlign: HorizontalAlign.Center,
-          verticalAlign: VerticalAlign.Center,
-          fontColorHex: ExcelColor.black,
-          fontSize: 7,
-          bottomBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-          topBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-          leftBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-          rightBorder: Border(
-            borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.grey400,
-          ),
-        );
-      }
+      var inspectedCheck = (asset.inspectedBy.toString().isEmpty ||
+              asset.inspectedBy == null ||
+              asset.inspectedBy == "null") &&
+          (asset.inspectedDate == null ||
+              asset.inspectedDate.toString().isEmpty ||
+              asset.inspectedDate == "null");
 
-      sheetObject.cell(CellIndex.indexByString("A${i + 5}")).value =
-          TextCellValue("${i + 1}");
-      sheetObject.cell(CellIndex.indexByString("A${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("B${i + 5}")).value =
-          TextCellValue(assets[i].rfidRef.toString());
-      sheetObject.cell(CellIndex.indexByString("B${i + 5}")).cellStyle =
-          cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("C${i + 5}")).value =
-          TextCellValue("");
-      sheetObject.cell(CellIndex.indexByString("C${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("D${i + 5}")).value =
-          TextCellValue(assets[i].location.toString());
-      sheetObject.cell(CellIndex.indexByString("D${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("E${i + 5}")).value =
-          TextCellValue(assets[i].area.toString());
-      sheetObject.cell(CellIndex.indexByString("E${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("F${i + 5}")).value =
-          TextCellValue(assets[i].deckLevel.toString());
-      sheetObject.cell(CellIndex.indexByString("F${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("G${i + 5}")).value =
-          TextCellValue(assets[i].subArea.toString());
-      sheetObject.cell(CellIndex.indexByString("G${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("H${i + 5}")).value =
-          TextCellValue(assets[i].gpsCord.toString());
-      sheetObject.cell(CellIndex.indexByString("H${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("I${i + 5}")).value =
-          TextCellValue(assets[i].zone.toString());
-      sheetObject.cell(CellIndex.indexByString("I${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("J${i + 5}")).value =
-          TextCellValue(assets[i].locationGasGroup.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("J${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("K${i + 5}")).value =
-          TextCellValue(assets[i].locationTClass.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("K${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("L${i + 5}")).value =
-          TextCellValue(assets[i].locationIpRating.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("L${i + 5}")).cellStyle =
-          cellStyle2;
-
-      // String? locationTAmbient = assets[i].locationTAmbient;
-      // String locationTAmbientMin = "";
-      // String locationTAmbientMax = "";
-
-      // if (locationTAmbient.contains("to")) {
-      //   List<String> parts = locationTAmbient.split("to");
-      //   locationTAmbientMin = parts[0].trim();
-      //   locationTAmbientMax = parts[1].trim();
-      // }
-
-      // sheetObject.cell(CellIndex.indexByString("L${i + 5}")).value =
-      //     TextCellValue(locationTAmbientMin);
-      // sheetObject.cell(CellIndex.indexByString("L${i + 5}")).cellStyle =
-      //     cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("M${i + 5}")).value =
-          TextCellValue(""); //$locationTAmbientMin to $locationTAmbientMax
-      sheetObject.cell(CellIndex.indexByString("M${i + 5}")).cellStyle =
-          cellStyle2;
-
-      // sheetObject.cell(CellIndex.indexByString("M${i + 5}")).value =
-      //     TextCellValue(locationTAmbientMax);
-      // sheetObject.cell(CellIndex.indexByString("M${i + 5}")).cellStyle =
-      //     cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("N${i + 5}")).value =
-          TextCellValue(
-        assets[i].areaClassDrawAttachOrgName.join('\n').toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("N${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("O${i + 5}")).value =
-          TextCellValue(
-        assets[i].eqpmtLytDrawAttachOrgName.join('\n').toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("O${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("P${i + 5}")).value =
-          TextCellValue(assets[i].isActive == true ? "Active" : "In Active");
-      sheetObject.cell(CellIndex.indexByString("P${i + 5}")).cellStyle =
-          cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("Q${i + 5}")).value =
-          TextCellValue(assets[i].eqpmtCatg.toString());
-      sheetObject.cell(CellIndex.indexByString("Q${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("R${i + 5}")).value =
-          TextCellValue(assets[i].gpsCord.toString());
-      sheetObject.cell(CellIndex.indexByString("R${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("S${i + 5}")).value =
-          TextCellValue(assets[i].eqpmtTag.toString());
-      sheetObject.cell(CellIndex.indexByString("S${i + 5}")).cellStyle =
-          cellStyle2;
-
-      // sheetObject.cell(CellIndex.indexByString("T${i + 5}")).value =
-      //     TextCellValue(assets[i].circuitId.toString());
-      // sheetObject.cell(CellIndex.indexByString("T${i + 5}")).cellStyle =
-      //     cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("T${i + 5}")).value =
-          TextCellValue(assets[i].cableId.toString());
-      sheetObject.cell(CellIndex.indexByString("T${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("U${i + 5}")).value =
-          TextCellValue(
-        assets[i].oracleId == "null" || assets[i].oracleId == null
-            ? ""
-            : assets[i].oracleId.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("U${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("V${i + 5}")).value =
-          TextCellValue(assets[i].description.toString());
-      sheetObject.cell(CellIndex.indexByString("V${i + 5}")).cellStyle =
-          cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("W${i + 5}")).value =
-          TextCellValue(assets[i].equipmentCategory.toString());
-      sheetObject.cell(CellIndex.indexByString("W${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("X${i + 5}")).value =
-          TextCellValue(assets[i].manufacturer.toString());
-      sheetObject.cell(CellIndex.indexByString("X${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("Y${i + 5}")).value =
-          TextCellValue(assets[i].type.toString());
-      sheetObject.cell(CellIndex.indexByString("Y${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("Z${i + 5}")).value =
-          TextCellValue(assets[i].serialNumber.toString());
-      sheetObject.cell(CellIndex.indexByString("Z${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AA${i + 5}")).value =
-          TextCellValue(
-        assets[i].isActive == null
-            ? "Archive"
-            : assets[i].isActive == true
-                ? "Active"
-                : "In Active",
-      );
-      sheetObject.cell(CellIndex.indexByString("AA${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AB${i + 5}")).value =
-          TextCellValue(assets[i].atexCatg.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("AB${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AC${i + 5}")).value =
-          TextCellValue(assets[i].epl.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("AC${i + 5}")).cellStyle =
-          cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("AD${i + 5}")).value =
-          TextCellValue(assets[i].protectionStd.toString());
-      sheetObject.cell(CellIndex.indexByString("AD${i + 5}")).cellStyle =
-          cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("AE${i + 5}")).value =
-          TextCellValue(assets[i].protectionType.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("AE${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AF${i + 5}")).value =
-          TextCellValue(assets[i].equipmentGasGroup.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("AF${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AG${i + 5}")).value =
-          TextCellValue(assets[i].equipmentTClass.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("AG${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AH${i + 5}")).value =
-          TextCellValue(assets[i].equipmentIpRating.join(', ').toString());
-      sheetObject.cell(CellIndex.indexByString("AH${i + 5}")).cellStyle =
-          cellStyle2;
-
-      String? tAmbient = assets[i].tAmbient.toString();
-      dynamic tAmbientMin =
-          assets[i].tAmbient == null || assets[i].tAmbient.toString() == ""
-              ? "Not Available"
-              : tAmbient.toString();
-      // String tAmbientMax = "Not Available";
-
-      // if (tAmbient != null && tAmbient.isNotEmpty) {
-      //   if (tAmbient.contains("to")) {
-      //     List<String> parts = tAmbient.split("to");
-      //     if (parts.length == 2) {
-      //       tAmbientMin = parts[0].trim();
-      //       tAmbientMax = parts[1].trim();
-      //     }
-      //   } else {
-      //     tAmbientMin = tAmbient.trim();
-      //     tAmbientMax = "";
-      //   }
-      // }
-
-      sheetObject.cell(CellIndex.indexByString("AI${i + 5}")).value =
-          TextCellValue(tAmbientMin.toString());
-      sheetObject.cell(CellIndex.indexByString("AI${i + 5}")).cellStyle =
-          cellStyle2;
-
-      // sheetObject.cell(CellIndex.indexByString("AH${i + 5}")).value =
-      //     TextCellValue(tAmbientMax);
-      // sheetObject.cell(CellIndex.indexByString("AH${i + 5}")).cellStyle =
-      //     cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AJ${i + 5}")).value =
-          TextCellValue(assets[i].certfnBody.toString());
-      sheetObject.cell(CellIndex.indexByString("AJ${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AK${i + 5}")).value =
-          TextCellValue(assets[i].certfnNo.toString());
-      sheetObject.cell(CellIndex.indexByString("AK${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AL${i + 5}")).value =
-          TextCellValue(assets[i].specialCond.toString());
-      sheetObject.cell(CellIndex.indexByString("AL${i + 5}")).cellStyle =
-          cellStyle2;
-      var inspectedCheck = (assets[i].inspectedBy.toString().isEmpty ||
-              assets[i].inspectedBy == null ||
-              assets[i].inspectedBy == "null") &&
-          (assets[i].inspectedDate == null ||
-              assets[i].inspectedDate.toString().isEmpty ||
-              assets[i].inspectedDate == "null");
-      sheetObject.cell(CellIndex.indexByString("AM${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].inspectionType == null
-                ? ""
-                : assets[i].inspectionType.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AM${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AN${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].equipmentEquipmentType == null
-                ? ""
-                : assets[i].equipmentEquipmentType.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AN${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AO${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].inspectionChecklistType.join(', ').toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AO${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AP${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].inspectionGrade == null
-                ? ""
-                : assets[i].inspectionGrade.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AP${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AQ${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck ? "" : getFindingAndActions(assets[i], 'findings'),
-      );
-      sheetObject.cell(CellIndex.indexByString("AQ${i + 5}")).cellStyle =
-          CellStyle(
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        fontSize: 5,
-        horizontalAlign: HorizontalAlign.Left,
-        verticalAlign: VerticalAlign.Center,
-        bold: false,
-        textWrapping: TextWrapping.WrapText,
-        backgroundColorHex: ExcelColor.white,
-        bottomBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        topBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        rightBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        leftBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-      );
-
-      sheetObject.cell(CellIndex.indexByString("AR${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck ? "" : getFindingAndActions(assets[i], 'actions'),
-      );
-      sheetObject.cell(CellIndex.indexByString("AR${i + 5}")).cellStyle =
-          CellStyle(
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        fontSize: 5,
-        horizontalAlign: HorizontalAlign.Left,
-        verticalAlign: VerticalAlign.Center,
-        bold: false,
-        textWrapping: TextWrapping.WrapText,
-        backgroundColorHex: ExcelColor.white,
-        bottomBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        topBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        rightBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        leftBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-      );
-
-      // String? photoPath = [
-      //   assets[i].defectivePhoto1OrgName,
-      //   assets[i].defectivePhoto2OrgName,
-      //   assets[i].defectivePhoto3OrgName,
-      //   assets[i].defectivePhoto4OrgName,
-      //   assets[i].defectivePhoto5OrgName,
-      //   assets[i].defectivePhoto6OrgName,
-      // ].where((photo) => photo != null).join('\n');
-      // sheetObject.cell(CellIndex.indexByString("AR${i + 5}")).value =
-      //     TextCellValue(photoPath);
-      // sheetObject.cell(CellIndex.indexByString("AR${i + 5}")).cellStyle =
-      //     cellStyle2;
-      String photoPath = [
-        assets[i].defectivePhoto1OrgName,
-        assets[i].defectivePhoto2OrgName,
-        assets[i].defectivePhoto3OrgName,
-        assets[i].defectivePhoto4OrgName,
-        assets[i].defectivePhoto5OrgName,
-        assets[i].defectivePhoto6OrgName,
+      String defectivePhotos = [
+        asset.defectivePhoto1OrgName,
+        asset.defectivePhoto2OrgName,
+        asset.defectivePhoto3OrgName,
+        asset.defectivePhoto4OrgName,
+        asset.defectivePhoto5OrgName,
+        asset.defectivePhoto6OrgName,
       ].where((photo) => photo != null && photo.isNotEmpty).join('\n');
 
-      var cell = sheetObject.cell(CellIndex.indexByString("AS${i + 5}"));
-      cell.value = TextCellValue(photoPath);
+      String correctivePhotos = [
+        asset.correctivePhoto1OrgName,
+        asset.correctivePhoto2OrgName,
+        asset.correctivePhoto3OrgName,
+        asset.correctivePhoto4OrgName,
+        asset.correctivePhoto5OrgName,
+        asset.correctivePhoto6OrgName,
+      ].where((photo) => photo != null && photo.isNotEmpty).join('\n');
 
-      cell.cellStyle = CellStyle(
-        fontSize: 5,
-        verticalAlign: VerticalAlign.Center,
-        horizontalAlign: HorizontalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-      );
-
-      sheetObject.cell(CellIndex.indexByString("AT${i + 5}")).value =
-          TextCellValue(
-        assets[i].faultyItems == null ? '0' : assets[i].faultyItems.toString(),
-      );
-
-      sheetObject.cell(CellIndex.indexByString("AT${i + 5}")).cellStyle =
-          cellStyle2;
-      if (assets[i].inspectionType.toString().isEmpty &&
-          assets[i].equipmentEquipmentType.toString().isEmpty &&
-          assets[i].inspectionChecklistType.isEmpty &&
-          assets[i].inspectionGrade.toString().isEmpty) {
-        sheetObject.cell(CellIndex.indexByString("AU${i + 5}")).value =
-            TextCellValue('');
-        sheetObject.cell(CellIndex.indexByString("AU${i + 5}")).cellStyle =
-            cellStyle2;
-        sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).value =
-            TextCellValue("");
-        sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).cellStyle =
-            cellStyle2;
-      } else {
-        sheetObject.cell(CellIndex.indexByString("AU${i + 5}")).value =
-            TextCellValue(
-          inspectedCheck
-              ? ""
-              : assets[i].checkList == null || assets[i].checkList!.isEmpty
-                  ? 'Not Applicable'
-                  : assets[i].inspectionPriority.toString(),
-        );
-        sheetObject.cell(CellIndex.indexByString("AU${i + 5}")).cellStyle =
-            cellStyle2;
-        sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).value =
-            TextCellValue(
-          inspectedCheck ? "" : assets[i].inspectionStatus.toString(),
-        );
-
-        sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).value =
-            TextCellValue(
-          inspectedCheck
-              ? ""
-              : assets[i].inspectionStatus.toString() == "Yellow" ||
-                      assets[i].inspectionStatus.toString() == "Red"
-                  ? assets[i].inspectionStatus.toString()
-                  : "Green",
-        );
-        sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).cellStyle =
-            statusCellStyle(
-          inspectedCheck ? "" : assets[i].inspectionStatus.toString(),
-        );
-      }
-
-      sheetObject.cell(CellIndex.indexByString("AW${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].defectOverallCondition == null
-                ? ""
-                : assets[i].defectOverallCondition.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AW${i + 5}")).cellStyle =
-          cellStyle2;
-      sheetObject.cell(CellIndex.indexByString("AX${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck == true
-            ? ""
-            : assets[i].repairDuration == "null" ||
-                    assets[i].repairDuration == null
-                ? ""
-                : assets[i].repairDuration.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AX${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AY${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].defectIsolation == null
-                ? ""
-                : assets[i].defectIsolation.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AY${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("AZ${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].defectOtherRequirements.join(', ').toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("AZ${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BA${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].additionalInfoForRepairs == null
-                ? ""
-                : assets[i].additionalInfoForRepairs.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BA${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BB${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].dataSheetOrgName == null
-                ? ""
-                : assets[i].dataSheetOrgName.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BB${i + 5}")).cellStyle =
-          cellStyle2;
-      final materials = inspectedCheck ? [] : assets[i].materials;
-
-      String col = '';
-
-      if (materials != null && materials.isNotEmpty) {
-        col = materials.map((material) {
+      String materialCol = '';
+      if (!inspectedCheck && asset.materials != null && asset.materials!.isNotEmpty) {
+        materialCol = asset.materials!.map((material) {
           return 'Part Number : ${material.partNumber.toString()}\nMaterial Description : ${material.description.toString()}\nManufacturer : ${material.manufacturer.toString()}\nQuantity Unit : ${material.quantity.toString()}\nCertification : ${material.certificationOrgName.toString()}';
         }).join('\n\n');
-      } else {
-        col = '';
-        // 'Part Number : \nMaterial Description : \nManufacturer : \nQuantity Unit : \nCertification : ';
       }
-      sheetObject.cell(CellIndex.indexByString("BC${i + 5}")).value =
-          TextCellValue(col.toString());
-      sheetObject.cell(CellIndex.indexByString("BC${i + 5}")).cellStyle =
-          defaultCellStyle();
-      sheetObject.cell(CellIndex.indexByString("BD${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].inspectedBy == null
-                ? ""
-                : assets[i].inspectedBy.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BD${i + 5}")).cellStyle =
-          cellStyle2;
-      if (assets[i].inspectedDate == '' || assets[i].inspectedDate == null) {
-        sheetObject.cell(CellIndex.indexByString("BE${i + 5}")).value =
-            TextCellValue('');
-      } else {
-        sheetObject.cell(CellIndex.indexByString("BE${i + 5}")).value =
-            TextCellValue(
-          formatInspectedDate(
-            inspectedCheck ? "" : assets[i].inspectedDate.toString(),
-          ),
-        );
-      }
-      sheetObject.cell(CellIndex.indexByString("BE${i + 5}")).cellStyle =
-          cellStyle2;
 
-      sheetObject.cell(CellIndex.indexByString("BF${i + 5}")).value =
-          // TextCellValue(assets[i].repairsDone.toString());
-          TextCellValue(
-        inspectedCheck ? "" : getFindingAndActions(assets[i], 'defects'),
-      );
-      sheetObject.cell(CellIndex.indexByString("BF${i + 5}")).cellStyle =
-          defaultCellStyle();
-
-      sheetObject.cell(CellIndex.indexByString("BG${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].existingFaults == null
-                ? ""
-                : assets[i].existingFaults.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BG${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BH${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].correctiveDefectCategory == null
-                ? ""
-                : assets[i].correctiveDefectCategory.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BH${i + 5}")).cellStyle =
-          cellStyle2;
-      if (assets[i].inspectionType.toString().isEmpty &&
-          assets[i].equipmentEquipmentType.toString().isEmpty &&
-          assets[i].inspectionChecklistType.toString().isEmpty &&
-          assets[i].inspectionGrade.toString().isEmpty) {
-        sheetObject.cell(CellIndex.indexByString("BI${i + 5}")).value =
-            TextCellValue("");
-      } else {
-        sheetObject.cell(CellIndex.indexByString("BI${i + 5}")).value =
-            TextCellValue(
-          inspectedCheck
-              ? ""
-              : assets[i].currentStatus.toString() == "Yellow" ||
-                      assets[i].currentStatus.toString() == "Red"
-                  ? assets[i].currentStatus.toString()
-                  : "Green",
-        );
-        sheetObject.cell(CellIndex.indexByString("BI${i + 5}")).cellStyle =
-            statusCellStyle(
-          inspectedCheck ? "" : assets[i].currentStatus.toString(),
-        );
-      }
-      sheetObject.cell(CellIndex.indexByString("BJ${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].correctiveOverallCondition == null
-                ? ""
-                : assets[i].correctiveOverallCondition.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BJ${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BK${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].repairsDone == null
-                ? ""
-                : assets[i].repairsDone.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BK${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BL${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].repairTimeEstimate == "null" ||
-                    assets[i].repairTimeEstimate == null
-                ? ""
-                : assets[i].repairTimeEstimate.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BL${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BM${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].correctiveisolation == null
-                ? ""
-                : assets[i].correctiveisolation.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BM${i + 5}")).cellStyle =
-          cellStyle2;
-
-      sheetObject.cell(CellIndex.indexByString("BN${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].correctiveOtherRequirements == null
-                ? ""
-                : assets[i].correctiveOtherRequirements.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BN${i + 5}")).cellStyle =
-          cellStyle2;
-      final supplementaryMaterialReq = assets[i].supplementaryMaterialReq;
-
-      String suppcol = '';
-
-      if (supplementaryMaterialReq != null &&
-          supplementaryMaterialReq.isNotEmpty) {
-        suppcol = supplementaryMaterialReq.map((supp) {
+      String suppMaterialCol = '';
+      if (!inspectedCheck && asset.supplementaryMaterialReq != null && asset.supplementaryMaterialReq!.isNotEmpty) {
+        suppMaterialCol = asset.supplementaryMaterialReq!.map((supp) {
           return 'Part Number: ${supp.partNumber}\nMaterial Description : ${supp.description}\nManufacturer : ${supp.manufacturer}\nQuantity Unit : ${supp.quantity}\nCertification : ${supp.certificationOrgName}';
         }).join('\n\n');
-      } else {
-        suppcol = '';
-        // 'Part Number : \nMaterial Description : \nManufacturer : \nQuantity Unit : \nCertification : ';
       }
-      sheetObject.cell(CellIndex.indexByString("BO${i + 5}")).value =
-          TextCellValue(suppcol.toString());
-      sheetObject.cell(CellIndex.indexByString("BO${i + 5}")).cellStyle =
-          CellStyle(
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        fontSize: 5,
-        horizontalAlign: HorizontalAlign.Left,
-        verticalAlign: VerticalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-        backgroundColorHex: ExcelColor.white,
-        bottomBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        topBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        rightBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-        leftBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.grey400,
-        ),
-      );
 
-      sheetObject.cell(CellIndex.indexByString("BP${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].remarksIfAny == null
-                ? ""
-                : assets[i].remarksIfAny.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BP${i + 5}")).cellStyle =
-          cellStyle2;
-      // String? currentPhotos = [
-      //   assets[i].correctivePhoto1OrgName,
-      //   assets[i].correctivePhoto2OrgName,
-      //   assets[i].correctivePhoto3OrgName,
-      //   assets[i].correctivePhoto4OrgName,
-      //   assets[i].correctivePhoto5OrgName,
-      //   assets[i].correctivePhoto6OrgName,
-      // ].where((photo) => photo != null).join('\n');
-      // sheetObject.cell(CellIndex.indexByString("BO${i + 5}")).value =
-      //     TextCellValue(inspectedCheck ? "" : currentPhotos);
-      // sheetObject.cell(CellIndex.indexByString("BO${i + 5}")).cellStyle =
-      //     defaultCellStyle(horizontalAlign: HorizontalAlign.Center);
-      String? currentPhotos = [
-        assets[i].correctivePhoto1OrgName,
-        assets[i].correctivePhoto2OrgName,
-        assets[i].correctivePhoto3OrgName,
-        assets[i].correctivePhoto4OrgName,
-        assets[i].correctivePhoto5OrgName,
-        assets[i].correctivePhoto6OrgName,
-      ].where((photo) => photo != null && photo.isNotEmpty).join('\n');
+      String areaClassDrawings = asset.areaClassDrawAttachOrgName.isNotEmpty
+          ? asset.areaClassDrawAttachOrgName.join(',\n')
+          : asset.areaClassDrawNo.join(',\n');
 
-      var cell1 = sheetObject.cell(CellIndex.indexByString("BQ${i + 5}"));
-      cell1.value = TextCellValue(currentPhotos);
+      String eqpmtLytDrawings = asset.eqpmtLytDrawAttachOrgName.isNotEmpty
+          ? asset.eqpmtLytDrawAttachOrgName.join(',\n')
+          : asset.eqpmtLytDrawNo.join(',\n');
 
-      cell1.cellStyle = CellStyle(
-        fontSize: 5,
-        verticalAlign: VerticalAlign.Center,
-        horizontalAlign: HorizontalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-      );
-
-      sheetObject.cell(CellIndex.indexByString("BR${i + 5}")).value =
-          TextCellValue(
-        inspectedCheck
-            ? ""
-            : assets[i].repairedBy == null
-                ? ""
-                : assets[i].repairedBy.toString(),
-      );
-      sheetObject.cell(CellIndex.indexByString("BR${i + 5}")).cellStyle =
-          cellStyle2;
-      if (assets[i].repairedDate == '' || assets[i].repairedDate == null) {
-        sheetObject.cell(CellIndex.indexByString("BS${i + 5}")).value =
-            TextCellValue('');
-      } else {
-        sheetObject.cell(CellIndex.indexByString("BS${i + 5}")).value =
-            TextCellValue(
-          formatInspectedDate(
-            inspectedCheck ? "" : assets[i].repairedDate.toString(),
-          ),
-        );
+      String tAmbientVal = asset.tAmbient?.toString() ?? '';
+      if (tAmbientVal.isEmpty || tAmbientVal == "null") {
+        tAmbientVal = asset.tAmbientEquip?.toString() ?? '';
       }
-      sheetObject.cell(CellIndex.indexByString("BS${i + 5}")).cellStyle =
-          cellStyle2;
+      if (tAmbientVal.isEmpty || tAmbientVal == "null") {
+        tAmbientVal = "Not Available";
+      }
+
+      String inspectionStatusVal = inspectedCheck ? "" : asset.inspectionStatus;
+      String currentStatusVal = inspectedCheck ? "" : asset.currentStatus;
+
+      List<Map<String, dynamic>> rowCells = [
+        // 0: Sl.No
+        {'val': '${i + 1}', 'style': defaultCell()},
+        // 1: RFID Reference
+        {'val': asset.rfidRef, 'style': defaultCell()},
+        // 2: Inspection Reference
+        {'val': asset.inspectionReferenceNumber != null && asset.inspectionReferenceNumber != 'null' && asset.inspectionReferenceNumber.toString().isNotEmpty ? asset.inspectionReferenceNumber.toString() : (asset.id.isNotEmpty ? asset.id : ''), 'style': defaultCell()},
+        // 3: Location / Field Name
+        {'val': asset.location, 'style': defaultCell()},
+        // 4: Sub Location / Platform
+        {'val': asset.area, 'style': defaultCell()},
+        // 5: Area / Deck Level
+        {'val': asset.deckLevel ?? '', 'style': defaultCell()},
+        // 6: Sub Area (Nearest Landmark)
+        {'val': asset.subArea?.toString() ?? '', 'style': defaultCell()},
+        // 7: GPS Coordinates (Area)
+        {'val': asset.locationLatitude != null && asset.locationLongitude != null && asset.locationLatitude!.isNotEmpty && asset.locationLongitude!.isNotEmpty ? '${asset.locationLatitude}, ${asset.locationLongitude}' : (asset.gpsCord?.toString() ?? ''), 'style': defaultCell()},
+        // 8: Zone
+        {'val': asset.zone, 'style': defaultCell()},
+        // 9: Gas Group
+        {'val': asset.locationGasGroup.join(', '), 'style': defaultCell()},
+        // 10: Temperature Class
+        {'val': asset.locationTClass.join(', '), 'style': defaultCell()},
+        // 11: Area Classification Drawing Number
+        {'val': areaClassDrawings, 'style': defaultCell()},
+        // 12: Equipment Layout Drawing Number
+        {'val': eqpmtLytDrawings, 'style': defaultCell()},
+        // 13: Area Status
+        {
+          'val': (asset.areaStatus != null &&
+                  asset.areaStatus != 'null' &&
+                  asset.areaStatus.toString().trim().isNotEmpty)
+              ? asset.areaStatus.toString()
+              : (asset.isActive == true ? 'Active' : 'In Active'),
+          'style': defaultCell(),
+        },
+        // 14: Discipline
+        {'val': asset.eqpmtCatg, 'style': defaultCell()},
+        // 15: GPS Coordinates (Equipment)
+        {'val': asset.gpsCord?.toString() ?? '', 'style': defaultCell()},
+        // 16: Equipment Tag Number
+        {'val': asset.eqpmtTag ?? '', 'style': defaultCell()},
+        // 17: Cable Tag Number
+        {'val': asset.cableId ?? '', 'style': defaultCell()},
+        // 18: Oracle ID
+        {
+          'val': asset.oracleId == "null" || asset.oracleId == null
+              ? ""
+              : asset.oracleId.toString(),
+          'style': defaultCell(),
+        },
+        // 19: Equipment Description
+        {
+          'val': asset.description,
+          'style': defaultCell(align: HorizontalAlign.Left),
+        },
+        // 20: Equipment Category
+        {'val': asset.equipmentCategory ?? '', 'style': defaultCell()},
+        // 21: Manufacturer
+        {'val': asset.manufacturer, 'style': defaultCell()},
+        // 22: Type/Model
+        {'val': asset.type ?? '', 'style': defaultCell()},
+        // 23: Serial Number
+        {'val': asset.serialNumber?.toString() ?? '', 'style': defaultCell()},
+        // 24: Equipment Status
+        {
+          'val': (asset.status != null &&
+                  asset.status != 'null' &&
+                  asset.status.toString().trim().isNotEmpty)
+              ? asset.status.toString()
+              : (asset.isActive == true ? 'Active' : 'In Active'),
+          'style': defaultCell(),
+        },
+        // 25: ATEX Category
+        {'val': asset.atexCatg.join(', '), 'style': defaultCell()},
+        // 26: EPL
+        {'val': asset.epl.join(', '), 'style': defaultCell()},
+        // 27: Protection Standard
+        {'val': asset.protectionStd?.toString() ?? '', 'style': defaultCell()},
+        // 28: Protection Type
+        {'val': asset.protectionType.join(', '), 'style': defaultCell()},
+        // 29: Equipment Gas Group
+        {'val': asset.equipmentGasGroup.join(', '), 'style': defaultCell()},
+        // 30: Temperature Class
+        {'val': asset.equipmentTClass.join(', '), 'style': defaultCell()},
+        // 31: Equipment IP Rating
+        {'val': asset.equipmentIpRating.join(', '), 'style': defaultCell()},
+        // 32: T-Ambient (Min °C) to (Max °C)
+        {'val': tAmbientVal, 'style': defaultCell()},
+        // 33: Certification Body
+        {'val': asset.certfnBody?.toString() ?? '', 'style': defaultCell()},
+        // 34: Certification Number
+        {'val': asset.certfnNo?.toString() ?? '', 'style': defaultCell()},
+        // 35: Special Conditions
+        {'val': asset.specialCond?.toString() ?? '', 'style': defaultCell()},
+        // 36: Inspection Type
+        {'val': inspectedCheck ? "" : (asset.inspectionType?.toString() ?? ''), 'style': defaultCell()},
+        // 37: Equipment Type
+        {'val': inspectedCheck ? "" : (asset.equipmentEquipmentType?.toString() ?? ''), 'style': defaultCell()},
+        // 38: Inspection Checklist
+        {'val': inspectedCheck ? "" : asset.inspectionChecklistType.join(', '), 'style': defaultCell()},
+        // 39: Inspection Grade
+        {'val': inspectedCheck ? "" : (asset.inspectionGrade?.toString() ?? ''), 'style': defaultCell()},
+        // 40: Findings
+        {'val': inspectedCheck ? "" : getFindingAndActions(asset, 'findings'), 'style': defaultCell(align: HorizontalAlign.Left)},
+        // 41: Remedial Actions
+        {'val': inspectedCheck ? "" : getFindingAndActions(asset, 'actions'), 'style': defaultCell(align: HorizontalAlign.Left)},
+        // 42: Inspection Photos
+        {'val': defectivePhotos, 'style': defaultCell()},
+        // 43: Faulty Items
+        {'val': inspectedCheck ? "" : (asset.faultyItems == null ? '0' : asset.faultyItems.toString()), 'style': defaultCell()},
+        // 44: Repair Priority
+        {'val': inspectedCheck ? "" : (asset.checkList == null || asset.checkList!.isEmpty ? 'Not Applicable' : (asset.inspectionPriority?.toString() ?? asset.repairPriority?.toString() ?? '')), 'style': defaultCell()},
+        // 45: Inspection Status
+        {'val': inspectionStatusVal, 'style': statusCell(inspectionStatusVal)},
+        // 46: Overall Condition
+        {'val': inspectedCheck ? "" : (asset.defectOverallCondition?.toString() ?? ''), 'style': defaultCell()},
+        // 47: Repair Duration (Minutes)
+        {'val': inspectedCheck || asset.repairDuration == "null" || asset.repairDuration == null ? "" : asset.repairDuration.toString(), 'style': defaultCell()},
+        // 48: Isolation for Repairs
+        {'val': inspectedCheck ? "" : (asset.defectIsolation?.toString() ?? ''), 'style': defaultCell()},
+        // 49: Other Requirements
+        {'val': inspectedCheck ? "" : asset.defectOtherRequirements.join(', '), 'style': defaultCell()},
+        // 50: Additional Information for Repairs
+        {'val': inspectedCheck ? "" : (asset.additionalInfoForRepairs?.toString() ?? ''), 'style': defaultCell()},
+        // 51: Equipment Data Sheet
+        {'val': inspectedCheck ? "" : (asset.dataSheetOrgName?.toString() ?? asset.dataSheetNo?.toString() ?? ''), 'style': defaultCell()},
+        // 52: Material Requirements
+        {'val': materialCol, 'style': defaultCell(align: HorizontalAlign.Left)},
+        // 53: Inspected By
+        {'val': inspectedCheck ? "" : (asset.inspectedBy?.toString() ?? ''), 'style': defaultCell()},
+        // 54: Inspected Date
+        {'val': inspectedCheck ? "" : formatInspectedDate(asset.inspectedDate?.toString()), 'style': defaultCell()},
+        // 55: Repairs Done
+        {'val': inspectedCheck ? "" : getFindingAndActions(asset, 'defects'), 'style': defaultCell(align: HorizontalAlign.Left)},
+        // 56: Existing Faults
+        {'val': inspectedCheck ? "" : (asset.existingFaults?.toString() ?? ''), 'style': defaultCell()},
+        // 57: Defect Category
+        {'val': inspectedCheck ? "" : (asset.correctiveDefectCategory?.toString() ?? asset.defectDefectCategory?.toString() ?? ''), 'style': defaultCell()},
+        // 58: Current Status
+        {'val': currentStatusVal, 'style': statusCell(currentStatusVal)},
+        // 59: Current Condition
+        {'val': inspectedCheck ? "" : (asset.correctiveOverallCondition?.toString() ?? ''), 'style': defaultCell()},
+        // 60: Completed Repairs
+        {'val': inspectedCheck ? "" : (asset.repairsDone?.toString() ?? ''), 'style': defaultCell()},
+        // 61: Repair Time Estimate
+        {'val': inspectedCheck || asset.repairTimeEstimate == "null" || asset.repairTimeEstimate == null ? "" : asset.repairTimeEstimate.toString(), 'style': defaultCell()},
+        // 62: Isolation Requirements
+        {'val': inspectedCheck ? "" : (asset.correctiveisolation?.toString() ?? ''), 'style': defaultCell()},
+        // 63: Other Requirements
+        {'val': inspectedCheck ? "" : (asset.correctiveOtherRequirements?.toString() ?? ''), 'style': defaultCell()},
+        // 64: Supplementary Material
+        {'val': suppMaterialCol, 'style': defaultCell(align: HorizontalAlign.Left)},
+        // 65: Remarks if any
+        {'val': inspectedCheck ? "" : (asset.remarksIfAny?.toString() ?? asset.remarks?.toString() ?? ''), 'style': defaultCell()},
+        // 66: Current Photos
+        {'val': correctivePhotos, 'style': defaultCell()},
+        // 67: Repaired By
+        {'val': inspectedCheck ? "" : (asset.repairedBy?.toString() ?? ''), 'style': defaultCell()},
+        // 68: Repaired Date
+        {'val': inspectedCheck ? "" : formatInspectedDate(asset.repairedDate?.toString()), 'style': defaultCell()},
+      ];
+
+      for (int c = 0; c < rowCells.length; c++) {
+        var cell = sheetObject.cell(CellIndex.indexByString("${intToExcelColumn(c)}${i + 5}"));
+        cell.value = TextCellValue(rowCells[c]['val'].toString());
+        cell.cellStyle = rowCells[c]['style'] as CellStyle;
+      }
     }
     // End of Assets List
-
-    // sheetObject.cell(CellIndex.indexByString("AR${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.equipmentCriticality ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AR${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AS${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.faultCategory ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AS${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AT${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.failureHistory ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AT${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AU${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.equipmentAgening ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AU${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.envSeverity ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AV${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AW${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.protFlamambleAtom ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AW${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AX${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.ignitionSourceProb ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AX${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AY${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.ignitionFlask ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AY${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AZ${i + 5}")).value =
-    //     TextCellValue(assets[i].rbiStrategy?.operationalImpact ?? '');
-    // sheetObject.cell(CellIndex.indexByString("AZ${i + 5}")).cellStyle =
-    //     cellStyle2;
-
-    // sheetObject.cell(CellIndex.indexByString("AS${i + 5}")).value =
-    //     TextCellValue(assets[i].faultyItems == null
-    //         ? '0'
-    //         : assets[i].faultyItems.toString());
-    // sheetObject.cell(CellIndex.indexByString("AS${i + 5}")).cellStyle =
-    //     cellStyle2;
 
     excel.delete("Sheet1");
     var fileBytes = excel.save();
@@ -1473,6 +813,7 @@ class ExcelFunctions {
   Future<Map<String, dynamic>> downloadLocationExcel(
     List<Location> locations,
   ) async {
+    await initialize();
     DateTime now = DateTime.now();
     // String formattedDate = formatDateTime(DateTime.now());
     String formattedDate =

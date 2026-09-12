@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -132,6 +133,11 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
     final width = widget.isInspectionFlag
         ? MediaQuery.of(context).size.width * 0.202
         : MediaQuery.of(context).size.width * 0.276;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final overlayWidth = math.max(width, 280.0).clamp(0.0, screenWidth - 32.0);
+    final double dxOffset = (position.dx + overlayWidth > screenWidth - 16)
+        ? (screenWidth - 16 - position.dx - overlayWidth)
+        : 0.0;
 
     _dropdownOverlayEntry = OverlayEntry(
       maintainState: true,
@@ -147,13 +153,13 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
             ),
           ),
           Positioned(
-            width: width,
+            width: overlayWidth,
             child: CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
               offset: showAbove
-                  ? Offset(0.0, -dropdownHeight - 8.0)
-                  : const Offset(0.0, 73.5 + 8.0),
+                  ? Offset(dxOffset, -dropdownHeight - 8.0)
+                  : Offset(dxOffset, 73.5 + 8.0),
               child: Material(
                 elevation: 4,
                 borderRadius: BorderRadius.circular(8),
@@ -182,14 +188,18 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Selected(${selected.length})',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w400,
-                                    color: const Color(0xFF848B98),
-                                  )),
-                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text('Selected(${selected.length})',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: const Color(0xFF848B98),
+                                    )),
+                              ),
+                              const SizedBox(width: 8),
                               Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   GestureDetector(
                                     behavior: HitTestBehavior.translucent,
@@ -295,11 +305,13 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
                   : null,
             ),
             const SizedBox(width: 16),
-            Text(item,
-                style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF1D232F))),
+            Expanded(
+              child: Text(item,
+                  style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF1D232F))),
+            ),
           ],
         ),
       ),
@@ -316,10 +328,11 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
         : MediaQuery.of(context).size.width * 0.276;
 
     return FormField<List<String>>(
+      key: ValueKey(selected),
       initialValue: selected,
       validator: widget.validator ??
           (value) {
-            if (widget.isMandatory && (value == null || value.isEmpty)) {
+            if (widget.isMandatory && selected.isEmpty) {
               return '';
             }
             return null;

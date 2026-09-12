@@ -812,17 +812,20 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
     );
   }
 
-  void _onSave() {
+  Future<void> _onSave() async {
     switch (_currentStep) {
       case 0:
         final functionalAreaStepState = _functionalAreaKey.currentState;
         if (functionalAreaStepState != null) {
-          functionalAreaStepState.onSubmitFunctionalArea();
-          _isStepDataSaved =
-              functionalAreaStepState.formKey.currentState?.validate() ?? false;
+          final success =
+              await functionalAreaStepState.onSubmitFunctionalArea();
+          _isStepDataSaved = success;
           if (_isStepDataSaved) {
             _hasValidationError = false;
             _isUpdate = true;
+            _stepCompleted[0] = true;
+          } else {
+            _hasValidationError = true;
           }
         }
         break;
@@ -834,6 +837,9 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
               equipmentTagsStepState.formKey.currentState?.validate() ?? false;
           if (_isStepDataSaved) {
             _hasValidationError = false;
+            _stepCompleted[1] = true;
+          } else {
+            _hasValidationError = true;
           }
         }
         break;
@@ -846,12 +852,12 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
               (inspectionChecklistState.formKey.currentState?.validate() ??
                   false) &&
               inspectionChecklistState.checkLableFlag;
-          //  &&
-          // inspectionChecklistState.checklistAnyoneCheck == true;
           checkInspection = inspectionChecklistState.checkLableFlag;
-          // checklistAnyoneCheck = inspectionChecklistState.checklistAnyoneCheck;
           if (_isStepDataSaved) {
             _hasValidationError = false;
+            _stepCompleted[2] = true;
+          } else {
+            _hasValidationError = true;
           }
         }
         break;
@@ -860,33 +866,28 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
         if (defectAnalysisStepState != null) {
           defectAnalysisStepState.onSubmitDefectAnalysis(clearFlag: false);
           _isStepDataSaved = true;
+          _hasValidationError = false;
+          _stepCompleted[3] = true;
         }
         break;
       case 4:
-        final correctiveActionsStepState = _correctiveActionsKey.currentState;
-        if (correctiveActionsStepState != null) {
-          correctiveActionsStepState.onSubmitCorrectiveActions(
+        final correctiveActionStepState = _correctiveActionsKey.currentState;
+        if (correctiveActionStepState != null) {
+          correctiveActionStepState.onSubmitCorrectiveActions(
             clearFlag: false,
           );
           _isStepDataSaved = true;
+          _hasValidationError = false;
+          _stepCompleted[4] = true;
         }
         break;
-      // case 5:
-      //   final rbiStrategyStepState = _rbiStrategyKey.currentState;
-      //   if (rbiStrategyStepState != null) {
-      //     rbiStrategyStepState.onSubmitRbiStrategy();
-      //     _isStepDataSaved = true;
-      //   }
-      //   break;
       default:
         break;
     }
   }
 
-  void _handleNext() {
-    if (!_isStepDataSaved) {
-      _onSave();
-    }
+  Future<void> _handleNext() async {
+    await _onSave();
     if (_isStepDataSaved) {
       _hasValidationError = false;
       if (_currentStep == 3) {
@@ -909,14 +910,10 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
 
       if (_currentStep < _stepTitles.length - 1) {
         setState(() {
-          for (int i = _currentStep + 1; i < _stepTitles.length; i++) {
-            _clearStep(i);
-          }
+          _stepCompleted[_currentStep] = true;
           _currentStep++;
-          _stepCompleted[_currentStep - 1] = true;
           _isStepDataSaved = false;
         });
-        // BlocProvider.of<ExRegisterBloc>(context).add(ResetExRegisterState());
       } else {
         Fluttertoast.showToast(
           msg: "Ex Inspection Submitted successfully.",
@@ -936,6 +933,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
             'isSelectedScreenFlag': true,
             'filter': 'Show All',
             'fltertype': 'Year to Date',
+            'fetchApiOnce': true,
           },
         );
       }
@@ -949,62 +947,50 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
   bool _isStepDataAvailable(int stepIndex) {
     switch (stepIndex) {
       case 0:
-        return _exInspectionRequest.functionalAreaRequest != null &&
-            _exInspectionRequest.functionalAreaRequest!.location.isNotEmpty;
+        final req = _exInspectionRequest.functionalAreaRequest;
+        return req != null &&
+            req.location.isNotEmpty &&
+            req.area.isNotEmpty &&
+            req.zone.isNotEmpty &&
+            req.locationGasGroup.isNotEmpty &&
+            req.locationTClass.isNotEmpty;
       case 1:
-        return _exInspectionRequest.equipmentTagRequest != null &&
-            _exInspectionRequest.equipmentTagRequest!.description.isNotEmpty;
+        final req = _exInspectionRequest.equipmentTagRequest;
+        return req != null &&
+            req.eqpmtCatg.isNotEmpty &&
+            req.description.isNotEmpty &&
+            req.protectionStd != null &&
+            req.protectionStd.toString().isNotEmpty &&
+            req.atexCatg.isNotEmpty &&
+            req.epl.isNotEmpty &&
+            req.protectionType.isNotEmpty &&
+            req.equipmentGasGroup.isNotEmpty &&
+            req.equipmentTClass.isNotEmpty &&
+            req.equipmentIpRating.isNotEmpty;
       case 2:
-        return _exInspectionRequest.equipmentTagRequest != null &&
-            _exInspectionRequest
-                .equipmentTagRequest!.inspectionType!.isNotEmpty;
+        final req = _exInspectionRequest.equipmentTagRequest;
+        return req != null &&
+            req.inspectionType != null &&
+            req.inspectionType!.isNotEmpty &&
+            req.inspectionGrade != null &&
+            req.inspectionGrade!.isNotEmpty &&
+            req.checkList != null &&
+            req.checkList!.isNotEmpty;
       case 3:
-        return _exInspectionRequest.equipmentTagRequest != null &&
-            _exInspectionRequest
-                .equipmentTagRequest!.inspectionStatus!.isNotEmpty;
+        final req = _exInspectionRequest.equipmentTagRequest;
+        return req != null &&
+            req.defectDefectCategory != null &&
+            req.defectDefectCategory.toString().isNotEmpty;
       case 4:
-        return _exInspectionRequest.equipmentTagRequest != null &&
-            _exInspectionRequest
-                .equipmentTagRequest!.correctiveDefectCategory!.isNotEmpty;
-      case 5:
-        return _exInspectionRequest.equipmentTagRequest != null &&
-            _exInspectionRequest.equipmentTagRequest?.rbiStrategy != null;
+        return _exInspectionRequest.equipmentTagRequest != null;
       default:
         return false;
     }
   }
 
-  void navigateToStepPrev(int stepIndex) {
-    if (stepIndex == _currentStep) {
-      return;
-    }
+  Future<void> _navigateToStep(int stepIndex) async {
+    if (stepIndex == _currentStep) return;
 
-    if (stepIndex > _currentStep) {
-      bool isTargetStepValid = _isStepDataAvailable(stepIndex);
-      if (isTargetStepValid) {
-        setState(() {
-          _currentStep = stepIndex;
-          _isStepDataSaved = false;
-        });
-      } else {
-        Fluttertoast.showToast(
-          msg: "The data for this step is not valid.",
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.red,
-          textColor: Colors.white,
-          fontSize: 15.0,
-        );
-      }
-    } else if (stepIndex < _currentStep) {
-      setState(() {
-        _currentStep = stepIndex;
-        _isStepDataSaved = false;
-      });
-    }
-  }
-
-  void _navigateToStep(int stepIndex) {
     if (stepIndex > 3) {
       final defectAnalysisStepState = _defectAnalysisKey.currentState;
       if (defectAnalysisStepState != null &&
@@ -1025,13 +1011,26 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
     }
 
     if (stepIndex > _currentStep) {
-      bool canProceed = true;
-      for (int i = _currentStep; i < stepIndex && canProceed; i++) {
-        bool isValid = _isStepDataAvailable(i);
-        if (!isValid) {
-          canProceed = false;
+      await _onSave();
+      if (!_isStepDataSaved) {
+        setState(() {
+          _hasValidationError = true;
+        });
+        Fluttertoast.showToast(
+          msg: "Please fill out all mandatory fields before proceeding.",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+          fontSize: 15.0,
+        );
+        return;
+      }
+
+      for (int i = 0; i < stepIndex; i++) {
+        if (!_isStepDataAvailable(i) && !_stepCompleted[i]) {
           Fluttertoast.showToast(
-            msg: "You can't skip ahead until all previous steps are completed!",
+            msg: "Please complete ${_stepTitles[i]} before proceeding!",
             toastLength: Toast.LENGTH_SHORT,
             gravity: ToastGravity.BOTTOM,
             backgroundColor: Colors.red,
@@ -1040,30 +1039,22 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
           );
           setState(() {
             _currentStep = i;
+            _hasValidationError = false;
+            _isStepDataSaved = false;
           });
           return;
         }
       }
 
-      bool isTargetStepValid = _isStepDataAvailable(stepIndex);
-      if (isTargetStepValid) {
-        setState(() {
-          _currentStep = stepIndex;
-          _isStepDataSaved = false;
-        });
-      } else {
-        Fluttertoast.showToast(
-          msg: "The data for this step is not valid.",
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.red,
-          textColor: Colors.white,
-          fontSize: 15.0,
-        );
-      }
+      setState(() {
+        _currentStep = stepIndex;
+        _hasValidationError = false;
+        _isStepDataSaved = false;
+      });
     } else if (stepIndex < _currentStep) {
       setState(() {
         _currentStep = stepIndex;
+        _hasValidationError = false;
         _isStepDataSaved = false;
       });
     }
@@ -1183,19 +1174,6 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                             return GestureDetector(
                               behavior: HitTestBehavior.translucent,
                               onTap: () {
-                                if (_isStepRestricted(stepIndex)) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(
-                                        'Please complete checklist before proceeding',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
                                 if (stepIndex != _currentStep) {
                                   _navigateToStep(stepIndex);
                                 }
@@ -1326,10 +1304,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                               behavior: HitTestBehavior.translucent,
                               onTap: () {
                                 if (_currentStep != index) {
-                                  setState(() {
-                                    _currentStep = index;
-                                    _isStepDataSaved = false;
-                                  });
+                                  _navigateToStep(index);
                                 }
                               },
                               child: Text(
@@ -1446,29 +1421,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                                   onPressed: () => setState(() {
                                     if (_currentStep > 0) {
                                       _currentStep--;
-                                      for (int i = _currentStep;
-                                          i < _stepTitles.length;
-                                          i++) {
-                                        if (i == 0) {
-                                          _isUpdate = false;
-                                        }
-                                        if (i == 2) {
-                                          final inspectionChecklistState =
-                                              _inspectionChecklistKey
-                                                  .currentState;
-                                          if (inspectionChecklistState !=
-                                              null) {
-                                            inspectionChecklistState
-                                                .onSubmitEquipmentTag(
-                                              [],
-                                              [],
-                                              {},
-                                              'empty',
-                                            );
-                                          }
-                                        }
-                                      }
-                                      _stepCompleted[_currentStep] = true;
+                                      _hasValidationError = false;
                                       _isStepDataSaved = false;
                                     }
                                   }),
@@ -1494,12 +1447,9 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      !checkInspection
+                                      _currentStep == 2 && !checkInspection
                                           ? 'Please fill out all Checklist.'
-                                          :
-                                          // !checklistAnyoneCheck
-                                          //     ? 'Please select at least one defect findings.' :
-                                          'Please fill out all mandatory fields(*) before proceeding.',
+                                          : 'Please fill out all mandatory fields(*) before proceeding.',
                                       style: GoogleFonts.inter(
                                         color: const Color(0xFFF44336),
                                         fontSize: 15,
@@ -1602,29 +1552,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                                     onPressed: () => setState(() {
                                       if (_currentStep > 0) {
                                         _currentStep--;
-                                        for (int i = _currentStep;
-                                            i < _stepTitles.length;
-                                            i++) {
-                                          if (i == 0) {
-                                            _isUpdate = false;
-                                          }
-                                          if (i == 2) {
-                                            final inspectionChecklistState =
-                                                _inspectionChecklistKey
-                                                    .currentState;
-                                            if (inspectionChecklistState !=
-                                                null) {
-                                              inspectionChecklistState
-                                                  .onSubmitEquipmentTag(
-                                                [],
-                                                [],
-                                                {},
-                                                'empty',
-                                              );
-                                            }
-                                          }
-                                        }
-                                        _stepCompleted[_currentStep] = true;
+                                        _hasValidationError = false;
                                         _isStepDataSaved = false;
                                       }
                                     }),
@@ -1644,30 +1572,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                                     onPressed: () => setState(() {
                                       if (_currentStep > 0) {
                                         _currentStep--;
-
-                                        for (int i = _currentStep;
-                                            i < _stepTitles.length;
-                                            i++) {
-                                          if (i == 0) {
-                                            _isUpdate = false;
-                                          }
-                                          if (i == 2) {
-                                            final inspectionChecklistState =
-                                                _inspectionChecklistKey
-                                                    .currentState;
-                                            if (inspectionChecklistState !=
-                                                null) {
-                                              inspectionChecklistState
-                                                  .onSubmitEquipmentTag(
-                                                [],
-                                                [],
-                                                {},
-                                                'empty',
-                                              );
-                                            }
-                                          }
-                                        }
-                                        _stepCompleted[_currentStep] = true;
+                                        _hasValidationError = false;
                                         _isStepDataSaved = false;
                                       }
                                     }),
@@ -1682,10 +1587,11 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                               ] else ...[
                                 _buildStyledButton(
                                   text: 'Save',
-                                  onPressed: () {
-                                    setState(() {
-                                      _onSave();
-                                    });
+                                  onPressed: () async {
+                                    await _onSave();
+                                    if (mounted) {
+                                      setState(() {});
+                                    }
                                   },
                                   isPrimary: false,
                                   width: 89,
@@ -1703,28 +1609,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                                 onPressed: () => setState(() {
                                   if (_currentStep > 0) {
                                     _currentStep--;
-                                    for (int i = _currentStep;
-                                        i < _stepTitles.length;
-                                        i++) {
-                                      if (i == 0) {
-                                        _isUpdate = false;
-                                      }
-                                      if (i == 2) {
-                                        final inspectionChecklistState =
-                                            _inspectionChecklistKey
-                                                .currentState;
-                                        if (inspectionChecklistState != null) {
-                                          inspectionChecklistState
-                                              .onSubmitEquipmentTag(
-                                            [],
-                                            [],
-                                            {},
-                                            'empty',
-                                          );
-                                        }
-                                      }
-                                    }
-                                    _stepCompleted[_currentStep] = true;
+                                    _hasValidationError = false;
                                     _isStepDataSaved = false;
                                   }
                                 }),
@@ -1748,7 +1633,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
                                   });
                                 }
 
-                                _handleNext();
+                                await _handleNext();
                               },
                               isPrimary: true,
                               width: _currentStep == _stepTitles.length - 1

@@ -39,6 +39,8 @@ class ExInspectionSuccess extends ExInspectionsState {
   ExInspectionSuccess(this.message, this.id, this.clearFlag,
       {this.userUpdateSign = false});
 
+  String? get locationId => id;
+
   @override
   List<Object?> get props => [message, id, clearFlag];
 }

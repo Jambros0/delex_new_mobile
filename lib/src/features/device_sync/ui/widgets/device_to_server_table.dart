@@ -58,7 +58,7 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
 
     final newRows = <List<String>>[];
     for (int i = _loadedCount; i < end; i++) {
-      newRows.add(buildRow(i));
+      newRows.add(_buildRow(i));
     }
 
     setState(() {
@@ -105,7 +105,33 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
 
   //   setState(() {}); // trigger UI update
   // }
-  List<String> buildRow(int index) {
+  String _formatEquipmentProtection(ExRegister asset) {
+    List<String> parts = [];
+    String getCleanString(List<String>? items) {
+      if (items == null || items.isEmpty) return '';
+      final filtered = items.where((e) {
+        final val = e.trim().toLowerCase();
+        return val.isNotEmpty &&
+            val != 'not available' &&
+            val != 'n/a' &&
+            val != 'na' &&
+            val != 'null';
+      }).toList();
+      return filtered.join(', ');
+    }
+
+    final protType = getCleanString(asset.protectionType);
+    final gasGroup = getCleanString(asset.equipmentGasGroup);
+    final tempClass = getCleanString(asset.equipmentTClass);
+
+    if (protType.isNotEmpty) parts.add(protType);
+    if (gasGroup.isNotEmpty) parts.add(gasGroup);
+    if (tempClass.isNotEmpty) parts.add(tempClass);
+
+    return parts.join(' ');
+  }
+
+  List<String> _buildRow(int index) {
     final asset = widget.assets[index];
 
     return [
@@ -119,7 +145,7 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
       asset.eqpmtTag ?? '',
       asset.description.isNotEmpty ? asset.description : '',
       asset.manufacturer.isNotEmpty ? asset.manufacturer : '',
-      asset.epl.join(', '),
+      _formatEquipmentProtection(asset),
       asset.faultyItems?.toString().isNotEmpty == true
           ? asset.faultyItems.toString()
           : '',

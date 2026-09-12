@@ -65,6 +65,9 @@ class FilterBoxState extends State<FilterBox> {
     for (var loc in widget.locations) {
       if (loc.location.isNotEmpty) fieldNameSet.add(loc.location);
       if (loc.area.isNotEmpty) platformSet.add(loc.area);
+      if (loc.subArea != null && loc.subArea!.isNotEmpty) {
+        platformSet.add(loc.subArea!);
+      }
       if (loc.deckLevel != null && loc.deckLevel!.isNotEmpty) {
         deckLevelSet.add(loc.deckLevel!);
       }
@@ -80,17 +83,73 @@ class FilterBoxState extends State<FilterBox> {
 
           if (firstMap['locationDropDown'] is List) {
             for (var item in firstMap['locationDropDown']) {
-              if (item is Map && item['name'] != null && item['name'].toString().trim().isNotEmpty) {
-                fieldNameSet.add(item['name'].toString().trim());
+              if (item is Map) {
+                if (item['name'] != null &&
+                    item['name'].toString().trim().isNotEmpty) {
+                  fieldNameSet.add(item['name'].toString().trim());
+                }
+                if (item['platforms'] is List) {
+                  for (var plat in item['platforms']) {
+                    if (plat is Map) {
+                      if (plat['platformName'] != null &&
+                          plat['platformName'].toString().trim().isNotEmpty) {
+                        platformSet.add(plat['platformName'].toString().trim());
+                      }
+                      if (plat['name'] != null &&
+                          plat['name'].toString().trim().isNotEmpty) {
+                        platformSet.add(plat['name'].toString().trim());
+                      }
+                      if (plat['area'] is List) {
+                        for (var ar in plat['area']) {
+                          if (ar != null && ar.toString().trim().isNotEmpty) {
+                            deckLevelSet.add(ar.toString().trim());
+                          }
+                        }
+                      }
+                    } else if (plat is String && plat.trim().isNotEmpty) {
+                      platformSet.add(plat.trim());
+                    }
+                  }
+                }
               } else if (item is String && item.trim().isNotEmpty) {
                 fieldNameSet.add(item.trim());
               }
             }
           }
 
+          if (firstMap['platforms'] is List) {
+            for (var item in firstMap['platforms']) {
+              if (item is Map &&
+                  item['platformName'] != null &&
+                  item['platformName'].toString().trim().isNotEmpty) {
+                platformSet.add(item['platformName'].toString().trim());
+              } else if (item is Map &&
+                  item['name'] != null &&
+                  item['name'].toString().trim().isNotEmpty) {
+                platformSet.add(item['name'].toString().trim());
+              } else if (item is String && item.trim().isNotEmpty) {
+                platformSet.add(item.trim());
+              }
+            }
+          }
+
           if (firstMap['subArea'] is List) {
             for (var item in firstMap['subArea']) {
-              if (item is Map && item['name'] != null && item['name'].toString().trim().isNotEmpty) {
+              if (item is Map &&
+                  item['name'] != null &&
+                  item['name'].toString().trim().isNotEmpty) {
+                platformSet.add(item['name'].toString().trim());
+              } else if (item is String && item.trim().isNotEmpty) {
+                platformSet.add(item.trim());
+              }
+            }
+          }
+
+          if (firstMap['subLocation'] is List) {
+            for (var item in firstMap['subLocation']) {
+              if (item is Map &&
+                  item['name'] != null &&
+                  item['name'].toString().trim().isNotEmpty) {
                 platformSet.add(item['name'].toString().trim());
               } else if (item is String && item.trim().isNotEmpty) {
                 platformSet.add(item.trim());
@@ -100,7 +159,21 @@ class FilterBoxState extends State<FilterBox> {
 
           if (firstMap['deckLevel'] is List) {
             for (var item in firstMap['deckLevel']) {
-              if (item is Map && item['name'] != null && item['name'].toString().trim().isNotEmpty) {
+              if (item is Map &&
+                  item['name'] != null &&
+                  item['name'].toString().trim().isNotEmpty) {
+                deckLevelSet.add(item['name'].toString().trim());
+              } else if (item is String && item.trim().isNotEmpty) {
+                deckLevelSet.add(item.trim());
+              }
+            }
+          }
+
+          if (firstMap['area'] is List) {
+            for (var item in firstMap['area']) {
+              if (item is Map &&
+                  item['name'] != null &&
+                  item['name'].toString().trim().isNotEmpty) {
                 deckLevelSet.add(item['name'].toString().trim());
               } else if (item is String && item.trim().isNotEmpty) {
                 deckLevelSet.add(item.trim());

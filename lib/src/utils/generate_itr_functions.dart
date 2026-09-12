@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:deex_bloc_mobile_app_dev/src/features/login/data/models/user_details.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
@@ -140,6 +139,92 @@ class GenerateItrFunctions {
     return null;
   }
 
+  Future<Map<String, String>> generateItrForAsset({required String assetId}) async {
+    final DBHelper dbHelper = DBHelper();
+    final String? userType = await authUtils.getUserType();
+    final bool isOnshore = userType == "onshore";
+
+    Map<String, dynamic>? result = isOnshore
+        ? await dbHelper.getExRegisterByIdOnshore(assetId)
+        : await dbHelper.getExRegisterById(assetId);
+
+    if (result == null) {
+      throw Exception("Asset with ID '$assetId' not found in local database.");
+    }
+
+    final exregisterJson = result['exregister_json'] as String;
+    final jsonMap = jsonDecode(exregisterJson);
+    Map<String, dynamic> assetDetails = {};
+    if (jsonMap is Map<String, dynamic> && jsonMap.containsKey('asset')) {
+      assetDetails = Map<String, dynamic>.from(jsonMap['asset']);
+    } else if (jsonMap is Map<String, dynamic>) {
+      assetDetails = Map<String, dynamic>.from(jsonMap);
+    } else {
+      assetDetails = Map<String, dynamic>.from(result);
+    }
+
+    final String? locationId = assetDetails['locationId']?.toString();
+    if (locationId != null && locationId.isNotEmpty) {
+      final areaRecord = isOnshore
+          ? await dbHelper.getFunctionalAreaByIdOnshore(locationId)
+          : await dbHelper.getFunctionalAreaById(locationId);
+      if (areaRecord != null && areaRecord['functional_area_json'] != null) {
+        final areaJson = areaRecord['functional_area_json'];
+        final areaDecoded = areaJson is String ? jsonDecode(areaJson) : areaJson;
+        if (areaDecoded is Map) {
+          final areaMap = areaDecoded['location'] ?? areaDecoded;
+          if (areaMap is Map) {
+            assetDetails['location'] ??= areaMap['location'] ?? areaMap['fieldName'];
+            assetDetails['area'] ??= areaMap['area'] ?? areaMap['platform'];
+            assetDetails['deckLevel'] ??= areaMap['deckLevel'];
+            assetDetails['subArea'] ??= areaMap['subArea'];
+            assetDetails['zone'] ??= areaMap['zone'];
+            assetDetails['locationGasGroup'] ??= areaMap['locationGasGroup'] ?? areaMap['gasGroup'];
+            assetDetails['locationTClass'] ??= areaMap['locationTClass'] ?? areaMap['temperatureClass'];
+            assetDetails['locationIpRating'] ??= areaMap['locationIpRating'] ?? areaMap['ipRating'];
+            assetDetails['locationTAmbient'] ??= areaMap['tAmbient'] ?? areaMap['locationTAmbient'];
+            assetDetails['locationLatitude'] ??= areaMap['locationLatitude'];
+            assetDetails['locationLongitude'] ??= areaMap['locationLongitude'];
+          }
+        }
+      }
+    }
+
+    List<Map<String, List<Map<String, dynamic>>>> checkListDetails = [];
+    Map<String, int> totalData = {};
+    Map<String, int> totalSelectedData = {};
+    List<SelectedFindingsModel> selectedFindingsModel = [];
+
+    if (assetDetails['selectedFindings'] != null && assetDetails['selectedFindings'] is List) {
+      for (var item in assetDetails['selectedFindings']) {
+        if (item is Map<String, dynamic>) {
+          try {
+            selectedFindingsModel.add(SelectedFindingsModel(
+              id: item['_id']?.toString() ?? item['id']?.toString() ?? '',
+              defectCode: item['defectCode']?.toString() ?? '',
+              finding: item['finding']?.toString() ?? '',
+              remedialAction: item['remedialAction']?.toString() ?? '',
+              defectCategory: item['defectCategory']?.toString() ?? '',
+              isDone: item['isDone'] == true,
+              isSelected: item['isSelected'] == true,
+              repairedAt: item['repairedAt'],
+              repairedBy: item['repairedBy'],
+              updatedAt: item['updatedAt'],
+            ));
+          } catch (_) {}
+        }
+      }
+    }
+
+    return await generateItrPdf(
+      assetDetails,
+      checkListDetails,
+      totalData,
+      totalSelectedData,
+      selectedFindingsModel,
+    );
+  }
+
   Future<Map<String, String>> generateItrPdf(
     Map<String, dynamic> assetDetails,
     List<Map<String, List<Map<String, dynamic>>>> checkListDetails,
@@ -177,10 +262,10 @@ class GenerateItrFunctions {
 
     final String inspectedName = assetDetails['inspectorName']?.toString().isNotEmpty == true
         ? assetDetails['inspectorName'].toString()
-        : (loggedInUser?.userName?.isNotEmpty == true ? loggedInUser!.userName : 'Test-${isOnshore ? 'onshore' : 'offshore'}');
+        : (loggedInUser?.userName.isNotEmpty == true ? loggedInUser!.userName : 'Test-${isOnshore ? 'onshore' : 'offshore'}');
     final String inspectedPos = assetDetails['inspectorPosition']?.toString().isNotEmpty == true
         ? assetDetails['inspectorPosition'].toString()
-        : (loggedInUser?.userRole?.isNotEmpty == true ? loggedInUser!.userRole : 'admin-user');
+        : (loggedInUser?.userRole.isNotEmpty == true ? loggedInUser!.userRole : 'admin-user');
     final String inspectedDate = assetDetails['inspectionDate'] != null ? formatDate(assetDetails['inspectionDate'].toString()) : formatDate(now.toIso8601String());
 
     final String repairedName = assetDetails['repairerName']?.toString().isNotEmpty == true

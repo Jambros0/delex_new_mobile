@@ -2,6 +2,7 @@
 
 import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/dateFilterModel.dart';
+import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -528,14 +529,20 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
                 onTap: () {},
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
-                  onTap: () => widget.onDateRangeSelected(
+                  onTap: () async {
+                  final userType = await AuthUtils().getUserType();
+                  final defaultStartDate = (userType == 'onshore')
+                      ? DateTime(2023, 6, 13)
+                      : DateTime(2022, 5, 18);
+                  widget.onDateRangeSelected(
                       "Year to Date",
                       DateTimeRange(
-                        start: DateTime(2024, 1, 1),
+                        start: defaultStartDate,
                         end: DateTime.now(),
                       ),
                       false,
-                      "Year to Date"),
+                      "Year to Date");
+                },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8.0, vertical: 12.0),

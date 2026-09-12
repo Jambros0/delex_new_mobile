@@ -38,22 +38,20 @@ class AuthUtils {
   Future<Map<String, String?>> getSessionTokens() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('userId');
-    if (userId == null) {
-      return {
-        'accessToken': null,
-        'refreshToken': null,
-      };
-    }
-    final user = await dbHelper.getLoggedInUserByUserId(userId);
-    if (user != null) {
-      return {
-        'accessToken': user.accessToken,
-        'refreshToken': user.refreshToken,
-      };
+    if (userId != null) {
+      try {
+        final user = await dbHelper.getLoggedInUserByUserId(userId);
+        if (user != null && user.accessToken != null && user.accessToken.isNotEmpty) {
+          return {
+            'accessToken': user.accessToken,
+            'refreshToken': user.refreshToken,
+          };
+        }
+      } catch (_) {}
     }
     return {
-      'accessToken': null,
-      'refreshToken': null,
+      'accessToken': prefs.getString('accessToken'),
+      'refreshToken': prefs.getString('refreshToken'),
     };
   }
 

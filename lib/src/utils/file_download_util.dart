@@ -82,43 +82,34 @@ class FileDownloadUtil {
 
   Future<String> getExternalDocumentPath() async {
     try {
-      // Directory directory;
       if (Platform.isAndroid) {
-        if (await _isAndroid11orHigher()) {
-          var status = await Permission.manageExternalStorage.status;
-          if (!status.isGranted) {
-            status = await Permission.manageExternalStorage.request();
-            if (!status.isGranted) {
-              throw Exception("Manage External Storage permission denied.");
-            }
-          }
-          // directory =
-          // await getExternalStorageDirectory() ??
-          // await getApplicationDocumentsDirectory();
-        } else {
+        if (!await _isAndroid11orHigher()) {
           var status = await Permission.storage.status;
           if (!status.isGranted) {
-            status = await Permission.storage.request();
-            if (!status.isGranted) {
-              throw Exception("Storage permission denied.");
-            }
+            await Permission.storage.request();
           }
-          // directory = Directory("/storage/emulated/0/Download");
         }
-      } else {
-        // directory = await getApplicationDocumentsDirectory();
       }
       Directory? directory;
       if (Platform.isAndroid) {
         directory = Directory('/storage/emulated/0/Download');
-      } else if (Platform.isIOS) {
+        if (!await directory.exists()) {
+          try {
+            await directory.create(recursive: true);
+          } catch (_) {
+            directory = await getExternalStorageDirectory() ??
+                await getApplicationDocumentsDirectory();
+          }
+        }
+      } else {
         directory = await getApplicationDocumentsDirectory();
       }
-      final exPath = directory!.path;
+      final exPath = directory.path;
       await Directory(exPath).create(recursive: true);
       return exPath;
     } catch (error) {
-      return '';
+      final fallback = await getApplicationDocumentsDirectory();
+      return fallback.path;
     }
   }
 

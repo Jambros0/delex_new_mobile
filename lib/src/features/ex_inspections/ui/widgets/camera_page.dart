@@ -95,11 +95,9 @@ class _CustomCameraScreenState extends State<CustomCameraScreen> {
   void dispose() {
     _controller?.dispose();
     SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeRight,
       DeviceOrientation.landscapeLeft,
-    ]); // Reset orientation
+    ]); // Maintain landscape orientation
     super.dispose();
   }
 

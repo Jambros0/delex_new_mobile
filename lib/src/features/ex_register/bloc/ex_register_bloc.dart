@@ -11,16 +11,15 @@ import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/services/ex_register_service.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
-import 'package:deex_bloc_mobile_app_dev/src/utils/generate_itr_functions.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../../../utils/excel_functions.dart';
 import '../../../utils/pdf_functions.dart';
+import '../../../utils/generate_itr_functions.dart';
 import '../../ex_inspections/data/repository/inspection_checklist_repo.dart';
 import '../data/assets_duplicate.dart';
 import '../data/models/ex_register_table_model.dart';
-import '../data/models/selectedFindings.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
@@ -705,6 +704,32 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
     }
   }
 
+  String _formatEquipmentProtection(ExRegister asset) {
+    List<String> parts = [];
+    String getCleanString(List<String>? items) {
+      if (items == null || items.isEmpty) return '';
+      final filtered = items.where((e) {
+        final val = e.trim().toLowerCase();
+        return val.isNotEmpty &&
+            val != 'not available' &&
+            val != 'n/a' &&
+            val != 'na' &&
+            val != 'null';
+      }).toList();
+      return filtered.join(', ');
+    }
+
+    final protType = getCleanString(asset.protectionType);
+    final gasGroup = getCleanString(asset.equipmentGasGroup);
+    final tempClass = getCleanString(asset.equipmentTClass);
+
+    if (protType.isNotEmpty) parts.add(protType);
+    if (gasGroup.isNotEmpty) parts.add(gasGroup);
+    if (tempClass.isNotEmpty) parts.add(tempClass);
+
+    return parts.join(' ');
+  }
+
   List<ExRegister> _filterExRegister(List<ExRegister> assets, String query) {
     if (query.isEmpty) {
       return assets;
@@ -716,6 +741,10 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
           asset.area.toLowerCase().contains(lowerQuery) ||
           (asset.eqpmtTag ?? '').toLowerCase().contains(lowerQuery) ||
           asset.description.toLowerCase().contains(lowerQuery) ||
+          _formatEquipmentProtection(asset).toLowerCase().contains(lowerQuery) ||
+          (asset.equipmentTClass.any(
+            (group) => group.toLowerCase().contains(lowerQuery),
+          )) ||
           (asset.epl.any(
             (group) => group.toLowerCase().contains(lowerQuery),
           )) ||
@@ -1348,9 +1377,27 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
         throw const FormatException("Invalid JSON: \${jsonRaw.runtimeType}");
       }
 
+      final dynamic rawAsset = jsonMap['asset'];
+      Map<String, dynamic> assetMap = {};
+      if (rawAsset is Map<String, dynamic>) {
+        assetMap = Map<String, dynamic>.from(rawAsset);
+      } else if (rawAsset is Map) {
+        assetMap = Map<String, dynamic>.from(rawAsset);
+      }
+      if ((assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) &&
+          map['asset_id'] != null &&
+          map['asset_id'].toString().isNotEmpty) {
+        assetMap['_id'] = map['asset_id'];
+      }
+      if (assetMap['primaryId'] == null && map['id'] != null) {
+        assetMap['primaryId'] = map['id'] is int
+            ? map['id']
+            : int.tryParse(map['id'].toString());
+      }
+
       return ExRegisterTableModel(
         id: map['id'],
-        exregisterJson: ExRegister.fromJson(jsonMap['asset']),
+        exregisterJson: ExRegister.fromJson(assetMap),
         createdBy: map['created_by'],
         updatedBy: map['updated_by'],
         createdDate: map['created_date'],
@@ -1748,316 +1795,31 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
         .toList();
   }
 
-  // Generate ITR
-
+  // Generate ITR (Frontend Client-Side PDF generation)
   FutureOr<void> exRegisterGenerateItr(
     ExRegisterGenerateItr event,
     Emitter<ExRegisterState> emit,
   ) async {
     emit(ExRegisterGenerateItrLoading());
     try {
-      GenerateItrFunctions generateItrFunctions = GenerateItrFunctions();
-      final response = await _exregisterRepo.fetchAssetById(event.assetId);
-      if (response['status'] == true) {
-        final assetDetails = response['assetDetails'];
+      final Map<String, String> res =
+          await GenerateItrFunctions().generateItrForAsset(
+        assetId: event.assetId,
+      );
 
-        // Properly typed filters
-        final Map<String, dynamic> filters = {
-          'inspectionType': assetDetails['inspectionType']?.toString(),
-          'equipmentType': assetDetails['equipmentEquipmentType']?.toString(),
-          'checklistName': assetDetails['inspectionChecklistType'] is List
-              ? assetDetails['inspectionChecklistType']
-              : assetDetails['inspectionChecklistType'] != null
-                  ? [assetDetails['inspectionChecklistType']]
-                  : [],
-          'inspectionGrade': assetDetails['inspectionGrade']?.toString(),
-        };
-        _checklistData = await checklistRepo.getLocalChecklistData();
-        _originalChecklistData = _checklistData;
-        // final List<dynamic> checkListDetails =
-        //     _checklistData?['checkListDetails'] ?? [];
-
-        final filteredDetails = _filterChecklistData(filters);
-        final Map<String, dynamic> uniqueDetails = _getUniqueDefectCodes(
-          filteredDetails,
-        );
-
-        // Group and sort
-        Map<String, List<Map<String, dynamic>>> grouped = {};
-        for (var defect in uniqueDetails.values) {
-          String category = defect["defectCategory"];
-          grouped.putIfAbsent(category, () => []).add(defect);
-        }
-
-        for (var entry in grouped.entries) {
-          entry.value.sort((a, b) {
-            String codeA = a["defectCode"];
-            String codeB = b["defectCode"];
-            return int.parse(
-              codeA.substring(1),
-            ).compareTo(int.parse(codeB.substring(1)));
-          });
-        }
-
-        List<Map<String, dynamic>> result = grouped.entries.map((entry) {
-          return {
-            "defectCategoryCode": entry.key,
-            "count": entry.value.length,
-            "defectCodes": entry.value,
-          };
-        }).toList();
-
-        // Split data
-        Map<String, int> totalData = splitDefectsTotal(result);
-        List<Map<String, List<Map<String, dynamic>>>> splitDataList =
-            splitDefects(result, 9);
-
-        // Match selected findings
-        List<SelectedFindingsModel> selectedFindingsModel = [];
-        if (assetDetails['checkList'] != null && assetDetails['checkList'] is List) {
-          for (var category in assetDetails['checkList']) {
-            if (category['defectCodes'] != null && category['defectCodes'] is List) {
-              for (var subCategory in category['defectCodes']) {
-                if (subCategory['findingsAndActions'] != null && subCategory['findingsAndActions'] is List) {
-                  for (var findingsAndActions in subCategory['findingsAndActions']) {
-                    try {
-                      selectedFindingsModel.add(
-                        selectedFindingsModelFromJson(
-                          jsonEncode(findingsAndActions),
-                        ),
-                      );
-                    } catch (e) {
-                      // ignore parse errors
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        for (var splitData in splitDataList) {
-          for (var entry in splitData.entries) {
-            for (var data in entry.value) {
-              bool isMatched = false;
-              if (assetDetails['checkList'] != null && assetDetails['checkList'] is List) {
-                for (var category in assetDetails['checkList']) {
-                  if (category['defectCodes'] != null && category['defectCodes'] is List) {
-                    for (var subCategory in category['defectCodes']) {
-                      final String defCode = subCategory['defectCode']?.toString() ?? '';
-                      if (defCode == data['defectCode']?.toString()) {
-                        isMatched = subCategory['selection'] == 'yes' || subCategory['selection'] == 'pass' || subCategory['isDone'] == true;
-                      }
-                    }
-                  }
-                }
-              }
-              data["isSelected"] = isMatched;
-            }
-          }
-        }
-
-        Map<String, int> totalSelectedData = getSelectedCount(splitDataList);
-
-        final downloadResponse = await generateItrFunctions.generateItrPdf(
-          assetDetails,
-          splitDataList,
-          totalData,
-          totalSelectedData,
-          selectedFindingsModel,
-        );
-        final location = downloadResponse['location']!;
-        emit(ExRegisterGenerateItrLoaded());
-        emit(
-          ExRegisterGenerateItrSuccess(
-            message: 'File Downloaded to $location',
-            location: location,
-          ),
-        );
-      } else {
-        emit(
-          ExRegisterGenerateItrError(
-            message:
-                'Failed to fetch details for the given Equipment Tag Number.',
-          ),
-        );
-      }
-    } catch (e) {
+      emit(
+        ExRegisterGenerateItrSuccess(
+          message: 'File Downloaded to ${res['location'] ?? ''}',
+          location: res['location'] ?? '',
+        ),
+      );
+    } catch (e, stackTrace) {
+      FirebaseCrashlytics.instance.recordError(e, stackTrace, fatal: false);
       emit(
         ExRegisterGenerateItrError(
-          message: 'Getting some error while downloading the file: $e',
+          message: 'Getting some error while generating the file: $e',
         ),
       );
     }
-  }
-
-  List<dynamic> _filterChecklistData(Map<String, dynamic> selectedFilters) {
-    final List<dynamic> checkListDetails =
-        _originalChecklistData?['checkListDetails'] ?? [];
-    return checkListDetails.where((detail) {
-      bool matches = true;
-
-      final inspectionType = selectedFilters['inspectionType'];
-      if (inspectionType != null && inspectionType.isNotEmpty) {
-        if (inspectionType == 'Initial') {
-          matches &= detail['inspectionType'] == 'Initial' ||
-              detail['inspectionType'] == 'Periodic' ||
-              detail['inspectionType'] == 'Sampling';
-        } else if (inspectionType == 'Periodic' ||
-            inspectionType == 'Sampling') {
-          matches &= detail['inspectionType'] == 'Periodic' ||
-              detail['inspectionType'] == 'Sampling';
-        } else {
-          matches &= detail['inspectionType'] == inspectionType;
-        }
-      }
-
-      final equipmentType = selectedFilters['equipmentType'];
-      if (equipmentType != null && equipmentType.isNotEmpty) {
-        if (equipmentType == 'Motors') {
-          matches &= (detail['equipmentType'] == 'Motors' ||
-                  detail['equipmentType'] == 'Others') &&
-              detail['equipmentType'] != 'Lighting';
-        } else if (equipmentType == 'Lighting') {
-          matches &= (detail['equipmentType'] == 'Lighting' ||
-                  detail['equipmentType'] == 'Others') &&
-              detail['equipmentType'] != 'Motors';
-        } else if (equipmentType == 'Others') {
-          matches &= detail['equipmentType'] == 'Others';
-        } else {
-          matches &= detail['equipmentType'] == equipmentType;
-        }
-      }
-
-      final checklistNames = selectedFilters['checklistName'];
-      if (checklistNames != null &&
-          checklistNames is List &&
-          checklistNames.isNotEmpty) {
-        matches &= checklistNames.contains(detail['checklistName']);
-      }
-
-      final inspectionGrade = selectedFilters['inspectionGrade'];
-      if (inspectionGrade != null && inspectionGrade.isNotEmpty) {
-        if (inspectionGrade == 'Visual') {
-          matches &= detail['inspectionGrade'] == 'Visual';
-        } else if (inspectionGrade == 'Close') {
-          matches &= detail['inspectionGrade'] == 'Close' ||
-              detail['inspectionGrade'] == 'Visual';
-        } else if (inspectionGrade == 'Detailed') {
-          matches &= detail['inspectionGrade'] == 'Close' ||
-              detail['inspectionGrade'] == 'Visual' ||
-              detail['inspectionGrade'] == 'Detailed';
-        } else {
-          matches &= detail['inspectionGrade'] == inspectionGrade;
-        }
-      }
-
-      return matches;
-    }).toList();
-  }
-
-  Map<String, dynamic> _getUniqueDefectCodes(List<dynamic> checkListDetails) {
-    final Map<String, dynamic> uniqueDetails = {};
-    for (var detail in checkListDetails) {
-      final defectCode = detail['defectCode'];
-      if (!uniqueDetails.containsKey(defectCode)) {
-        uniqueDetails[defectCode] = detail;
-      }
-    }
-    return uniqueDetails;
-  }
-
-  Map<String, int> splitDefectsTotal(List<dynamic> checkList) {
-    final groupedChecklist = <String, List<Map<String, dynamic>>>{};
-    for (var item in checkList) {
-      final categoryCode = item['defectCategoryCode'] as String;
-      groupedChecklist.putIfAbsent(categoryCode, () => []).addAll(
-            (item['defectCodes'] as List<dynamic>).cast<Map<String, dynamic>>(),
-          );
-    }
-    return {
-      "A": groupedChecklist["A"]?.length ?? 0,
-      "B": groupedChecklist["B"]?.length ?? 0,
-      "C": groupedChecklist["C"]?.length ?? 0,
-    };
-  }
-
-  Map<String, int> getSelectedCount(
-    List<Map<String, List<Map<String, dynamic>>>> splitDataList,
-  ) {
-    int countA = 0, countB = 0, countC = 0;
-
-    for (var splitData in splitDataList) {
-      for (var entry in splitData.entries) {
-        for (var data in entry.value) {
-          if (data['isSelected'] == true) {
-            if (data['defectCategory'] == "A") countA++;
-            if (data['defectCategory'] == "B") countB++;
-            if (data['defectCategory'] == "C") countC++;
-          }
-        }
-      }
-    }
-
-    return {"A": countA, "B": countB, "C": countC};
-  }
-
-  // For PDF
-  List<Map<String, List<Map<String, dynamic>>>> splitDefects(
-    List<dynamic> checkList,
-    int size,
-  ) {
-    final groupedChecklist = <String, List<Map<String, dynamic>>>{};
-    for (var item in checkList) {
-      final categoryCode = item['defectCategoryCode'] as String;
-      groupedChecklist.putIfAbsent(categoryCode, () => []).addAll(
-            (item['defectCodes'] as List<dynamic>).cast<Map<String, dynamic>>(),
-          );
-    }
-    // totalACount=groupedChecklist["A"]!.length??0;
-    // totalBCount=groupedChecklist["B"]!.length??0;
-    // totalCCount=groupedChecklist["C"]!.length??0;
-    List<Map<String, dynamic>> listA = groupedChecklist["A"] ?? [];
-    List<Map<String, dynamic>> listB = groupedChecklist["B"] ?? [];
-    List<Map<String, dynamic>> listC = groupedChecklist["C"] ?? [];
-
-    List<Map<String, List<Map<String, dynamic>>>> result = [];
-
-    int indexA = 0, indexB = 0, indexC = 0;
-
-    while (indexA < listA.length ||
-        indexB < listB.length ||
-        indexC < listC.length) {
-      Map<String, List<Map<String, dynamic>>> group = {};
-      int count = 0;
-
-      // Add from A
-      List<Map<String, dynamic>> groupA = [];
-      while (count < size && indexA < listA.length) {
-        groupA.add(listA[indexA++]);
-        count++;
-      }
-      if (groupA.isNotEmpty) group["A"] = groupA;
-
-      // Add from B
-      List<Map<String, dynamic>> groupB = [];
-      while (count < size && indexB < listB.length) {
-        groupB.add(listB[indexB++]);
-        count++;
-      }
-      if (groupB.isNotEmpty) group["B"] = groupB;
-
-      // Add from C
-      List<Map<String, dynamic>> groupC = [];
-      while (count < size && indexC < listC.length) {
-        groupC.add(listC[indexC++]);
-        count++;
-      }
-      if (groupC.isNotEmpty) group["C"] = groupC;
-
-      result.add(group);
-    }
-
-    return result;
   }
 }

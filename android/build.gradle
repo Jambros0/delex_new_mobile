@@ -5,7 +5,7 @@ allprojects {
     }
 }
 buildscript {
-    ext.kotlin_version = '2.0.21'
+    ext.kotlin_version = '2.2.20'
     repositories {
         google()
         mavenCentral()
@@ -36,8 +36,12 @@ subprojects {
         project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
             kotlinOptions {
                 jvmTarget = "17"
+                allWarningsAsErrors = false
+                languageVersion = "2.0"
+                apiVersion = "2.0"
                 freeCompilerArgs += [
-                    "-Xskip-metadata-version-check"
+                    "-Xskip-metadata-version-check",
+                    "-Xsuppress-version-warnings"
                 ]
             }
         }

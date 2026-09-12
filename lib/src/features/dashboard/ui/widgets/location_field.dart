@@ -219,7 +219,7 @@ class LocationFieldState extends State<LocationField> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(9),
           color: isSelected
-              ? const Color(0xFF002B5C).withOpacity(0.1)
+              ? const Color(0xFF002B5C).withValues(alpha: 0.1)
               : Colors.white70,
         ),
         child: GestureDetector(

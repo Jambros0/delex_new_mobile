@@ -17,10 +17,8 @@ class ShowAllDialog extends StatelessWidget {
 
     // final double buttonHeight = isPortrait
     //     ? (screenWidth + screenHeight) * 0.018
-    //     : (screenWidth + screenHeight) * 0.025;
-
     final double buttonWidth =
-        isPortrait ? screenWidth * 0.2 : screenWidth * 0.24;
+        isPortrait ? screenWidth * 0.18 : screenWidth * 0.16;
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -29,14 +27,15 @@ class ShowAllDialog extends StatelessWidget {
       },
       child: Container(
         width: buttonWidth,
-        height: (48 / screenHeight) * screenHeight,
-        padding: EdgeInsets.symmetric(
-          horizontal: screenWidth * 0.015,
-          vertical: screenHeight * 0.005,
+        height: 48,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
         ),
         decoration: BoxDecoration(
+          color: Colors.white,
           border: Border.all(
-            color: const Color(0xFFB3B3B3),
+            color: const Color(0xFFD0D3D8),
             width: 1.0,
           ),
           borderRadius: BorderRadius.circular(8.0),
@@ -50,17 +49,17 @@ class ShowAllDialog extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: GoogleFonts.inter(
-                    fontSize: isPortrait ? screenHeight * 0.022 : 17,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF212121),
-                    height: 24 / 17),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF212121),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(
+            const SizedBox(width: 4),
+            const Icon(
               Icons.keyboard_arrow_down_outlined,
-              color: const Color(0xFF3B475B),
-              size: isPortrait ? screenHeight * 0.025 : 24,
+              color: Color(0xFF3B475B),
+              size: 20,
             ),
           ],
         ),
@@ -69,10 +68,7 @@ class ShowAllDialog extends StatelessWidget {
   }
 
   void _showCustomPositionedDialog(BuildContext context, double buttonWidth) {
-    final bool isPortrait =
-        MediaQuery.of(context).orientation == Orientation.portrait;
-    // final double screenHeight = MediaQuery.of(context).size.height;
-    final double dialogFontSize = isPortrait ? 16 : 18;
+    const double dialogFontSize = 14;
 
     showGeneralDialog(
       context: context,

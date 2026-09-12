@@ -572,7 +572,7 @@ class MoreVertDialogState extends State<MoreVertDialog> {
           context,
           '/home',
           arguments: {
-            'menu': 'Equipment Locator',
+            'menu': 'Locator',
             'isCollapsed': true,
             'gpsCord': gpsCord,
             'assetId': asset?['locationId'] ?? '',

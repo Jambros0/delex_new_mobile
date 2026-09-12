@@ -14,6 +14,7 @@ import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_svg/svg.dart';
@@ -292,7 +293,12 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       _equipmentFilePaths.add(path);
     }
 
-    _locationId = request.locationId ?? '';
+    _locationId = (request.locationId != null && request.locationId!.isNotEmpty)
+        ? request.locationId
+        : ((widget.exInspectionRequest.equipmentTagRequest?.locationId != null &&
+            widget.exInspectionRequest.equipmentTagRequest!.locationId.isNotEmpty)
+            ? widget.exInspectionRequest.equipmentTagRequest!.locationId
+            : '');
     _locationLatitude.text = request.locationLatitude ?? '';
     _locationLongtitude.text = request.locationLongitude ?? '';
     _isActive = request.isActive;
@@ -619,6 +625,14 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
         if (state is FileUploadFunctionalAreaSuccess) {
           _handleFileData(state.uploadData, state.index);
         } else if (state is ExInspectionSuccess) {
+          final locId = state.id ?? '';
+          if (locId.isNotEmpty) {
+            _locationId = locId;
+            widget.exInspectionRequest.functionalAreaRequest?.locationId =
+                locId;
+            widget.exInspectionRequest.equipmentTagRequest?.locationId =
+                locId;
+          }
           if (widget.isEditModeNotifier.value) {
             Fluttertoast.showToast(
               msg: state.message,
@@ -1068,6 +1082,30 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                 setState(() {
                   _selectedZone = value!;
                 });
+                final equipEpls = widget.exInspectionRequest.equipmentTagRequest?.epl ?? [];
+                if (equipEpls.isNotEmpty && _selectedZone.isNotEmpty) {
+                  final invalidEPL = _getInvalidEPLForZone(_selectedZone, equipEpls);
+                  if (invalidEPL != null) {
+                    Fluttertoast.showToast(
+                      msg:
+                          'EPL "$invalidEPL" is not suitable for $_selectedZone. Please select an appropriate EPL.',
+                      toastLength: Toast.LENGTH_LONG,
+                      gravity: ToastGravity.BOTTOM,
+                    );
+                  }
+                }
+                final equipTypes = widget.exInspectionRequest.equipmentTagRequest?.protectionType ?? [];
+                if (equipTypes.isNotEmpty && _selectedZone.isNotEmpty) {
+                  final invalidType = _getInvalidProtectionTypeForZone(_selectedZone, equipTypes);
+                  if (invalidType != null) {
+                    Fluttertoast.showToast(
+                      msg:
+                          'Protection Type "$invalidType" is not suitable for $_selectedZone.',
+                      toastLength: Toast.LENGTH_LONG,
+                      gravity: ToastGravity.BOTTOM,
+                    );
+                  }
+                }
               },
               isMandatory: true,
             ),
@@ -1082,6 +1120,17 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                   selectedGasItems = value;
                   _selectedGasGroup = value.isEmpty ? '' : value.join(',');
                 });
+                final equipGas = widget.exInspectionRequest.equipmentTagRequest?.equipmentGasGroup ?? [];
+                if (selectedGasItems.isNotEmpty && equipGas.isNotEmpty) {
+                  final warning = _getGasGroupValidationWarning(selectedGasItems, equipGas);
+                  if (warning != null) {
+                    Fluttertoast.showToast(
+                      msg: warning,
+                      toastLength: Toast.LENGTH_LONG,
+                      gravity: ToastGravity.BOTTOM,
+                    );
+                  }
+                }
               },
               isMandatory: true,
               isEditModeNotifier: widget.isEditModeNotifier,
@@ -1742,6 +1791,11 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     } else {
       return;
     }
+
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     if (file != null) {
       String path = await _processAndUploadMultipleFile(
         file,
@@ -2593,6 +2647,120 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     );
   }
 
+  String? _getInvalidProtectionTypeForZone(
+      String zone, List<String> selectedTypes) {
+    const zone0Allowed = [
+      'Ex ia',
+      'Ex ma',
+      'Ex ia (Ga)',
+      'Ex ma (Ga)',
+    ];
+    const zone20Allowed = [
+      'Ex ia D',
+      'Ex ma D',
+      'Ex iaD',
+      'Ex maD',
+    ];
+
+    final trimmedZone = zone.trim().toLowerCase();
+    for (final type in selectedTypes) {
+      if (trimmedZone == 'zone 0' || trimmedZone == 'class 1, div 1' || trimmedZone == 'class 1 div 1') {
+        final normalized = type.trim();
+        final isAllowed = zone0Allowed.any((allowed) =>
+            normalized.toLowerCase().startsWith(allowed.toLowerCase()));
+        if (!isAllowed) return type;
+      } else if (trimmedZone == 'zone 20' || trimmedZone == 'class 2, div 1' || trimmedZone == 'class 2 div 1') {
+        final normalized = type.trim();
+        final isAllowed = zone20Allowed.any((allowed) =>
+            normalized.toLowerCase().startsWith(allowed.toLowerCase()));
+        if (!isAllowed) return type;
+      }
+    }
+    return null;
+  }
+
+  String? _getInvalidEPLForZone(String zone, List<String> selectedEPLs) {
+    const zone0RequiredEPL = ['Ga'];
+    const zone1AllowedEPL = ['Ga', 'Gb'];
+    const zone20RequiredEPL = ['Da'];
+    const zone21AllowedEPL = ['Da', 'Db'];
+
+    final trimmedZone = zone.trim().toLowerCase();
+    List<String>? allowedList;
+    if (trimmedZone == 'zone 0' || trimmedZone == 'class 1, div 1' || trimmedZone == 'class 1 div 1') {
+      allowedList = zone0RequiredEPL;
+    } else if (trimmedZone == 'zone 1') {
+      allowedList = zone1AllowedEPL;
+    } else if (trimmedZone == 'zone 20' || trimmedZone == 'class 2, div 1' || trimmedZone == 'class 2 div 1') {
+      allowedList = zone20RequiredEPL;
+    } else if (trimmedZone == 'zone 21') {
+      allowedList = zone21AllowedEPL;
+    }
+
+    if (allowedList == null) return null;
+
+    for (final epl in selectedEPLs) {
+      final normalized = epl.trim();
+      if (!allowedList.any((a) => a.toLowerCase() == normalized.toLowerCase())) {
+        return epl;
+      }
+    }
+    return null;
+  }
+
+  String? _getGasGroupValidationWarning(
+      List<String> areaGasGroups, List<String> equipmentGasGroups) {
+    // Gas group hierarchy:
+    // IEC: IIA (1) < IIB (2) < IIC (3)
+    // NEC: D (1) < C (2) < B (3) < A (4)
+    // Dust: IIIA (1) < IIIB (2) < IIIC (3)
+    const gasGroupRank = {
+      'IIA': 1,
+      'GROUP IIA': 1,
+      'GAS GROUP IIA': 1,
+      'IIB': 2,
+      'GROUP IIB': 2,
+      'GAS GROUP IIB': 2,
+      'IIC': 3,
+      'GROUP IIC': 3,
+      'GAS GROUP IIC': 3,
+      'IIIA': 1,
+      'GROUP IIIA': 1,
+      'IIIB': 2,
+      'GROUP IIIB': 2,
+      'IIIC': 3,
+      'GROUP IIIC': 3,
+      'D': 1,
+      'GROUP D': 1,
+      'C': 2,
+      'GROUP C': 2,
+      'B': 3,
+      'GROUP B': 3,
+      'A': 4,
+      'GROUP A': 4,
+    };
+
+    for (final areaGroup in areaGasGroups) {
+      final cleanArea = areaGroup.trim().toUpperCase();
+      final areaRank = gasGroupRank[cleanArea];
+      if (areaRank == null) continue;
+
+      bool covered = false;
+      for (final equipGroup in equipmentGasGroups) {
+        final cleanEquip = equipGroup.trim().toUpperCase();
+        final equipRank = gasGroupRank[cleanEquip];
+        if (equipRank != null && equipRank >= areaRank) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered && equipmentGasGroups.isNotEmpty) {
+        return 'Equipment Gas Group ${equipmentGasGroups.join(", ")} does not cover Area Gas Group $areaGroup. Equipment must have gas group $areaGroup or higher.';
+      }
+    }
+    return null;
+  }
+
   String _getTextFieldValue(TextEditingController controller) {
     return controller.text.isEmpty ? '' : controller.text;
   }
@@ -2701,25 +2869,35 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     return true;
   }
 
-  void onSubmitFunctionalArea({bool skipValidation = false}) async {
+  Future<bool>? _inFlightSubmit;
+
+  Future<bool> onSubmitFunctionalArea({bool skipValidation = false}) async {
+    if (_inFlightSubmit != null) {
+      return await _inFlightSubmit!;
+    }
+    _inFlightSubmit =
+        _performSubmitFunctionalArea(skipValidation: skipValidation);
+    try {
+      final result = await _inFlightSubmit!;
+      return result;
+    } finally {
+      _inFlightSubmit = null;
+    }
+  }
+
+  Future<bool> _performSubmitFunctionalArea(
+      {bool skipValidation = false}) async {
     setState(() {
       _isSubmitting = !skipValidation;
     });
 
-    if (!skipValidation && !formKey.currentState!.validate()) {
-      return;
+    if (!skipValidation && !(formKey.currentState?.validate() ?? false)) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      return false;
     }
-    // if (skipValidation) {
-    //   return;
-    // }
-    // _areaClassDrawAttachOrgName =
-    //     _areaClassificationDrawingController.text.isNotEmpty
-    //         ? _areaClassificationDrawingController.text
-    //         : _areaClassDrawNo?.split('.').first;
-    // _eqpmntLytDrawAttachOrgName =
-    //     _equipmentLayoutDrawingController.text.isNotEmpty
-    //         ? _equipmentLayoutDrawingController.text
-    //         : _eqpmtLytDrawNo?.split('.').first;
+
     _areaClassDrawAttachOrgName = List<String?>.generate(
       _areaClassificationDrawingController.length,
       (i) {
@@ -2751,12 +2929,6 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       },
     );
 
-    // _eqpmntLytDrawAttachOrgName = _equipmentLayoutDrawingController
-    //     .map((controller) => controller.text)
-    //     .toList();
-    //  ||
-    //     _selectedPlatform !=
-    //         widget.exInspectionRequest.equipmentTagRequest?.area
     final currentLatitude = _gpsCoordinatesController.text.contains(',')
         ? _gpsCoordinatesController.text.split(',')[0].trim()
         : '';
@@ -2764,65 +2936,24 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     final currentLongitude = _gpsCoordinatesController.text.contains(',')
         ? _gpsCoordinatesController.text.split(',')[1].trim()
         : '';
-    if (_selectedFieldName !=
-            widget.exInspectionRequest.equipmentTagRequest?.location ||
-        _selectedPlatform !=
-            widget.exInspectionRequest.equipmentTagRequest?.area ||
-        _selectedDeckLevel !=
-            widget.exInspectionRequest.equipmentTagRequest?.deckLevel ||
-        _getTextFieldValue(_subAreaController) !=
-            widget.exInspectionRequest.equipmentTagRequest?.subArea ||
-        _selectedZone != widget.exInspectionRequest.equipmentTagRequest?.zone ||
-        !areListsEqual(
-          selectedGasItems,
-          widget.exInspectionRequest.equipmentTagRequest?.locationGasGroup ??
-              [],
-        ) ||
-        !areListsEqual(
-          selectedTemperatureItems,
-          widget.exInspectionRequest.equipmentTagRequest?.locationTClass ?? [],
-        ) ||
-        !areListsEqual(
-          selectedIPRatingItems,
-          widget.exInspectionRequest.equipmentTagRequest?.locationIpRating ??
-              [],
-        ) ||
-        !areListsEqual(
-          widget.exInspectionRequest.functionalAreaRequest
-                  ?.areaClassDrawAttachOrgName ??
-              [],
-          _areaClassDrawAttachOrgName,
-        ) ||
-        !areListsEqual(
-          widget.exInspectionRequest.functionalAreaRequest
-                  ?.eqpmtLytDrawAttachOrgName ??
-              [],
-          _eqpmntLytDrawAttachOrgName,
-        ) ||
-        currentLatitude !=
-            (widget.exInspectionRequest.equipmentTagRequest?.locationLatitude ??
-                '') ||
-        currentLongitude !=
-            (widget.exInspectionRequest.equipmentTagRequest
-                    ?.locationLongitude ??
-                '')) {
-      if (widget.exInspectionRequest.equipmentTagRequest?.isDuplicate == true) {
-        _locationId = await postAsset();
-        if (!mounted) return;
-        widget.exInspectionRequest.equipmentTagRequest?.locationId =
-            _locationId.toString();
-      } else {
-        _locationId =
-            widget.exInspectionRequest.equipmentTagRequest?.locationId ??
-                _locationId;
-      }
-    } else {
-      _locationId =
-          widget.exInspectionRequest.equipmentTagRequest?.locationId ??
-              _locationId;
-    }
 
-    if (!mounted) return;
+    String? effectiveLocationId = (_locationId != null && _locationId!.isNotEmpty)
+        ? _locationId
+        : ((widget.exInspectionRequest.functionalAreaRequest?.locationId !=
+                    null &&
+                widget.exInspectionRequest.functionalAreaRequest!.locationId!
+                    .isNotEmpty)
+            ? widget.exInspectionRequest.functionalAreaRequest!.locationId
+            : ((widget.exInspectionRequest.equipmentTagRequest?.locationId !=
+                        null &&
+                    widget.exInspectionRequest.equipmentTagRequest!.locationId
+                        .isNotEmpty)
+                ? widget.exInspectionRequest.equipmentTagRequest!.locationId
+                : null));
+
+    _locationId = effectiveLocationId;
+
+    if (!mounted) return true;
 
     widget.exInspectionRequest.functionalAreaRequest = FunctionalAreaRequest(
       locationId: _locationId,
@@ -2843,18 +2974,48 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       eqpmtLytDrawAttach: _eqpmtLytDrawAttach.whereType<String>().toList(),
       eqpmtLytDrawAttachOrgName:
           _eqpmntLytDrawAttachOrgName.whereType<String>().toList(),
-      locationLatitude: (_gpsCoordinatesController.text.contains(',')
-          ? _gpsCoordinatesController.text.split(',')[0].trim()
-          : ''),
-      locationLongitude: (_gpsCoordinatesController.text.contains(',')
-          ? _gpsCoordinatesController.text.split(',')[1].trim()
-          : ''),
+      locationLatitude: currentLatitude,
+      locationLongitude: currentLongitude,
       isActive: _selectedAreaStatus == 'Active',
       areaStatus: _selectedAreaStatus ?? (_isActive ? 'Active' : 'In Active'),
     );
-    if (!mounted) return;
-    context.read<ExInspectionsBloc>().add(
-          SubmitFunctionalArea(widget.exInspectionRequest),
-        );
+
+    if (!mounted) return true;
+
+    final bloc = context.read<ExInspectionsBloc>();
+    final stateFuture = bloc.stream.firstWhere(
+      (state) => state is ExInspectionSuccess || state is ExInspectionError,
+    );
+    bloc.add(
+      SubmitFunctionalArea(widget.exInspectionRequest),
+    );
+
+    try {
+      final state = await stateFuture.timeout(const Duration(seconds: 10));
+      if (!mounted) return true;
+      setState(() {
+        _isSubmitting = false;
+      });
+      if (state is ExInspectionSuccess) {
+        final locId = state.id ?? '';
+        if (locId.isNotEmpty) {
+          _locationId = locId;
+          widget.exInspectionRequest.functionalAreaRequest?.locationId =
+              locId;
+          widget.exInspectionRequest.equipmentTagRequest?.locationId =
+              locId;
+        }
+        return true;
+      } else if (state is ExInspectionError) {
+        return false;
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+    return true;
   }
 }

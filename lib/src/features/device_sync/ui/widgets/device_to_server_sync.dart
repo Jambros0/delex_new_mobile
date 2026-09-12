@@ -336,6 +336,33 @@ class DeviceToServerSync {
       await repository.insertOrUpdateDeviceToServer(activity.toMap());
 
       final usersign = await dbHelper.getLoggedInUserByUserId(userId);
+      String userSignature = usersign?.signature ?? '';
+      if (userSignature.isNotEmpty &&
+          !userSignature.startsWith('http') &&
+          !userSignature.startsWith('data:')) {
+        final sigFile = File(userSignature);
+        if (await sigFile.exists()) {
+          final uploadedSig = await _uploadFile(
+            filePath: userSignature,
+            fileOf: 'userSignature',
+            scaffoldMessenger: scaffoldMessenger,
+          );
+          if (uploadedSig != null && uploadedSig.isNotEmpty) {
+            userSignature = uploadedSig;
+          }
+        }
+      }
+
+      final inspectedByValue = (asset.inspectedBy != null &&
+              asset.inspectedBy.toString().isNotEmpty &&
+              asset.inspectedBy.toString() != "null")
+          ? asset.inspectedBy
+          : (usersign != null
+              ? ('${usersign.firstName} ${usersign.lastName}'.trim().isNotEmpty
+                  ? '${usersign.firstName} ${usersign.lastName}'.trim()
+                  : usersign.userName)
+              : '');
+
       final assetJson = {
         '_id': asset.id,
         'rfidRef': asset.rfidRef,
@@ -386,22 +413,27 @@ class DeviceToServerSync {
         'dataSheet': asset.dataSheet,
         'dataSheetNo': asset.dataSheetNo,
         'dataSheetOrgName': asset.dataSheetOrgName,
-        'inspectedBy': asset.inspectedBy,
+        'inspectedBy': inspectedByValue,
         'repairsDone': asset.repairsDone,
         'defectDefectCategory': asset.defectDefectCategory,
         'correctiveOverallCondition': asset.correctiveOverallCondition,
-        // 'remarks': asset.remarks,
         'repairedBy': asset.repairedBy,
         'inspectedDate': (asset.inspectedDate == null ||
                 asset.inspectedDate.toString().isEmpty ||
                 asset.inspectedDate == "null")
             ? ''
-            : DateTime.parse(asset.inspectedDate.toString()).toUtc().toString(),
+            : (DateTime.tryParse(asset.inspectedDate.toString())
+                    ?.toUtc()
+                    .toIso8601String() ??
+                asset.inspectedDate.toString()),
         'repairedDate': (asset.repairedDate == null ||
                 asset.repairedDate.toString().isEmpty ||
                 asset.repairedDate == "null")
             ? ''
-            : DateTime.parse(asset.repairedDate.toString()).toUtc().toString(),
+            : (DateTime.tryParse(asset.repairedDate.toString())
+                    ?.toUtc()
+                    .toIso8601String() ??
+                asset.repairedDate.toString()),
         'yesNoSelection': asset.yesNoSelection,
         'gpsCord': asset.gpsCord,
         'protectionStd': asset.protectionStd,
@@ -462,7 +494,7 @@ class DeviceToServerSync {
         'repairDuration': asset.repairDuration,
         'repairTimeEstimate': asset.repairTimeEstimate,
         'remarksIfAny': asset.remarksIfAny,
-        'signature': usersign!.signature,
+        'signature': userSignature,
         'areaStatus': asset.areaStatus,
         'inspectedId': userId,
       };

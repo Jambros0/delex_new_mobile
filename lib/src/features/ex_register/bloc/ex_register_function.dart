@@ -158,19 +158,16 @@ class ExRegisterFunction {
       });
     } else if (columnIndex == 9) {
       filteredList.sort((a, b) {
-        bool isAEmpty = a.epl.isEmpty;
-        bool isBEmpty = b.epl.isEmpty;
+        final strA = _formatEquipmentProtection(a);
+        final strB = _formatEquipmentProtection(b);
+        bool isAEmpty = strA.isEmpty;
+        bool isBEmpty = strB.isEmpty;
 
         if (isAEmpty && isBEmpty) return 0;
         if (isAEmpty) return normalizedSortOrder == "ASC" ? -1 : 1;
         if (isBEmpty) return normalizedSortOrder == "ASC" ? 1 : -1;
 
-        final minA = a.epl
-            .reduce((curr, next) => curr.compareTo(next) < 0 ? curr : next);
-        final minB = b.epl
-            .reduce((curr, next) => curr.compareTo(next) < 0 ? curr : next);
-
-        final comparison = minA.compareTo(minB);
+        final comparison = strA.compareTo(strB);
         return normalizedSortOrder == "DESC" ? -comparison : comparison;
       });
     } else if (columnIndex == 10) {
@@ -227,5 +224,31 @@ class ExRegisterFunction {
     }
 
     return filteredList;
+  }
+
+  static String _formatEquipmentProtection(ExRegister asset) {
+    List<String> parts = [];
+    String getCleanString(List<String>? items) {
+      if (items == null || items.isEmpty) return '';
+      final filtered = items.where((e) {
+        final val = e.trim().toLowerCase();
+        return val.isNotEmpty &&
+            val != 'not available' &&
+            val != 'n/a' &&
+            val != 'na' &&
+            val != 'null';
+      }).toList();
+      return filtered.join(', ');
+    }
+
+    final protType = getCleanString(asset.protectionType);
+    final gasGroup = getCleanString(asset.equipmentGasGroup);
+    final tempClass = getCleanString(asset.equipmentTClass);
+
+    if (protType.isNotEmpty) parts.add(protType);
+    if (gasGroup.isNotEmpty) parts.add(gasGroup);
+    if (tempClass.isNotEmpty) parts.add(tempClass);
+
+    return parts.join(' ');
   }
 }

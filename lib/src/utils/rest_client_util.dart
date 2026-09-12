@@ -98,13 +98,14 @@ class HttpUtils {
     Map<String, String>? headers,
     required bool useInterceptor,
   }) async {
-    final url = '${await getApiUrl()}$endpoint';
+    final rawUrl = '${await getApiUrl()}$endpoint';
+    final url = _sanitizeUrl(rawUrl);
     try {
       final response = await http.get(
         Uri.parse(url),
         headers: headers ?? {'Content-Type': _contentType},
       );
-      return TokenInterceptor().intercept(response);
+      return await TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');
     }

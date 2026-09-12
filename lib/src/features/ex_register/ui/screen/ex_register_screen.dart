@@ -1,8 +1,8 @@
-// ignore_for_file: unused_field
-
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/data/services/device_sync_services.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_event.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_state.dart';
@@ -10,6 +10,8 @@ import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/ui/widgets/dat
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/ui/widgets/ex_register_table.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/functional_areas/ui/widgets/download_ex_option_popup.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/common_util.dart';
+import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
+import 'package:deex_bloc_mobile_app_dev/src/utils/network_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
@@ -35,6 +37,7 @@ class ExRegisterScreen extends StatefulWidget {
   final DateTime? ToDatefilter;
   final String? isSelectedScreen;
   final bool? isSelectedScreenFlag;
+  final bool? fetchApiOnce;
   const ExRegisterScreen({
     super.key,
     this.equipmentId,
@@ -44,6 +47,7 @@ class ExRegisterScreen extends StatefulWidget {
     this.ToDatefilter,
     this.isSelectedScreen,
     this.isSelectedScreenFlag,
+    this.fetchApiOnce,
   });
 
   @override
@@ -101,6 +105,7 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
   DateTime? toDate = DateTime.now();
   bool _hasShownMessage = false;
   bool _hasDownloadShownMessage = false;
+  bool _isItrLoadingDialogOpen = false;
   int skip = 0;
   int offset = 0;
   bool hasHandled = false;
@@ -135,17 +140,52 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
     });
   }
 
-  void _loadInitialData() {
+  Future<void> _loadInitialData() async {
     collectionSelectedFilter = {};
+    final userType = await authUtils.getUserType();
+    final defaultStartDate = (userType == 'onshore')
+        ? DateTime(2023, 6, 13)
+        : DateTime(2022, 5, 18);
     final parsedToDate = widget.ToDatefilter != null
         ? DateTime.tryParse(widget.ToDatefilter!.toIso8601String())
         : toDate;
     _initSearch();
+
+    if (widget.fetchApiOnce == true) {
+      try {
+        final networkUtils = NetworkUtils();
+        if (networkUtils.isNetworkAvailable) {
+          final deviceSyncService = DeviceSyncServices();
+          final data = await deviceSyncService.fetchWorkOrderAssets(
+            limit: 100,
+            offset: 0,
+          );
+          final fetchedAssets = data['assets'] as List<ExRegister>?;
+          if (fetchedAssets != null && fetchedAssets.isNotEmpty) {
+            final dbHelper = DBHelper();
+            for (var asset in fetchedAssets) {
+              final assetMap = asset.toJson();
+              final exRegisterJson = {
+                'exregister_json': jsonEncode({'asset': assetMap})
+              };
+              if (userType == 'onshore') {
+                await dbHelper.saveExRegisterOnshore(exRegisterJson);
+              } else {
+                await dbHelper.saveExRegister(exRegisterJson);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint("Error fetching API data once on ExRegister: $e");
+      }
+    }
+
     _bloc.add(ExRegisterInitEvent());
     if (widget.isSelectedScreenFlag == true) {
       _bloc.add(
         InitLoadExRegister(
-          fromDate: widget.fromDatefilter ?? DateTime(2024, 1, 1),
+          fromDate: widget.fromDatefilter ?? defaultStartDate,
           toDate: parsedToDate,
           isReset: false,
           type: widget.fltertype ?? "Year to Date",
@@ -155,7 +195,7 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
     } else {
       _bloc.add(
         YearToDateFilterExRegister(
-          fromDate: widget.fromDatefilter ?? DateTime(2024, 1, 1),
+          fromDate: widget.fromDatefilter ?? defaultStartDate,
           toDate: parsedToDate,
           isReset: false,
           type: widget.fltertype ?? "Year to Date",
@@ -176,7 +216,7 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
             : toDate;
         date = DateFilter(
           filterType: dateType,
-          fromDate: widget.fromDatefilter ?? DateTime(2024, 1, 1),
+          fromDate: widget.fromDatefilter ?? defaultStartDate,
           toDate: parsedToDate,
         );
       });
@@ -310,10 +350,11 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          flex: 5,
+                          flex: 7,
                           child: Row(
                             children: [
                               Expanded(
+                                flex: 5,
                                 child: Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(8.0),
@@ -327,7 +368,7 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                                           ]
                                         : null,
                                   ),
-                                  height: (48 / screenHeight) * screenHeight,
+                                  height: 48,
                                   child: TextFormField(
                                     onFieldSubmitted: (value) async {
                                       if (!nfcUsed) {
@@ -349,18 +390,17 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                                     keyboardType: TextInputType.none,
                                     // focusNode: searchFoucs,
                                     controller: _searchController,
-                                    style: const TextStyle(
-                                      fontSize: 17,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w400,
-                                      height: 24 / 17,
+                                      color: const Color(0xFF212121),
                                     ),
                                     decoration: InputDecoration(
                                       hintText: 'Search',
                                       hintStyle: GoogleFonts.inter(
-                                        fontSize: 17,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.w400,
                                         color: const Color(0xFF979797),
-                                        height: 24 / 17,
                                       ),
                                       contentPadding: const EdgeInsets.symmetric(
                                         vertical: 12.0,
@@ -567,9 +607,10 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                                     return current is ExRegisterDownloadLoading ||
                                         current is ExRegisterDownloadError ||
                                         current is ExRegisterDownloadSuccess ||
-                                        current
-                                            is ExRegisterGenerateItrLoading ||
-                                        current is ExRegisterGenerateItrLoaded;
+                                        current is ExRegisterGenerateItrLoading ||
+                                        current is ExRegisterGenerateItrLoaded ||
+                                        current is ExRegisterGenerateItrSuccess ||
+                                        current is ExRegisterGenerateItrError;
                                   },
                                   listener: (context, state) {
                                     if (state is ExRegisterDownloadLoading) {
@@ -601,23 +642,57 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                                       );
                                     }
                                     if (state is ExRegisterGenerateItrLoading) {
-                                      showDialog(
-                                        context: context,
-                                        barrierDismissible: true,
-                                        barrierColor: const Color(0x14000000),
-                                        barrierLabel: 'Dismiss',
-                                        builder: (context) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(),
-                                          );
-                                        },
+                                      if (!_isItrLoadingDialogOpen) {
+                                        _isItrLoadingDialogOpen = true;
+                                        showDialog(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          barrierColor: const Color(0x14000000),
+                                          builder: (context) {
+                                            return const Center(
+                                              child: CircularProgressIndicator(),
+                                            );
+                                          },
+                                        ).then((_) {
+                                          _isItrLoadingDialogOpen = false;
+                                        });
+                                      }
+                                    }
+                                    if (state is ExRegisterGenerateItrSuccess) {
+                                      if (_isItrLoadingDialogOpen) {
+                                        _isItrLoadingDialogOpen = false;
+                                        try {
+                                          Navigator.of(context, rootNavigator: true).pop();
+                                        } catch (_) {}
+                                      }
+                                      OpenFilex.open(
+                                        state.location,
+                                        type: 'application/pdf',
+                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(state.message),
+                                          backgroundColor: Colors.green,
+                                        ),
                                       );
                                     }
-                                    if (state is ExRegisterGenerateItrLoaded) {
-                                      Navigator.of(
+                                    if (state is ExRegisterGenerateItrError) {
+                                      if (_isItrLoadingDialogOpen) {
+                                        _isItrLoadingDialogOpen = false;
+                                        try {
+                                          Navigator.of(context, rootNavigator: true).pop();
+                                        } catch (_) {}
+                                      }
+                                      ScaffoldMessenger.of(
                                         context,
-                                        rootNavigator: true,
-                                      ).pop();
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(state.message),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
                                     }
                                     if (state is ExRegisterDownloadError) {
                                       ScaffoldMessenger.of(

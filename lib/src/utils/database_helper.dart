@@ -908,8 +908,11 @@ class DBHelper {
     await db.update(
       'functional_area',
       updatedFunctionalArea,
-      where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$updatedLocationId"%'],
+      where: 'functional_area_json LIKE ? OR id = ?',
+      whereArgs: [
+        '%"locationId":"$updatedLocationId"%',
+        int.tryParse(updatedLocationId) ?? -1,
+      ],
     );
 
     final relatedExRegisters = await _safeBatchQuery(
@@ -1033,7 +1036,9 @@ class DBHelper {
     Map<String, dynamic> decodedJson = jsonDecode(exregisterJsonString);
     if (decodedJson.containsKey('asset')) {
       Map<String, dynamic> assetMap = decodedJson['asset'];
-      assetMap['_id'] = newId.toString();
+      if (assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) {
+        assetMap['_id'] = newId.toString();
+      }
       assetMap['primaryId'] = newId;
     }
     final updatedJsonString = jsonEncode(decodedJson);
@@ -1149,9 +1154,19 @@ class DBHelper {
     final db = await workOrderDatabase;
     final results = await _safeBatchQuery(db, 'exregister_table');
     final recordToDelete = results.firstWhere((row) {
-      final exRegisterJson = row['exregister_json'] as String;
-      final jsonMap = jsonDecode(exRegisterJson) as Map<String, dynamic>;
-      return jsonMap['asset']['_id'] == assetId;
+      final exRegisterJson = row['exregister_json'];
+      if (exRegisterJson == null) return false;
+      final jsonMap = (exRegisterJson is String)
+          ? jsonDecode(exRegisterJson) as Map<String, dynamic>
+          : exRegisterJson as Map<String, dynamic>;
+      final asset = jsonMap['asset'] as Map<String, dynamic>?;
+      return row['id']?.toString() == assetId ||
+          row['asset_id']?.toString() == assetId ||
+          asset?['_id']?.toString() == assetId ||
+          asset?['primaryId']?.toString() == assetId ||
+          asset?['id']?.toString() == assetId ||
+          asset?['rfidRef']?.toString() == assetId ||
+          asset?['eqpmtTag']?.toString() == assetId;
     }, orElse: () => {});
     return recordToDelete.isNotEmpty ? recordToDelete : null;
   }
@@ -1553,8 +1568,11 @@ class DBHelper {
     await db.update(
       'functional_area_onshore',
       updatedFunctionalArea,
-      where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$updatedLocationId"%'],
+      where: 'functional_area_json LIKE ? OR id = ?',
+      whereArgs: [
+        '%"locationId":"$updatedLocationId"%',
+        int.tryParse(updatedLocationId) ?? -1,
+      ],
     );
 
     final relatedExRegisters = await _safeBatchQuery(
@@ -1780,9 +1798,19 @@ class DBHelper {
     final db = await onshoreDatabase;
     final results = await _safeBatchQuery(db, 'exregister_table_onshore');
     final recordToDelete = results.firstWhere((row) {
-      final exRegisterJson = row['exregister_json'] as String;
-      final jsonMap = jsonDecode(exRegisterJson) as Map<String, dynamic>;
-      return jsonMap['asset']['_id'] == assetId;
+      final exRegisterJson = row['exregister_json'];
+      if (exRegisterJson == null) return false;
+      final jsonMap = (exRegisterJson is String)
+          ? jsonDecode(exRegisterJson) as Map<String, dynamic>
+          : exRegisterJson as Map<String, dynamic>;
+      final asset = jsonMap['asset'] as Map<String, dynamic>?;
+      return row['id']?.toString() == assetId ||
+          row['asset_id']?.toString() == assetId ||
+          asset?['_id']?.toString() == assetId ||
+          asset?['primaryId']?.toString() == assetId ||
+          asset?['id']?.toString() == assetId ||
+          asset?['rfidRef']?.toString() == assetId ||
+          asset?['eqpmtTag']?.toString() == assetId;
     }, orElse: () => {});
     return recordToDelete.isNotEmpty ? recordToDelete : null;
   }
@@ -1861,7 +1889,9 @@ class DBHelper {
     Map<String, dynamic> decodedJson = jsonDecode(exregisterJsonString);
     if (decodedJson.containsKey('asset')) {
       Map<String, dynamic> assetMap = decodedJson['asset'];
-      assetMap['_id'] = newId.toString();
+      if (assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) {
+        assetMap['_id'] = newId.toString();
+      }
       assetMap['primaryId'] = newId;
     }
     final updatedJsonString = jsonEncode(decodedJson);

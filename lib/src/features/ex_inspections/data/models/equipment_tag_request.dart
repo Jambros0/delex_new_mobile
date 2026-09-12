@@ -117,6 +117,7 @@ class EquipmentTagRequest {
   dynamic isDuplicate;
   dynamic inspectedId;
   dynamic areaStatus;
+  dynamic signature;
   EquipmentTagRequest({
     required this.location,
     required this.area,
@@ -236,6 +237,7 @@ class EquipmentTagRequest {
     this.isDuplicate,
     this.inspectedId,
     this.areaStatus,
+    this.signature,
   });
 
   Map<String, dynamic> toJson() {
@@ -410,7 +412,7 @@ class EquipmentTagRequest {
       data['defectivePhoto6OrgName'] = defectivePhoto6OrgName;
     }
     if (materials != null) {
-      data['materials'] = materials;
+      data['materials'] = materials?.map((x) => x.toJson()).toList();
     }
     if (existingFaults != null) {
       data['existingFaults'] = existingFaults;
@@ -470,7 +472,7 @@ class EquipmentTagRequest {
       data['correctivePhoto6OrgName'] = correctivePhoto6OrgName;
     }
     if (rbiStrategy != null) {
-      data['rbiStrategy'] = rbiStrategy;
+      data['rbiStrategy'] = rbiStrategy?.toJson();
     }
     if (additionalInfoForRepairs != null) {
       data['additionalInfoForRepairs'] = additionalInfoForRepairs;
@@ -479,7 +481,8 @@ class EquipmentTagRequest {
       data['remarksIfAny'] = remarksIfAny;
     }
     if (supplementaryMaterialReq != null) {
-      data['supplementaryMaterialReq'] = supplementaryMaterialReq;
+      data['supplementaryMaterialReq'] =
+          supplementaryMaterialReq?.map((x) => x.toJson()).toList();
     }
     if (defectCertificationOrgName != null) {
       data['defectCertificationOrgName'] = defectCertificationOrgName;
@@ -526,6 +529,9 @@ class EquipmentTagRequest {
     }
     if (areaStatus != null) {
       data['areaStatus'] = areaStatus;
+    }
+    if (signature != null && signature.toString().isNotEmpty) {
+      data['signature'] = signature;
     }
     data['isActive'] = isActive;
     return {'asset': data};
@@ -609,13 +615,28 @@ class EquipmentTagRequest {
       defectivePhoto5OrgName: json['defectivePhoto5OrgName'] ?? "",
       defectivePhoto6: json['defectivePhoto6'] ?? "",
       defectivePhoto6OrgName: json['defectivePhoto6OrgName'] ?? "",
-      materials: (json['materials'] as List<dynamic>?)
-          ?.map((x) => Materials.fromJson(x as Map<String, dynamic>))
-          .toList(),
-      supplementaryMaterialReq: [],
-      // (json['supplementaryMaterialReq'] as List<dynamic>?)
-      //     ?.map((x) => Materials.fromJson(x as Map<String, dynamic>))
-      //     .toList(),
+      materials: (json['materials'] is List)
+          ? (json['materials'] as List)
+              .map((x) {
+                if (x is Materials) return x;
+                if (x is Map<String, dynamic>) return Materials.fromJson(x);
+                if (x is Map) return Materials.fromJson(Map<String, dynamic>.from(x));
+                return null;
+              })
+              .whereType<Materials>()
+              .toList()
+          : [],
+      supplementaryMaterialReq: (json['supplementaryMaterialReq'] is List)
+          ? (json['supplementaryMaterialReq'] as List)
+              .map((x) {
+                if (x is Materials) return x;
+                if (x is Map<String, dynamic>) return Materials.fromJson(x);
+                if (x is Map) return Materials.fromJson(Map<String, dynamic>.from(x));
+                return null;
+              })
+              .whereType<Materials>()
+              .toList()
+          : [],
       defectCertificationNo: json['defectCertificationNo'] ?? "",
       defectCertificationOrgName: json['defectCertificationOrgName'] ?? "",
       defectCertificationAttach: json['defectCertificationAttach'] ?? "",
@@ -637,7 +658,13 @@ class EquipmentTagRequest {
       correctivePhoto6: json['correctivePhoto6'] ?? "",
       correctivePhoto6OrgName: json['correctivePhoto6OrgName'] ?? "",
       rbiStrategy: json['rbiStrategy'] != null
-          ? RbiStrategy.fromJson(json['rbiStrategy'] as Map<String, dynamic>)
+          ? (json['rbiStrategy'] is RbiStrategy
+              ? json['rbiStrategy'] as RbiStrategy
+              : RbiStrategy.fromJson(
+                  json['rbiStrategy'] is Map<String, dynamic>
+                      ? json['rbiStrategy'] as Map<String, dynamic>
+                      : Map<String, dynamic>.from(json['rbiStrategy'] as Map),
+                ))
           : null,
       additionalInfoForRepairs: json['additionalInfoForRepairs'],
       areaClassDrawAttach: List<String>.from(json['areaClassDrawAttach'] ?? []),
@@ -660,7 +687,17 @@ class EquipmentTagRequest {
       certfnNo: json['certfnNo'] ?? "",
       areaStatus: json['areaStatus'] ?? "",
       correctiveDefectCategory: json['correctiveDefectCategory'] ?? "",
-      checkList: json['checkList'] ?? [],
+      checkList: (json['checkList'] is List)
+          ? (json['checkList'] as List)
+              .map((item) {
+                if (item is CheckList) return item;
+                if (item is Map<String, dynamic>) return CheckList.fromJson(item);
+                if (item is Map) return CheckList.fromJson(Map<String, dynamic>.from(item));
+                return null;
+              })
+              .whereType<CheckList>()
+              .toList()
+          : [],
       yesNoSelection:
           (json['yesNoSelection'] as Map?)?.cast<String, dynamic>() ?? {},
       repairDuration: json['repairDuration'] ?? "",
@@ -668,6 +705,7 @@ class EquipmentTagRequest {
       inspectionPriority: json['inspectionPriority'] ?? "",
       isDuplicate: json["isDuplicate"] ?? false,
       inspectedId: json["inspectedId"] ?? '',
+      signature: json['signature'] ?? '',
     );
   }
 }

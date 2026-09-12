@@ -417,6 +417,7 @@ class InspectionChecklistStepState extends State<InspectionChecklistStep> {
         padding: const EdgeInsets.only(top: 16, bottom: 20),
         child: Wrap(
           spacing: 24.0,
+          runSpacing: 16.0,
           children: [
             _buildLabeledDropdownField(
               label: 'Inspection Type',

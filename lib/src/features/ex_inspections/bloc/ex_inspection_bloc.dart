@@ -68,7 +68,8 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
   ) async {
     emit(ExInspectionLoading());
     try {
-      _allDropDowns = await exInspectionService.getAllDropDwn();
+      final rawDropDowns = await exInspectionService.getAllDropDwn();
+      _allDropDowns = dropdownRepository.sortDropdownData(rawDropDowns);
 
       emit(
         ExInspectionLoaded(
@@ -135,6 +136,7 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
             event.request.functionalAreaRequest!.locationId!.isEmpty) {
           String locationId = result['data']['locationId'];
           event.request.functionalAreaRequest!.locationId = locationId;
+          event.request.equipmentTagRequest?.locationId = locationId;
           emit(
             ExInspectionSuccess(
               "Area Detail Created Successfully",
@@ -143,6 +145,8 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
             ),
           );
         } else {
+          event.request.equipmentTagRequest?.locationId =
+              event.request.functionalAreaRequest!.locationId!;
           emit(
             ExInspectionSuccess(
               "Area Detail Updated Successfully",
@@ -185,7 +189,7 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
         emit(
           ExInspectionSuccess(
             "Area Detail Clear Successfully",
-            request.locationId!,
+            request.locationId ?? "",
             false,
           ),
         );
@@ -199,6 +203,7 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
         if (result['status'] == true) {
           locationId = result['data']['locationId'];
           event.request.functionalAreaRequest!.locationId = locationId;
+          event.request.equipmentTagRequest?.locationId = locationId ?? '';
           emit(
             ExInspectionSuccess(
               "Area Detail Created Successfully",
@@ -212,6 +217,8 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
       } else {
         print("functionalAreaData => ${jsonEncode(functionalAreaData)}");
         await functionalAreaRepo.updateFunctionalArea(functionalAreaData);
+        event.request.functionalAreaRequest!.locationId = locationId;
+        event.request.equipmentTagRequest?.locationId = locationId;
         emit(
           ExInspectionSuccess(
             "Area Detail Updated Successfully",

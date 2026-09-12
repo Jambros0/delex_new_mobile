@@ -201,8 +201,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    Colors.black.withOpacity(0.2),
-                                    const Color(0xFF0A0E1A).withOpacity(0.6),
+                                    Colors.black.withValues(alpha: 0.2),
+                                    const Color(0xFF0A0E1A).withValues(alpha: 0.6),
                                   ],
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
@@ -466,7 +466,7 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: _isLoading ? null : _handleLogin,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF00D6FF),
-                disabledBackgroundColor: const Color(0xFF00D6FF).withOpacity(0.85),
+                disabledBackgroundColor: const Color(0xFF00D6FF).withValues(alpha: 0.85),
                 foregroundColor: Colors.black,
                 disabledForegroundColor: Colors.black,
                 elevation: 0,

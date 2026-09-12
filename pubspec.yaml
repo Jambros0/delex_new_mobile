@@ -75,8 +75,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "lib/src/features/home/assets/img/delex_logo.png"
+  image_path: "lib/src/features/home/assets/img/delex_logo_transparent_icon.png"
   min_sdk_android: 21
+  remove_alpha_ios: false
 
 flutter:
   uses-material-design: true
@@ -107,6 +108,7 @@ flutter:
     - lib/src/features/landing_page/assets/svg/menu_section/logout.svg
     - lib/src/features/landing_page/assets/svg/search_icon.svg
     - lib/src/features/landing_page/assets/svg/menu_section/equipment_locator.svg
+    - lib/src/features/home/assets/img/
     - lib/src/features/home/assets/svg/delex_icon.svg
     - lib/src/features/home/assets/svg/dashboard_icon.svg
     - lib/src/features/home/assets/svg/functional_area_icon.svg

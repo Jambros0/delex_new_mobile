@@ -65,6 +65,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _initDateFilter() async {
     final now = DateTime.now();
+    final userType = await authUtils.getUserType();
+    _userType = userType;
+    final DateTime defaultStartDate = (_userType == 'onshore')
+        ? DateTime(2023, 6, 13)
+        : DateTime(2022, 5, 18);
+
     _allDropDowns = await dropdownRepository.getLocalDropDownData();
     if (!mounted) return;
     setState(() {
@@ -76,10 +82,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .toList();
       date = DateFilter(
           filterType: "Year to Date",
-          fromDate: DateTime(2024, 1, 1),
+          fromDate: defaultStartDate,
           toDate: DateTime(now.year, now.month, now.day));
       BlocProvider.of<DashboardBloc>(context).add(YearToDateFilterDashboard(
-        fromDate: DateTime(2024, 1, 1),
+        fromDate: defaultStartDate,
         toDate: DateTime(now.year, now.month, now.day),
         isBefore: isBeforeRepairs,
         selectedLocations: fieldNames,

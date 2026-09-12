@@ -413,7 +413,7 @@ class PdfGenerator {
                               asset.eqpmtTag ?? '',
                               asset.description,
                               asset.manufacturer,
-                              asset.epl.join(', '),
+                              _formatEquipmentProtection(asset),
                               findings,
                               actions,
                               asset.inspectionStatus,
@@ -893,6 +893,36 @@ class PdfGenerator {
         "message": "Getting some error while download",
       };
     }
+  }
+
+  String _formatEquipmentProtection(ExRegister asset) {
+    String cleanItem(String? item) {
+      if (item == null) return '';
+      final t = item.trim();
+      final lower = t.toLowerCase();
+      if (lower.isEmpty ||
+          lower == 'not available' ||
+          lower == 'n/a' ||
+          lower == 'na' ||
+          lower == 'null') {
+        return '';
+      }
+      return t;
+    }
+
+    String cleanList(List<String>? list) {
+      if (list == null || list.isEmpty) return '';
+      final validItems =
+          list.map(cleanItem).where((e) => e.isNotEmpty).toList();
+      return validItems.join(', ');
+    }
+
+    final pType = cleanList(asset.protectionType);
+    final gGroup = cleanList(asset.equipmentGasGroup);
+    final tClass = cleanList(asset.equipmentTClass);
+
+    final parts = [pType, gGroup, tClass].where((p) => p.isNotEmpty).toList();
+    return parts.join(' ');
   }
 
   String formatDateTime(DateTime dateTime) {

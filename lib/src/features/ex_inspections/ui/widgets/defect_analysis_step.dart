@@ -18,6 +18,7 @@ import 'package:deex_bloc_mobile_app_dev/src/utils/file_download_util.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -36,40 +37,38 @@ import '../../bloc/ex_inspection_event.dart';
 enum CustomFileSource { camera, gallery, file }
 
 String formatDate(String? rawDate) {
-  if (rawDate == null || rawDate.isEmpty) return '';
+  if (rawDate == null || rawDate.isEmpty || rawDate.toLowerCase() == 'null') {
+    return '';
+  }
 
   try {
-    final inputFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss");
-    final dateTime = inputFormat.parse(rawDate);
+    DateTime? dateTime;
+    if (rawDate.endsWith('Z')) {
+      dateTime = DateTime.tryParse(rawDate)?.toLocal();
+    } else {
+      final inputFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss");
+      try {
+        dateTime = inputFormat.parse(rawDate, false);
+      } catch (_) {
+        dateTime = DateTime.tryParse(rawDate);
+      }
+    }
+    if (dateTime == null) {
+      try {
+        dateTime = DateFormat('dd-MM-yyyy hh:mm a').parse(rawDate);
+      } catch (_) {
+        return rawDate;
+      }
+    }
     final outputFormat = DateFormat('dd-MM-yyyy hh:mm a');
     return outputFormat.format(dateTime);
   } catch (e) {
-    return '';
+    return rawDate;
   }
 }
 
 String formatOldDate(String? rawDate) {
-  if (rawDate == null || rawDate.isEmpty) return '';
-
-  try {
-    DateTime dateTime;
-
-    // Check and parse based on format
-    if (rawDate.endsWith('Z')) {
-      // Format: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-      final inputFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-      dateTime = inputFormat.parseUtc(rawDate).toLocal();
-    } else {
-      // Format: "yyyy-MM-dd'T'HH:mm:ss"
-      final inputFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss");
-      dateTime = inputFormat.parse(rawDate, true).toLocal();
-    }
-
-    final outputFormat = DateFormat('dd-MM-yyyy hh:mm a');
-    return outputFormat.format(dateTime);
-  } catch (e) {
-    return '';
-  }
+  return formatDate(rawDate);
 }
 
 class DefectAnalysisStep extends StatefulWidget {
@@ -420,7 +419,7 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
       final user = await dbHelper.getLoggedInUserByUserId(userId);
       if (user != null) {
         userName = user.userName;
-        if (user.signature != null && user.signature.isNotEmpty) {
+        if (user.signature.isNotEmpty) {
           localSignature = user.signature;
         }
       }
@@ -429,7 +428,7 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
       final user = await dbHelper.getLoggedInUser();
       if (user != null) {
         userName ??= user.userName;
-        if (user.signature != null && user.signature.isNotEmpty) {
+        if (user.signature.isNotEmpty) {
           localSignature = user.signature;
         }
       }
@@ -921,6 +920,11 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
       // User tapped outside the dialog or pressed back
       return;
     }
+
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
 
     if (file != null) {
       await _processAndUploadFile(file, controller, fileOf);
@@ -1605,8 +1609,8 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
                                                 "lib/src/features/ex_inspections/assets/image_watermark.svg",
                                                 height: 24,
                                                 width: 24,
-                                                color: Colors.white.withOpacity(
-                                                  0.6,
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.6,
                                                 ),
                                               ),
                                             ],
@@ -1619,6 +1623,21 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                  if (totalImages == 0 && !widget.isEditModeNotifier.value)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14.0,
+                        horizontal: 8.0,
+                      ),
+                      child: Text(
+                        'No images found',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF64748B),
+                        ),
                       ),
                     ),
                   if (remainingImages > 0)
@@ -1770,7 +1789,7 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
                     color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF002B5C).withOpacity(0.16),
+                        color: const Color(0xFF002B5C).withValues(alpha: 0.16),
                         offset: const Offset(0, 1),
                         blurRadius: 4.0,
                       ),

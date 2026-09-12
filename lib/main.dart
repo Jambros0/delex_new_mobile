@@ -95,7 +95,10 @@ import 'package:deex_bloc_mobile_app_dev/src/features/license_key_page/ui/screen
 import 'package:deex_bloc_mobile_app_dev/src/features/login/ui/screens/login_screen.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/notification/bloc/notification_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/notification/data/services/notification_service.dart';
+import 'dart:async';
+import 'package:deex_bloc_mobile_app_dev/src/features/profile/ui/screens/profile_screen.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/signature_upload_page/ui/screens/upload_signature_screen.dart';
+import 'package:deex_bloc_mobile_app_dev/src/features/splash/ui/screens/splash_screen.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/file_upload_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/network_util.dart';
@@ -107,7 +110,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
@@ -232,48 +234,8 @@ Future<void> main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
-  final authUtils = AuthUtils();
-  final isLoggedIn = await authUtils.isSessionActive();
-  final username = await authUtils.getUsername() ?? '';
-  final isLicenseValidated = await authUtils.isLicenseValidated();
-
-  final dropdownRepository = DropdownRepository();
-  final checklistRepository = InspectionChecklistRepo();
-  if (isLoggedIn) {
-    if (NetworkUtils().isNetworkAvailable) {
-      await dropdownRepository
-          .checkDailySync(() => ExInspectionService().getAllDropDwn());
-      await checklistRepository.checkDailyChecklistSync(
-          () => ExInspectionService().fetchInspectionChecklist());
-    } else {
-      final localData = await dropdownRepository.getLocalDropDownData();
-      if (localData == null) {
-        throw Exception(
-            'No local data available. Please connect to the network to sync data.');
-      }
-      final localChecklistData =
-          await checklistRepository.getLocalChecklistData();
-      if (localChecklistData == null) {
-        throw Exception(
-            'No local checklist data available. Please connect to the network to sync data.');
-      }
-    }
-  }
-
-  final String initialRoute;
-  if (!isLicenseValidated) {
-    initialRoute = '/license';
-  } else if (isLoggedIn) {
-    initialRoute = '/home';
-  } else {
-    initialRoute = '/login';
-  }
-
   timeago.setLocaleMessages('en', timeago.EnShortMessages());
-  runApp(MyApp(
-    initialRoute: initialRoute,
-    username: username,
-  ));
+  runApp(const MyApp());
 }
 
 void configLoading() {
@@ -285,10 +247,7 @@ void configLoading() {
 }
 
 class MyApp extends StatefulWidget {
-  final String initialRoute;
-  final String username;
-
-  const MyApp({super.key, required this.initialRoute, required this.username});
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -389,7 +348,7 @@ class _MyAppState extends State<MyApp> {
         ),
         initialRoute: '/splash',
         getPages: [
-          GetPage(name: '/splash', page: () => const InitialAuthCheckWidget()),
+          GetPage(name: '/splash', page: () => const SplashScreen()),
           GetPage(name: '/license', page: () => const LicenseKeyScreen()),
           GetPage(name: '/home', page: () => const HomeScreen()),
           GetPage(name: '/login', page: () => const LoginScreen()),
@@ -414,73 +373,8 @@ class _MyAppState extends State<MyApp> {
           GetPage(
               name: '/equipmentLocator',
               page: () => const EquipmentLocatorScreen()),
+          GetPage(name: '/profile', page: () => const ProfileScreen()),
         ],
-      ),
-    );
-  }
-}
-
-class InitialAuthCheckWidget extends StatefulWidget {
-  const InitialAuthCheckWidget({super.key});
-
-  @override
-  State<InitialAuthCheckWidget> createState() => _InitialAuthCheckWidgetState();
-}
-
-class _InitialAuthCheckWidgetState extends State<InitialAuthCheckWidget> {
-  final AuthUtils _authUtils = AuthUtils();
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthAndNavigate();
-  }
-
-  Future<void> _checkAuthAndNavigate() async {
-    final isLicenseValidated = await _authUtils.isLicenseValidated();
-    final isLoggedIn = await _authUtils.isSessionActive();
-
-    String nextRoute = '/login';
-    if (!isLicenseValidated) {
-      nextRoute = '/license';
-    } else if (isLoggedIn) {
-      nextRoute = '/home';
-    } else {
-      nextRoute = '/login';
-    }
-
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, nextRoute);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final double logoWidth = (screenWidth * 0.45).clamp(180.0, 320.0);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SvgPicture.asset(
-              'lib/src/features/home/assets/svg/delex_logo_home_page.svg',
-              width: logoWidth,
-            ),
-            const SizedBox(height: 36),
-            const SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D6FF)),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
