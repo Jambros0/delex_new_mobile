@@ -13,6 +13,7 @@ import 'package:deex_bloc_mobile_app_dev/src/utils/file_upload_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/progress_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DeviceToServerSync {
   final List<ExRegister> assets;
@@ -335,8 +336,52 @@ class DeviceToServerSync {
       );
       await repository.insertOrUpdateDeviceToServer(activity.toMap());
 
-      final usersign = await dbHelper.getLoggedInUserByUserId(userId);
-      String userSignature = usersign?.signature ?? '';
+      final prefs = await SharedPreferences.getInstance();
+      var usersign = await dbHelper.getLoggedInUserByUserId(userId);
+      usersign ??= await dbHelper.getLoggedInUser();
+      String userSignature = (usersign?.signature ?? '').trim();
+
+      if (userSignature.isEmpty) {
+        final directory = await getApplicationDocumentsDirectory();
+        final candidateNames = [
+          'signature.jpg',
+          'signature.png',
+          'signature.jpeg',
+          'user_signature.png',
+          'user_signature.jpg',
+        ];
+        for (final name in candidateNames) {
+          final f = File('${directory.path}/$name');
+          if (f.existsSync()) {
+            userSignature = f.path;
+            break;
+          }
+        }
+      }
+
+      if (userSignature.isEmpty) {
+        userSignature = (prefs.getString('userSignature') ??
+                prefs.getString('signature_$userId') ??
+                '')
+            .trim();
+      }
+
+      if (userSignature.isEmpty) {
+        if (asset.signature != null &&
+            asset.signature.toString().isNotEmpty &&
+            asset.signature.toString() != "null") {
+          userSignature = asset.signature.toString().trim();
+        } else if (asset.inspectionSignOff != null &&
+            asset.inspectionSignOff.toString().isNotEmpty &&
+            asset.inspectionSignOff.toString() != "null") {
+          userSignature = asset.inspectionSignOff.toString().trim();
+        } else if (asset.repairSignOff != null &&
+            asset.repairSignOff.toString().isNotEmpty &&
+            asset.repairSignOff.toString() != "null") {
+          userSignature = asset.repairSignOff.toString().trim();
+        }
+      }
+
       if (userSignature.isNotEmpty &&
           !userSignature.startsWith('http') &&
           !userSignature.startsWith('data:')) {

@@ -41,7 +41,7 @@ class AuthUtils {
     if (userId != null) {
       try {
         final user = await dbHelper.getLoggedInUserByUserId(userId);
-        if (user != null && user.accessToken != null && user.accessToken.isNotEmpty) {
+        if (user != null && user.accessToken.isNotEmpty) {
           return {
             'accessToken': user.accessToken,
             'refreshToken': user.refreshToken,

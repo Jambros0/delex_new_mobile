@@ -12,7 +12,7 @@ void main() {
     // 1. Generate 1024x1024 Master Transparent App Icon PNG
     const double masterSize = 1024.0;
     final masterRecorder = ui.PictureRecorder();
-    final masterCanvas = Canvas(masterRecorder, Rect.fromLTWH(0, 0, masterSize, masterSize));
+    final masterCanvas = Canvas(masterRecorder, const Rect.fromLTWH(0, 0, masterSize, masterSize));
 
     masterCanvas.save();
     final double masterScale = (masterSize * 0.88) / pictureInfo.size.width;

@@ -884,7 +884,7 @@ class GenerateItrFunctions {
                         ),
                       ],
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),
@@ -980,7 +980,7 @@ class GenerateItrFunctions {
                               pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text(item['remedial'] ?? '', style: pw.TextStyle(fontSize: 6, font: interFont))),
                             ],
                           );
-                        }).toList(),
+                        }),
                     ],
                   ),
                   pw.SizedBox(height: 6),
@@ -1066,7 +1066,7 @@ class GenerateItrFunctions {
                               pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text(item['date'] ?? '--', style: pw.TextStyle(fontSize: 5.5, font: interFont))),
                             ],
                           );
-                        }).toList(),
+                        }),
                     ],
                   ),
                   pw.SizedBox(height: 6),

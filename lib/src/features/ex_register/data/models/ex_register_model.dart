@@ -126,6 +126,7 @@ class ExRegister {
   dynamic areaStatus;
   final bool isActive;
   int? inspectionPriority;
+  String? signature;
 
   ExRegister({
     required this.id,
@@ -246,6 +247,7 @@ class ExRegister {
     required this.locationTAmbient,
     this.remarksIfAny,
     this.inspectionPriority,
+    this.signature,
   });
 
   factory ExRegister.fromJson(Map<String, dynamic> json) {
@@ -398,6 +400,7 @@ class ExRegister {
       repairDuration: json['repairDuration']?.toString(),
       remarksIfAny: json['remarksIfAny']?.toString(),
       inspectionPriority: json['inspectionPriority'] ?? 0,
+      signature: json['signature']?.toString(),
     );
   }
   Map<String, dynamic> toJson() {
@@ -522,6 +525,7 @@ class ExRegister {
       'repairTimeEstimate': repairTimeEstimate,
       'remarksIfAny': remarksIfAny,
       'inspectionPriority': inspectionPriority,
+      'signature': signature,
     };
   }
 }
