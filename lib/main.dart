@@ -98,7 +98,6 @@ import 'package:deex_bloc_mobile_app_dev/src/features/notification/data/services
 import 'dart:async';
 import 'package:deex_bloc_mobile_app_dev/src/features/profile/ui/screens/profile_screen.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/signature_upload_page/ui/screens/upload_signature_screen.dart';
-import 'package:deex_bloc_mobile_app_dev/src/features/splash/ui/screens/splash_screen.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/file_upload_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/network_util.dart';
@@ -234,8 +233,40 @@ Future<void> main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
+  final authUtils = AuthUtils();
+  final isLicenseValidated = await authUtils.isLicenseValidated();
+  final isLoggedIn = await authUtils.isSessionActive();
+  final username = await authUtils.getUsername() ?? '';
+
+  if (isLoggedIn) {
+    try {
+      final dropdownRepository = DropdownRepository();
+      final checklistRepository = InspectionChecklistRepo();
+      if (NetworkUtils().isNetworkAvailable) {
+        await dropdownRepository
+            .checkDailySync(() => ExInspectionService().getAllDropDwn());
+        await checklistRepository.checkDailyChecklistSync(
+            () => ExInspectionService().fetchInspectionChecklist());
+      }
+    } catch (e) {
+      debugPrint('Sync check error in main: $e');
+    }
+  }
+
+  final String initialRoute;
+  if (!isLicenseValidated) {
+    initialRoute = '/license';
+  } else if (isLoggedIn) {
+    initialRoute = '/home';
+  } else {
+    initialRoute = '/login';
+  }
+
   timeago.setLocaleMessages('en', timeago.EnShortMessages());
-  runApp(const MyApp());
+  runApp(MyApp(
+    initialRoute: initialRoute,
+    username: username,
+  ));
 }
 
 void configLoading() {
@@ -247,7 +278,10 @@ void configLoading() {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+  final String username;
+
+  const MyApp({super.key, required this.initialRoute, required this.username});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -346,9 +380,8 @@ class _MyAppState extends State<MyApp> {
         theme: ThemeData(
           primarySwatch: Colors.blue,
         ),
-        initialRoute: '/splash',
+        initialRoute: widget.initialRoute,
         getPages: [
-          GetPage(name: '/splash', page: () => const SplashScreen()),
           GetPage(name: '/license', page: () => const LicenseKeyScreen()),
           GetPage(name: '/home', page: () => const HomeScreen()),
           GetPage(name: '/login', page: () => const LoginScreen()),
