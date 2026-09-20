@@ -38,16 +38,9 @@ class ExregisterRepo {
 
   Future<Map<String, dynamic>?> getExRegisterByJsonId(String assetId) async {
     final String? userType = await authUtils.getUserType();
-    final List<Map<String, dynamic>> allRegisters = (userType == 'onshore')
-        ? await _dbHelper.getExRegisterOnshore()
-        : await _dbHelper.getExRegister();
-    for (var reg in allRegisters) {
-      Map<String, dynamic> jsonData = jsonDecode(reg['exregister_json']);
-      if (jsonData['asset'] != null && jsonData['asset']['_id'] == assetId) {
-        return reg;
-      }
-    }
-    return null;
+    return (userType == 'onshore')
+        ? await _dbHelper.getExRegisterByIdOnshore(assetId)
+        : await _dbHelper.getExRegisterById(assetId);
   }
 
   Future<Map<String, dynamic>> deleteAssetById(
@@ -75,21 +68,26 @@ class ExregisterRepo {
           ? await _dbHelper.getExRegisterByIdOnshore(assetId)
           : await _dbHelper.getExRegisterById(assetId);
       if (result != null) {
-        final exregisterJson = result['exregister_json'] as String;
-        final jsonMap = jsonDecode(exregisterJson);
+        final dynamic exregisterJson = result['exregister_json'];
+        final jsonMap = (exregisterJson is String)
+            ? jsonDecode(exregisterJson)
+            : exregisterJson as Map<String, dynamic>;
 
-        if (jsonMap.containsKey('asset')) {
-          final assetDetails = jsonMap['asset'];
-          return {
-            'status': true,
-            'assetDetails': assetDetails,
-          };
-        } else {
-          return {
-            'status': false,
-            'message': 'Asset data not found',
-          };
+        final assetDetails = (jsonMap['asset'] is Map)
+            ? Map<String, dynamic>.from(jsonMap['asset'])
+            : Map<String, dynamic>.from(jsonMap);
+
+        final rowId = result['id'];
+        if (rowId != null) {
+          assetDetails['primaryId'] =
+              rowId is int ? rowId : int.tryParse(rowId.toString());
+          assetDetails['_id'] = rowId.toString();
         }
+
+        return {
+          'status': true,
+          'assetDetails': assetDetails,
+        };
       } else {
         return {
           'status': false,
@@ -107,42 +105,24 @@ class ExregisterRepo {
   Future<Map<String, dynamic>> postAsset(
       {required DuplicateAsset asset}) async {
     try {
-      // Map<String, dynamic> functionalAreaMap = {
-      //   'location': asset.location,
-      //   'area': asset.area,
-      //   'deckLevel': asset.deckLevel,
-      //   'subArea': asset.subArea,
-      //   'zone': asset.zone,
-      //   'locationGasGroup': asset.locationGasGroup,
-      //   'locationTClass': asset.locationTClass,
-      //   'locationIpRating': asset.locationIpRating,
-      //   'tAmbient': asset.locationTAmbient,
-      //   'areaClassDrawAttach': asset.areaClassDrawAttach,
-      //   'areaClassDrawNo': asset.areaClassDrawNo,
-      //   'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
-      //   'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
-      //   'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
-      //   'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
-      //   'locationLatitude': asset.locationLatitude,
-      //   'locationLongitude': asset.locationLongitude,
-      //   'isActive': asset.isActive,
-      // };
-
-      // Map<String, dynamic> functionalAreaJson = {
-      //   'functional_area_json': jsonEncode({'location': functionalAreaMap}),
-      // };
       final String? userType = await authUtils.getUserType();
-      // final String? locationId = (userType == 'onshore')
-      //     ? await _dbHelper.saveFunctionalAreaOnshore(functionalAreaJson)
-      //     : await _dbHelper.saveFunctionalArea(functionalAreaJson);
-      final String? locationId =
-          (userType == 'onshore') ? asset.locationId : asset.locationId;
+      final String? locationId = asset.locationId;
       if (locationId != null) {
         asset.locationId = locationId;
         asset.isDuplicate = true;
         Map<String, dynamic> assetMap = asset.toJson();
+        assetMap.remove('_id');
+        assetMap.remove('primaryId');
+        assetMap.remove('id');
+        assetMap['isDuplicate'] = true;
+
+        final String? userId = await authUtils.getUserId();
         Map<String, dynamic> exRegisterJson = {
-          'exregister_json': jsonEncode({'asset': assetMap})
+          'exregister_json': jsonEncode({'asset': assetMap}),
+          'created_by': userId,
+          'updated_by': userId,
+          'created_date': DateTime.now().toIso8601String(),
+          'updated_date': DateTime.now().toIso8601String(),
         };
 
         (userType == 'onshore')

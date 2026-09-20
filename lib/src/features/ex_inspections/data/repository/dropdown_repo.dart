@@ -307,7 +307,7 @@ class DropdownRepository {
               ],
               'protectionStandard': [
                 {
-                  'IEC / ATEX': {
+                  'IEC': {
                     'atexCategory': [
                       '1G',
                       '2G',
@@ -394,7 +394,94 @@ class DropdownRepository {
                       'Not Applicable'
                     ]
                   },
-                  'NEC / CEC': {
+                  'ATEX': {
+                    'atexCategory': [
+                      '1G',
+                      '2G',
+                      '3G',
+                      '1D',
+                      '2D',
+                      '3D',
+                      'M1',
+                      'M2',
+                      'Not Applicable'
+                    ],
+                    'epl': [
+                      'Ga',
+                      'Gb',
+                      'Gc',
+                      'Da',
+                      'Db',
+                      'Dc',
+                      'Ma',
+                      'Mb',
+                      'Not Applicable'
+                    ],
+                    'protectionType': [
+                      'Ex d',
+                      'Ex db',
+                      'Ex e',
+                      'Ex eb',
+                      'Ex ec',
+                      'Ex ia',
+                      'Ex ib',
+                      'Ex ic',
+                      'Ex m',
+                      'Ex ma',
+                      'Ex mb',
+                      'Ex mc',
+                      'Ex nA',
+                      'Ex nC',
+                      'Ex nR',
+                      'Ex o',
+                      'Ex ob',
+                      'Ex oc',
+                      'Ex p',
+                      'Ex px',
+                      'Ex py',
+                      'Ex pz',
+                      'Ex pxb',
+                      'Ex pyb',
+                      'Ex pzc',
+                      'Ex q',
+                      'Ex qb',
+                      'Ex s',
+                      'Ex op is',
+                      'Ex op pr',
+                      'Ex op sh',
+                      'Ex ta',
+                      'Ex tb',
+                      'Ex tc',
+                      'Ex ia D',
+                      'Ex ib D',
+                      'Ex ma D',
+                      'Ex mb D',
+                      'Ex pD',
+                      'Ex tD',
+                      'Not Applicable',
+                      'Others'
+                    ],
+                    'gasGroup': [
+                      'I',
+                      'IIA',
+                      'IIB',
+                      'IIC',
+                      'IIIA',
+                      'IIIB',
+                      'IIIC',
+                      'Not Applicable'
+                    ],
+                    'temperatureClass': [
+                      'T1',
+                      'T2',
+                      'T3',
+                      'T4',
+                      'T5',
+                      'T6',
+                      'Not Applicable'
+                    ]
+                  },
+                  'NEC': {
                     'atexCategory': ['Not Applicable'],
                     'epl': [
                       'Class I, Div 1',

@@ -386,17 +386,19 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
         updatedIds.remove(id);
       }
       await prefs.setStringList('asset_ids', updatedIds);
-      final syncAsset = await deviceSyncService.syncServertoDeviceStatus(
-        selectedIds,
-      );
-      if (syncAsset['status'] == true) {
-        _closeDialogIfOpen(navigator);
-        _showToast(
-          "Items inserted into local DB successfully.",
-          Colors.green,
-          scaffoldMessenger,
+      try {
+        await deviceSyncService.syncServertoDeviceStatus(
+          selectedIds,
         );
+      } catch (e) {
+        // Continue if server status update fails; local DB insertion succeeded
       }
+      _closeDialogIfOpen(navigator);
+      _showToast(
+        "Items inserted into local DB successfully.",
+        Colors.green,
+        scaffoldMessenger,
+      );
     } catch (e) {
       _closeDialogIfOpen(navigator);
       _showToast("Error: ${e.toString()}", Colors.red, scaffoldMessenger);

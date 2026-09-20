@@ -81,6 +81,11 @@ class AuthUtils {
     return prefs.getString('userType');
   }
 
+  Future<String?> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId');
+  }
+
   static Future<void> handleLogout([BuildContext? context]) async {
     final authRepository = AuthRepository(
       authService: AuthService(),

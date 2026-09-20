@@ -567,7 +567,7 @@ class EquipmentTagRequest {
       eqpmtCatg: json['eqpmtCatg'] ?? "",
       oracleId: json['oracleId'] ?? "",
       equipmentEquipmentType: json['equipmentEquipmentType'] ?? "",
-      serialNumber: json['serialNumber'] ?? "",
+      serialNumber: json['serialNumber'] ?? json['serialNo'] ?? "",
       atexCatg: List<String>.from(json['atexCatg'] ?? []),
       equipmentGasGroup: List<String>.from(json['equipmentGasGroup'] ?? []),
       equipmentTClass: List<String>.from(json['equipmentTClass'] ?? []),

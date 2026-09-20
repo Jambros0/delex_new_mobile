@@ -39,12 +39,28 @@ class DeviceSyncServices {
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
-      final dynamic innerData = data['data'];
+      final dynamic innerData = data['data'] ?? data['result'];
       List<dynamic> collections = [];
-      // Safely get the inner 'data' list
-      if (innerData is Map && innerData.containsKey('data')) {
-        collections = innerData['data'] ?? [];
+      int totalRecords = 0;
+
+      if (innerData is List) {
+        collections = innerData;
+        totalRecords = innerData.length;
+      } else if (innerData is Map) {
+        if (innerData.containsKey('data') && innerData['data'] is List) {
+          collections = innerData['data'] ?? [];
+        } else if (innerData.containsKey('work_order') &&
+            innerData['work_order'] is List) {
+          collections = innerData['work_order'] ?? [];
+        } else if (innerData.containsKey('assets') &&
+            innerData['assets'] is List) {
+          collections = [innerData];
+        } else {
+          collections = [innerData];
+        }
+        totalRecords = innerData['total'] ?? collections.length;
       }
+
       if (collections.isEmpty) {
         return {
           'tableHeaders': <String>[],
@@ -55,26 +71,62 @@ class DeviceSyncServices {
       }
 
       // Extract all assets from all collections
-      final List<dynamic> assetsData = collections
-          .expand((collection) => collection['assets'] ?? [])
-          .toList();
-      // Get total count from innerData['total']
-      int totalRecords = innerData['total'] ?? 0;
-      // Convert to model
-      final List<ExRegister> assets = assetsData
-          .where((asset) => asset != null)
-          .map((asset) => ExRegister.fromJson(asset))
-          .toList();
+      final List<dynamic> assetsData = [];
+      for (final collection in collections) {
+        if (collection is Map) {
+          final rawAssets = collection['assets'];
+          if (rawAssets is List) {
+            assetsData.addAll(rawAssets);
+          } else if (rawAssets is Map) {
+            assetsData.add(rawAssets);
+          } else if (collection.containsKey('eqpmtTag') ||
+              collection.containsKey('equipmentId')) {
+            assetsData.add(collection);
+          }
+        }
+      }
 
-      final List<WorkOrderTableJson> workOrderCollection = collections
-          .where((asset) => asset != null)
-          .map((asset) => WorkOrderTableJson.fromJson(asset))
-          .toList();
+      // Convert to model
+      final List<ExRegister> assets = [];
+      for (final asset in assetsData) {
+        if (asset != null && asset is Map<String, dynamic>) {
+          try {
+            assets.add(ExRegister.fromJson(asset));
+          } catch (e) {
+            // Safe skip invalid item
+          }
+        } else if (asset != null && asset is Map) {
+          try {
+            assets.add(ExRegister.fromJson(Map<String, dynamic>.from(asset)));
+          } catch (e) {
+            // Safe skip invalid item
+          }
+        }
+      }
+
+      final List<WorkOrderTableJson> workOrderCollection = [];
+      for (final collection in collections) {
+        if (collection != null && collection is Map<String, dynamic>) {
+          try {
+            workOrderCollection.add(WorkOrderTableJson.fromJson(collection));
+          } catch (e) {
+            // Safe skip invalid item
+          }
+        } else if (collection != null && collection is Map) {
+          try {
+            workOrderCollection.add(
+                WorkOrderTableJson.fromJson(Map<String, dynamic>.from(collection)));
+          } catch (e) {
+            // Safe skip invalid item
+          }
+        }
+      }
+
       return {
         'tableHeaders': <String>[],
         'assets': assets,
         'work_order': workOrderCollection,
-        'totalRecords': totalRecords,
+        'totalRecords': totalRecords > 0 ? totalRecords : assets.length,
       };
     } else {
       throw Exception('Failed to load assets');

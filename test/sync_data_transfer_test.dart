@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/equipment_tag_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/functional_area_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/data/models/mobile_sync_server_model.dart';
-import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex_register_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

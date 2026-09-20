@@ -133,6 +133,12 @@ class ExRegisterService {
     final accessToken = tokens['accessToken'];
     String url = "/assets";
 
+    final assetMap = asset.toJson();
+    assetMap.remove('_id');
+    assetMap.remove('primaryId');
+    assetMap.remove('id');
+    assetMap['isDuplicate'] = true;
+
     final response = await HttpUtils.post(
       url,
       headers: {
@@ -140,7 +146,7 @@ class ExRegisterService {
         'Content-Type': 'application/json',
       },
       useInterceptor: true,
-      body: {"asset": asset.toJson()},
+      body: {"asset": assetMap},
     );
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);

@@ -82,22 +82,26 @@ class ExRegisterTableState extends State<ServerToDeviceTable> {
   List<String> _buildRow(int index) {
     final asset = widget.assets[index];
 
+    String sanitize(dynamic value) {
+      if (value == null) return '';
+      final str = value.toString().trim();
+      return (str.isEmpty || str.toLowerCase() == 'null') ? '' : str;
+    }
+
     return [
-      asset.id,
-      asset.rfidRef.isNotEmpty ? asset.rfidRef : '',
-      asset.location.isNotEmpty ? asset.location : '',
-      asset.area.isNotEmpty ? asset.area : '',
-      asset.deckLevel ?? '',
-      asset.zone.isNotEmpty ? asset.zone : '',
-      asset.eqpmtCatg,
-      asset.eqpmtTag ?? '',
-      asset.description.isNotEmpty ? asset.description : '',
-      asset.manufacturer.isNotEmpty ? asset.manufacturer : '',
+      sanitize(asset.id),
+      sanitize(asset.rfidRef),
+      sanitize(asset.location),
+      sanitize(asset.area),
+      sanitize(asset.deckLevel),
+      sanitize(asset.zone),
+      sanitize(asset.eqpmtCatg),
+      sanitize(asset.eqpmtTag),
+      sanitize(asset.description),
+      sanitize(asset.manufacturer),
       _formatEquipmentProtection(asset),
-      asset.faultyItems?.toString().isNotEmpty == true
-          ? asset.faultyItems.toString()
-          : '',
-      (asset.inspectionStatus.isNotEmpty
+      sanitize(asset.faultyItems),
+      (asset.inspectionStatus.isNotEmpty && asset.inspectionStatus.toLowerCase() != 'null'
           ? asset.inspectionStatus
           : (asset.inspectionGrade?.isNotEmpty == true &&
                   asset.inspectionType?.isNotEmpty == true &&
@@ -114,11 +118,9 @@ class ExRegisterTableState extends State<ServerToDeviceTable> {
                               : ''))
                       : ''))
               : ''),
-      asset.repairsDone?.toString().isNotEmpty == true
-          ? asset.repairsDone.toString()
-          : '',
-      asset.existingFaults?.toString() ?? '',
-      (asset.currentStatus.isNotEmpty
+      sanitize(asset.repairsDone),
+      sanitize(asset.existingFaults),
+      (asset.currentStatus.isNotEmpty && asset.currentStatus.toLowerCase() != 'null'
           ? asset.currentStatus
           : (asset.inspectionGrade?.isNotEmpty == true &&
                   asset.inspectionType?.isNotEmpty == true &&

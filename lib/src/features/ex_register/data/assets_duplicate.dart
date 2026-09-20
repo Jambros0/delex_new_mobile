@@ -5,6 +5,8 @@ DuplicateAsset duplicateAssetFromJson(String str) =>
 String duplicateAssetToJson(DuplicateAsset data) => json.encode(data.toJson());
 
 class DuplicateAsset {
+  dynamic id;
+  dynamic primaryId;
   dynamic createdAt;
   dynamic updatedAt;
   dynamic gpsCord;
@@ -54,6 +56,8 @@ class DuplicateAsset {
   dynamic locationTAmbient;
   dynamic isDuplicate;
   DuplicateAsset({
+    this.id,
+    this.primaryId,
     this.createdAt,
     this.updatedAt,
     this.gpsCord,
@@ -105,6 +109,8 @@ class DuplicateAsset {
   });
 
   factory DuplicateAsset.fromJson(Map<String, dynamic> json) => DuplicateAsset(
+        id: null,
+        primaryId: null,
         createdAt: json["createdAt"] ?? '',
         updatedAt: json["updatedAt"] ?? '',
         gpsCord: json["gpsCord"] ?? '',
@@ -155,10 +161,12 @@ class DuplicateAsset {
         locationId: json["locationId"] ?? '',
         deckLevel: json["deckLevel"] ?? '',
         locationTAmbient: json["locationTAmbient"] ?? '',
-        isDuplicate: json["isDuplicate"] ?? false,
+        isDuplicate: true,
       );
 
   Map<String, dynamic> toJson() => {
+        if (id != null && id.toString().isNotEmpty) "_id": id,
+        if (primaryId != null && primaryId.toString().isNotEmpty) "primaryId": primaryId,
         "createdAt": createdAt,
         "updatedAt": updatedAt,
         "gpsCord": gpsCord,

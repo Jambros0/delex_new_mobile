@@ -1034,14 +1034,13 @@ class DBHelper {
     );
     String exregisterJsonString = exRegisterJson['exregister_json'] as String;
     Map<String, dynamic> decodedJson = jsonDecode(exregisterJsonString);
-    if (decodedJson.containsKey('asset')) {
-      Map<String, dynamic> assetMap = decodedJson['asset'];
-      if (assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) {
-        assetMap['_id'] = newId.toString();
-      }
-      assetMap['primaryId'] = newId;
-    }
-    final updatedJsonString = jsonEncode(decodedJson);
+    Map<String, dynamic> assetMap = (decodedJson['asset'] is Map)
+        ? Map<String, dynamic>.from(decodedJson['asset'] as Map)
+        : Map<String, dynamic>.from(decodedJson);
+    assetMap['_id'] = newId.toString();
+    assetMap['primaryId'] = newId;
+    assetMap['id'] = newId.toString();
+    final updatedJsonString = jsonEncode({'asset': assetMap});
     await db.update(
       'exregister_table',
       {'exregister_json': updatedJsonString},
@@ -1153,36 +1152,47 @@ class DBHelper {
   Future<Map<String, dynamic>?> getExRegisterById(String assetId) async {
     final db = await workOrderDatabase;
     final results = await _safeBatchQuery(db, 'exregister_table');
-    final recordToDelete = results.firstWhere((row) {
+    for (final row in results) {
+      if (row['id']?.toString() == assetId) {
+        return row;
+      }
+    }
+    for (final row in results) {
       final exRegisterJson = row['exregister_json'];
-      if (exRegisterJson == null) return false;
+      if (exRegisterJson == null) continue;
       final jsonMap = (exRegisterJson is String)
           ? jsonDecode(exRegisterJson) as Map<String, dynamic>
           : exRegisterJson as Map<String, dynamic>;
-      final asset = jsonMap['asset'] as Map<String, dynamic>?;
-      return row['id']?.toString() == assetId ||
-          row['asset_id']?.toString() == assetId ||
-          asset?['_id']?.toString() == assetId ||
-          asset?['primaryId']?.toString() == assetId ||
-          asset?['id']?.toString() == assetId ||
-          asset?['rfidRef']?.toString() == assetId ||
-          asset?['eqpmtTag']?.toString() == assetId;
-    }, orElse: () => {});
-    return recordToDelete.isNotEmpty ? recordToDelete : null;
+      final asset = (jsonMap['asset'] is Map)
+          ? jsonMap['asset'] as Map<String, dynamic>
+          : jsonMap;
+      if (asset['primaryId']?.toString() == assetId) {
+        return row;
+      }
+    }
+    for (final row in results) {
+      final exRegisterJson = row['exregister_json'];
+      if (exRegisterJson == null) continue;
+      final jsonMap = (exRegisterJson is String)
+          ? jsonDecode(exRegisterJson) as Map<String, dynamic>
+          : exRegisterJson as Map<String, dynamic>;
+      final asset = (jsonMap['asset'] is Map)
+          ? jsonMap['asset'] as Map<String, dynamic>
+          : jsonMap;
+      if (asset['_id']?.toString() == assetId || asset['id']?.toString() == assetId) {
+        return row;
+      }
+    }
+    return null;
   }
 
   Future<int> deleteExRegisterById(String assetId, String id) async {
     final db = await workOrderDatabase;
 
-    // return await db.delete(
-    //   'exregister_table',
-    //   where: "json_extract(exregister_json, '\$.asset._id') = ?",
-    //   whereArgs: [assetId],
-    // );
     return await db.delete(
       'exregister_table',
-      where: "exregister_json LIKE ?",
-      whereArgs: ['%"_id":"$assetId"%'],
+      where: 'id = ?',
+      whereArgs: [id.isNotEmpty ? id : assetId],
     );
   }
 
@@ -1198,7 +1208,10 @@ class DBHelper {
         .where((row) {
           final exRegisterJson = row['exregister_json'] as String;
           final jsonMap = jsonDecode(exRegisterJson) as Map<String, dynamic>;
-          return assetIds.contains(jsonMap['asset']['_id']);
+          final asset = jsonMap['asset'] ?? jsonMap;
+          return assetIds.contains(asset['_id']?.toString()) ||
+              assetIds.contains(asset['primaryId']?.toString()) ||
+              assetIds.contains(row['id']?.toString());
         })
         .map((row) => row['id'])
         .toList();
@@ -1219,27 +1232,60 @@ class DBHelper {
     final db = await workOrderDatabase;
     final exRegisterJson = exRegister['exregister_json'] as String;
     final decodedJson = jsonDecode(exRegisterJson) as Map<String, dynamic>;
+    final assetMap = (decodedJson['asset'] is Map)
+        ? Map<String, dynamic>.from(decodedJson['asset'] as Map)
+        : Map<String, dynamic>.from(decodedJson);
 
-    final assetId = decodedJson['asset']?['_id'];
-    if (assetId == null) {
-      throw ArgumentError('Invalid exregister_json: asset _id is missing');
+    final primaryId = assetMap['primaryId'] ?? decodedJson['primaryId'] ?? exRegister['id'] ?? assetMap['_id'];
+    int? targetRowId = (primaryId != null) ? int.tryParse(primaryId.toString()) : null;
+
+    if (targetRowId != null && targetRowId > 0) {
+      assetMap['primaryId'] = targetRowId;
+      assetMap['_id'] = targetRowId.toString();
+      final updatedJsonString = jsonEncode({'asset': assetMap});
+      final rowsUpdated = await db.update(
+        'exregister_table',
+        {
+          'exregister_json': updatedJsonString,
+          if (exRegister['updated_by'] != null) 'updated_by': exRegister['updated_by'],
+          if (exRegister['updated_date'] != null) 'updated_date': exRegister['updated_date'],
+        },
+        where: 'id = ?',
+        whereArgs: [targetRowId],
+      );
+      if (rowsUpdated > 0) return;
     }
 
-    final existingExRegister = await db.query(
-      'exregister_table',
-      columns: ['id'],
-      where: 'exregister_json LIKE ?',
-      whereArgs: ['%"_id":"$assetId"%'],
-    );
-    if (existingExRegister.isNotEmpty) {
-      await db.update(
-        'exregister_table',
-        exRegister,
-        where: 'exregister_json LIKE ?',
-        whereArgs: ['%"_id":"$assetId"%'],
-      );
-    } else {
-      throw Exception('Ex Register with asset _id $assetId not found');
+    final assetId = assetMap['_id'] ?? assetMap['assetId'] ?? assetMap['id'];
+    if (assetId != null && assetId.toString().isNotEmpty) {
+      final allRows = await _safeBatchQuery(db, 'exregister_table');
+      for (final row in allRows) {
+        try {
+          final rowJson = (row['exregister_json'] is String)
+              ? jsonDecode(row['exregister_json'])
+              : row['exregister_json'];
+          final rowAsset = (rowJson is Map) ? (rowJson['asset'] ?? rowJson) : {};
+          if (row['id']?.toString() == assetId.toString() ||
+              rowAsset['primaryId']?.toString() == assetId.toString() ||
+              rowAsset['_id']?.toString() == assetId.toString()) {
+            final rowId = row['id'];
+            assetMap['primaryId'] = rowId;
+            assetMap['_id'] = rowId.toString();
+            final updatedJsonString = jsonEncode({'asset': assetMap});
+            await db.update(
+              'exregister_table',
+              {
+                'exregister_json': updatedJsonString,
+                if (exRegister['updated_by'] != null) 'updated_by': exRegister['updated_by'],
+                if (exRegister['updated_date'] != null) 'updated_date': exRegister['updated_date'],
+              },
+              where: 'id = ?',
+              whereArgs: [rowId],
+            );
+            return;
+          }
+        } catch (_) {}
+      }
     }
   }
 
@@ -1490,47 +1536,39 @@ class DBHelper {
   ) async {
     final db = await onshoreDatabase;
 
-    final result = await db.query(
+    final result = await _safeBatchQuery(
+      db,
       'exregister_table_onshore',
       columns: ['id', 'exregister_json'],
     );
 
-    print("Total rows => ${result.length}");
-
     for (final row in result) {
       final int recordId = row['id'] as int;
-      final String jsonStr = row['exregister_json'] as String;
+      final String? jsonStr = row['exregister_json'] as String?;
+      if (jsonStr == null) continue;
 
       final dynamic parsedJson = jsonDecode(jsonStr);
-
       bool isUpdated = false;
 
       if (parsedJson is List) {
         for (var item in parsedJson) {
-          if (item is Map &&
-              item['asset']?['_id'].toString() == assetId.toString()) {
-            print("MATCH FOUND IN LIST");
-
-            _updateAssetObject(
-              item['asset'],
-              locationId,
-              functionalAreaMap,
-            );
-
-            isUpdated = true;
-            break;
+          if (item is Map) {
+            final asset = (item['asset'] is Map) ? item['asset'] : item;
+            if (recordId == assetId ||
+                asset?['primaryId']?.toString() == assetId.toString() ||
+                asset?['_id']?.toString() == assetId.toString()) {
+              _updateAssetObject(asset, locationId, functionalAreaMap);
+              isUpdated = true;
+              break;
+            }
           }
         }
       } else if (parsedJson is Map) {
-        if (parsedJson['asset']?['_id'].toString() == assetId.toString()) {
-          print("MATCH FOUND IN MAP");
-
-          _updateAssetObject(
-            parsedJson['asset'],
-            locationId,
-            functionalAreaMap,
-          );
-
+        final asset = (parsedJson['asset'] is Map) ? parsedJson['asset'] : parsedJson;
+        if (recordId == assetId ||
+            asset?['primaryId']?.toString() == assetId.toString() ||
+            asset?['_id']?.toString() == assetId.toString()) {
+          _updateAssetObject(asset, locationId, functionalAreaMap);
           isUpdated = true;
         }
       }
@@ -1542,8 +1580,6 @@ class DBHelper {
           where: 'id = ?',
           whereArgs: [recordId],
         );
-
-        print("UPDATED SUCCESSFULLY");
         break;
       }
     }
@@ -1797,54 +1833,47 @@ class DBHelper {
   Future<Map<String, dynamic>?> getExRegisterByIdOnshore(String assetId) async {
     final db = await onshoreDatabase;
     final results = await _safeBatchQuery(db, 'exregister_table_onshore');
-    final recordToDelete = results.firstWhere((row) {
+    for (final row in results) {
+      if (row['id']?.toString() == assetId) {
+        return row;
+      }
+    }
+    for (final row in results) {
       final exRegisterJson = row['exregister_json'];
-      if (exRegisterJson == null) return false;
+      if (exRegisterJson == null) continue;
       final jsonMap = (exRegisterJson is String)
           ? jsonDecode(exRegisterJson) as Map<String, dynamic>
           : exRegisterJson as Map<String, dynamic>;
-      final asset = jsonMap['asset'] as Map<String, dynamic>?;
-      return row['id']?.toString() == assetId ||
-          row['asset_id']?.toString() == assetId ||
-          asset?['_id']?.toString() == assetId ||
-          asset?['primaryId']?.toString() == assetId ||
-          asset?['id']?.toString() == assetId ||
-          asset?['rfidRef']?.toString() == assetId ||
-          asset?['eqpmtTag']?.toString() == assetId;
-    }, orElse: () => {});
-    return recordToDelete.isNotEmpty ? recordToDelete : null;
+      final asset = (jsonMap['asset'] is Map)
+          ? jsonMap['asset'] as Map<String, dynamic>
+          : jsonMap;
+      if (asset['primaryId']?.toString() == assetId) {
+        return row;
+      }
+    }
+    for (final row in results) {
+      final exRegisterJson = row['exregister_json'];
+      if (exRegisterJson == null) continue;
+      final jsonMap = (exRegisterJson is String)
+          ? jsonDecode(exRegisterJson) as Map<String, dynamic>
+          : exRegisterJson as Map<String, dynamic>;
+      final asset = (jsonMap['asset'] is Map)
+          ? jsonMap['asset'] as Map<String, dynamic>
+          : jsonMap;
+      if (asset['_id']?.toString() == assetId || asset['id']?.toString() == assetId) {
+        return row;
+      }
+    }
+    return null;
   }
 
   Future<int> deleteExRegisterByIdOnshore(String assetId, String id) async {
     final db = await onshoreDatabase;
-    // return await db.delete(
-    //   'exregister_table_onshore',
-    //   where: "json_extract(exregister_json, '\$.asset._id') = ?",
-    //   whereArgs: [assetId],
-    // );
-    final results = await _safeBatchQuery(db, 'exregister_table_onshore');
-
-    final recordToDelete = results.firstWhere((row) {
-      final exRegisterJson = row['exregister_json'] as String;
-      final jsonMap = jsonDecode(exRegisterJson) as Map<String, dynamic>;
-      final jsonAssetId = jsonMap['asset']['_id']?.toString();
-
-      return jsonAssetId == id || jsonAssetId == assetId;
-    }, orElse: () => {});
-
-    if (recordToDelete.isNotEmpty) {
-      final exRegisterJson = recordToDelete['exregister_json'] as String;
-      final jsonMap = jsonDecode(exRegisterJson) as Map<String, dynamic>;
-      final matchedAssetId = jsonMap['asset']['_id']?.toString();
-
-      return await db.delete(
-        'exregister_table_onshore',
-        where: "exregister_json LIKE ?",
-        whereArgs: ['%"_id":"$matchedAssetId"%'],
-      );
-    } else {
-      return 0; // Nothing deleted
-    }
+    return await db.delete(
+      'exregister_table_onshore',
+      where: 'id = ?',
+      whereArgs: [id.isNotEmpty ? id : assetId],
+    );
   }
 
   Future<int> deleteExRegisterCollectionByIdOnshore(
@@ -1859,7 +1888,10 @@ class DBHelper {
         .where((row) {
           final exRegisterJson = row['exregister_json'] as String;
           final jsonMap = jsonDecode(exRegisterJson) as Map<String, dynamic>;
-          return assetIds.contains(jsonMap['asset']['_id']);
+          final asset = jsonMap['asset'] ?? jsonMap;
+          return assetIds.contains(asset['_id']?.toString()) ||
+              assetIds.contains(asset['primaryId']?.toString()) ||
+              assetIds.contains(row['id']?.toString());
         })
         .map((row) => row['id'])
         .toList();
@@ -1887,14 +1919,13 @@ class DBHelper {
     );
     String exregisterJsonString = exRegisterJson['exregister_json'] as String;
     Map<String, dynamic> decodedJson = jsonDecode(exregisterJsonString);
-    if (decodedJson.containsKey('asset')) {
-      Map<String, dynamic> assetMap = decodedJson['asset'];
-      if (assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) {
-        assetMap['_id'] = newId.toString();
-      }
-      assetMap['primaryId'] = newId;
-    }
-    final updatedJsonString = jsonEncode(decodedJson);
+    Map<String, dynamic> assetMap = (decodedJson['asset'] is Map)
+        ? Map<String, dynamic>.from(decodedJson['asset'] as Map)
+        : Map<String, dynamic>.from(decodedJson);
+    assetMap['_id'] = newId.toString();
+    assetMap['primaryId'] = newId;
+    assetMap['id'] = newId.toString();
+    final updatedJsonString = jsonEncode({'asset': assetMap});
     await db.update(
       'exregister_table_onshore',
       {'exregister_json': updatedJsonString},
@@ -1910,28 +1941,60 @@ class DBHelper {
     final db = await onshoreDatabase;
     final exRegisterJson = exRegister['exregister_json'] as String;
     final decodedJson = jsonDecode(exRegisterJson) as Map<String, dynamic>;
+    final assetMap = (decodedJson['asset'] is Map)
+        ? Map<String, dynamic>.from(decodedJson['asset'] as Map)
+        : Map<String, dynamic>.from(decodedJson);
 
-    final assetId = decodedJson['asset']?['_id'];
-    if (assetId == null) {
-      throw ArgumentError('Invalid exregister_json: asset _id is missing');
-    }
-    final existingExRegister = await _safeBatchQuery(
-      db,
-      'exregister_table_onshore',
-      columns: ['id'],
-      where: 'exregister_json LIKE ?',
-      whereArgs: ['%"_id":"$assetId"%'],
-    );
+    final primaryId = assetMap['primaryId'] ?? decodedJson['primaryId'] ?? exRegister['id'] ?? assetMap['_id'];
+    int? targetRowId = (primaryId != null) ? int.tryParse(primaryId.toString()) : null;
 
-    if (existingExRegister.isNotEmpty) {
-      await db.update(
+    if (targetRowId != null && targetRowId > 0) {
+      assetMap['primaryId'] = targetRowId;
+      assetMap['_id'] = targetRowId.toString();
+      final updatedJsonString = jsonEncode({'asset': assetMap});
+      final rowsUpdated = await db.update(
         'exregister_table_onshore',
-        exRegister,
-        where: 'exregister_json LIKE ?',
-        whereArgs: ['%"_id":"$assetId"%'],
+        {
+          'exregister_json': updatedJsonString,
+          if (exRegister['updated_by'] != null) 'updated_by': exRegister['updated_by'],
+          if (exRegister['updated_date'] != null) 'updated_date': exRegister['updated_date'],
+        },
+        where: 'id = ?',
+        whereArgs: [targetRowId],
       );
-    } else {
-      throw Exception('Ex Register with asset _id $assetId not found');
+      if (rowsUpdated > 0) return;
+    }
+
+    final assetId = assetMap['_id'] ?? assetMap['assetId'] ?? assetMap['id'];
+    if (assetId != null && assetId.toString().isNotEmpty) {
+      final allRows = await _safeBatchQuery(db, 'exregister_table_onshore');
+      for (final row in allRows) {
+        try {
+          final rowJson = (row['exregister_json'] is String)
+              ? jsonDecode(row['exregister_json'])
+              : row['exregister_json'];
+          final rowAsset = (rowJson is Map) ? (rowJson['asset'] ?? rowJson) : {};
+          if (row['id']?.toString() == assetId.toString() ||
+              rowAsset['primaryId']?.toString() == assetId.toString() ||
+              rowAsset['_id']?.toString() == assetId.toString()) {
+            final rowId = row['id'];
+            assetMap['primaryId'] = rowId;
+            assetMap['_id'] = rowId.toString();
+            final updatedJsonString = jsonEncode({'asset': assetMap});
+            await db.update(
+              'exregister_table_onshore',
+              {
+                'exregister_json': updatedJsonString,
+                if (exRegister['updated_by'] != null) 'updated_by': exRegister['updated_by'],
+                if (exRegister['updated_date'] != null) 'updated_date': exRegister['updated_date'],
+              },
+              where: 'id = ?',
+              whereArgs: [rowId],
+            );
+            return;
+          }
+        } catch (_) {}
+      }
     }
   }
   // Future<void> updateExRegisterByIdOnshore(
@@ -2435,44 +2498,47 @@ class DBHelper {
       db,
       'exregister_table',
       columns: ['id', 'exregister_json'],
-      where: 'exregister_json LIKE ?',
-      whereArgs: ['%"_id":"$assetId"%'],
     );
-    if (result.isNotEmpty) {
-      final int recordId = result.first['id'] as int;
-      final String jsonStr = result.first['exregister_json'] as String;
+
+    for (final row in result) {
+      final int recordId = row['id'] as int;
+      final String? jsonStr = row['exregister_json'] as String?;
+      if (jsonStr == null) continue;
+
       final dynamic parsedJson = jsonDecode(jsonStr);
+      bool isUpdated = false;
+
       if (parsedJson is List) {
         for (var item in parsedJson) {
-          if (item is Map &&
-              item['asset']['_id'].toString() == assetId.toString()) {
-            _updateAssetObject(item['asset'], locationId, functionalAreaMap);
-
-            break;
+          if (item is Map) {
+            final asset = (item['asset'] is Map) ? item['asset'] : item;
+            if (recordId == assetId ||
+                asset?['primaryId']?.toString() == assetId.toString() ||
+                asset?['_id']?.toString() == assetId.toString()) {
+              _updateAssetObject(asset, locationId, functionalAreaMap);
+              isUpdated = true;
+              break;
+            }
           }
         }
-        printFull(jsonEncode(parsedJson));
-        await db.update(
-          'exregister_table',
-          {'exregister_json': jsonEncode(parsedJson)},
-          where: 'id = ?',
-          whereArgs: [recordId],
-        );
       } else if (parsedJson is Map) {
-        if (parsedJson['asset']?['_id'].toString() == assetId.toString()) {
-          _updateAssetObject(
-            parsedJson['asset'],
-            locationId,
-            functionalAreaMap,
-          );
+        final asset = (parsedJson['asset'] is Map) ? parsedJson['asset'] : parsedJson;
+        if (recordId == assetId ||
+            asset?['primaryId']?.toString() == assetId.toString() ||
+            asset?['_id']?.toString() == assetId.toString()) {
+          _updateAssetObject(asset, locationId, functionalAreaMap);
+          isUpdated = true;
         }
-        printFull(jsonEncode(parsedJson));
+      }
+
+      if (isUpdated) {
         await db.update(
           'exregister_table',
           {'exregister_json': jsonEncode(parsedJson)},
           where: 'id = ?',
           whereArgs: [recordId],
         );
+        break;
       }
     }
   }

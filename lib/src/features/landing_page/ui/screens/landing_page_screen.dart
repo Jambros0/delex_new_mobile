@@ -17,6 +17,7 @@ import 'package:deex_bloc_mobile_app_dev/src/utils/network_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -56,9 +57,7 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   Future<void> _fetchAssetList() async {
-    if (NetworkUtils().isNetworkAvailable) {
-      BlocProvider.of<DeviceSyncBloc>(context).add(LoadNewWorkOrder());
-    }
+    // Background popup check removed as requested
   }
 
   Future<void> _fetchLoggedInUser() async {
@@ -398,18 +397,9 @@ class _LandingScreenState extends State<LandingScreen> {
       builder: (context, constraints) {
         final double screenHeight = MediaQuery.of(context).size.height;
 
-        return BlocListener<DeviceSyncBloc, DeviceSyncState>(
-          listenWhen: (previous, current) => current is WorkOrderNewLoaded,
-          listener: (context, state) {
-            if (state is WorkOrderNewLoaded) {
-              // Future.delayed(const Duration(seconds: 1), () {
-              _checkNewAsset(context);
-              // });
-            }
-          },
-          child: BlocProvider(
-            create: (context) => LandingPageBloc()..add(LoadLandingPage()),
-            child: BlocBuilder<LandingPageBloc, LandingPageState>(
+        return BlocProvider(
+          create: (context) => LandingPageBloc()..add(LoadLandingPage()),
+          child: BlocBuilder<LandingPageBloc, LandingPageState>(
               builder: (context, state) {
                 if (state is LandingPageLoaded) {
                   // Future.delayed(const Duration(seconds: 1), () {
@@ -477,8 +467,8 @@ class _LandingScreenState extends State<LandingScreen> {
                                     child: Stack(
                                       children: [
                                         TextFormField(
-                                          keyboardType: TextInputType.none,
-                                          readOnly: rfidReadonly,
+                                          keyboardType: TextInputType.text,
+                                          readOnly: false,
                                           // focusNode: searchFoucs,
                                           focusNode: _rfidFocusNode,
                                           textAlignVertical:
@@ -664,24 +654,17 @@ class _LandingScreenState extends State<LandingScreen> {
                                                   ),
                                           ),
                                           onFieldSubmitted: (value) async {
-                                            if (!nfcUsed) {
-                                              CommonFunctions commonFunctions =
-                                                  CommonFunctions();
-                                              String rfidValue =
-                                                  await commonFunctions
-                                                      .reversedRFIDString(
-                                                value,
-                                              );
-                                              equipmentIdController.text =
-                                                  rfidValue;
-                                              equipmentIdController.selection =
-                                                  TextSelection.collapsed(
-                                                offset: rfidValue.length,
+                                            final equipmentId = value.trim();
+                                            if (equipmentId.isNotEmpty) {
+                                              Get.offAllNamed(
+                                                '/home',
+                                                arguments: {
+                                                  'menu': 'Ex Register',
+                                                  'isCollapsed': true,
+                                                  'equipmentId': equipmentId,
+                                                },
                                               );
                                             }
-                                            setState(() {
-                                              rfidReadonly = true;
-                                            });
                                           },
                                         ),
                                       ],
@@ -716,10 +699,8 @@ class _LandingScreenState extends State<LandingScreen> {
                                       final equipmentId =
                                           equipmentIdController.text.trim();
                                       if (equipmentId.isNotEmpty) {
-                                        Navigator.pushNamedAndRemoveUntil(
-                                          context,
+                                        Get.offAllNamed(
                                           '/home',
-                                          (route) => false,
                                           arguments: {
                                             'menu': 'Ex Register',
                                             'isCollapsed': true,
@@ -841,10 +822,9 @@ class _LandingScreenState extends State<LandingScreen> {
                 return const Center(child: CircularProgressIndicator());
               },
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
   }
 
   Future<void> getRFIDTag(controller) async {

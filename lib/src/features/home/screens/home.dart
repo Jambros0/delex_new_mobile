@@ -314,14 +314,16 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildContent() {
     final now = DateTime.now();
-    final equipmentId = Get.arguments?['equipmentId'] as String?;
-    final filter = Get.arguments?['filter'] as String?;
-    final fltertype = Get.arguments?['fltertype'] as String?;
-    final fromDatefilter = Get.arguments?['fromDatefilter'] as DateTime?;
-    final ToDatefilter = Get.arguments?['ToDatefilter'] as DateTime?;
+    final modalArgs = ModalRoute.of(context)?.settings.arguments as Map?;
+    final getArgs = Get.arguments as Map?;
+    final equipmentId = (getArgs?['equipmentId'] ?? modalArgs?['equipmentId']) as String?;
+    final filter = (getArgs?['filter'] ?? modalArgs?['filter']) as String?;
+    final fltertype = (getArgs?['fltertype'] ?? modalArgs?['fltertype']) as String?;
+    final fromDatefilter = (getArgs?['fromDatefilter'] ?? modalArgs?['fromDatefilter']) as DateTime?;
+    final ToDatefilter = (getArgs?['ToDatefilter'] ?? modalArgs?['ToDatefilter']) as DateTime?;
     // final isSelectedScreen = Get.arguments?['isSelectedScreen'] as String?;
-    final isSelectedScreen = Get.arguments?['isSelectedScreenFlag'] as bool?;
-    final fetchApiOnce = Get.arguments?['fetchApiOnce'] as bool?;
+    final isSelectedScreen = (getArgs?['isSelectedScreenFlag'] ?? modalArgs?['isSelectedScreenFlag']) as bool?;
+    final fetchApiOnce = (getArgs?['fetchApiOnce'] ?? modalArgs?['fetchApiOnce']) as bool?;
 
     final effectiveMenu =
         (_selectedMenu == 'To Device' || _selectedMenu == 'To Server')

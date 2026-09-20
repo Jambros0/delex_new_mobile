@@ -11,12 +11,15 @@ class AuthService {
     );
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
+      if (data['status'] == false) {
+        throw Exception(data['message'] ?? 'Invalid credentials');
+      }
       final user = data['user'] ?? data['data'] ?? data['userDetails'] ?? {};
 
-      final dynamic statusRaw = user['status'] ?? user['userStatus'] ?? user['isActive'] ?? data['status'] ?? data['userStatus'];
+      final dynamic statusRaw = user['status'] ?? user['userStatus'] ?? user['isActive'] ?? data['userStatus'];
       final String statusStr = statusRaw?.toString().toLowerCase().trim() ?? 'active';
 
-      if (statusStr == 'inactive' || statusStr == 'false' || statusStr == '0' || statusStr == 'disabled' || statusStr == 'deactivated') {
+      if (statusStr == 'inactive' || statusStr == '0' || statusStr == 'disabled' || statusStr == 'deactivated') {
         throw Exception('Account is inactive. Access has been removed.');
       }
 

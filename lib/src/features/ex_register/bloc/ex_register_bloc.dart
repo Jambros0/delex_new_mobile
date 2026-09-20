@@ -940,11 +940,9 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       hasMoreData = true;
 
       final results = await _fetchExRegisterData(userType: userType);
-      final assets = results.map((e) {
-        final jsonMap =
-            jsonDecode(e['exregister_json']) as Map<String, dynamic>;
-        return ExRegister.fromJson(jsonMap['asset']);
-      }).toList();
+      final assets = _parseExRegisterTableModels(results)
+          .map((e) => e.exregisterJson)
+          .toList();
 
       emit(
         ExRegisterLoaded(
@@ -1374,26 +1372,22 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
           ? jsonDecode(jsonRaw)
           : jsonRaw as Map<String, dynamic>?;
       if (jsonMap == null) {
-        throw const FormatException("Invalid JSON: \${jsonRaw.runtimeType}");
+        throw const FormatException("Invalid JSON");
       }
 
-      final dynamic rawAsset = jsonMap['asset'];
+      final dynamic rawAsset = jsonMap['asset'] ?? jsonMap;
       Map<String, dynamic> assetMap = {};
       if (rawAsset is Map<String, dynamic>) {
         assetMap = Map<String, dynamic>.from(rawAsset);
       } else if (rawAsset is Map) {
         assetMap = Map<String, dynamic>.from(rawAsset);
       }
-      if ((assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) &&
-          map['asset_id'] != null &&
-          map['asset_id'].toString().isNotEmpty) {
-        assetMap['_id'] = map['asset_id'];
-      }
-      if (assetMap['primaryId'] == null && map['id'] != null) {
-        assetMap['primaryId'] = map['id'] is int
-            ? map['id']
-            : int.tryParse(map['id'].toString());
-      }
+
+      final int rowId = (map['id'] is int)
+          ? map['id']
+          : int.tryParse(map['id'].toString()) ?? 0;
+      assetMap['primaryId'] = rowId;
+      assetMap['_id'] = rowId.toString();
 
       return ExRegisterTableModel(
         id: map['id'],

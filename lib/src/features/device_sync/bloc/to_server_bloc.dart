@@ -88,41 +88,7 @@ class ToServerBloc extends Bloc<ToServerEvent, ToServerState> {
       final rawAssets = await _loadOfflineAssets();
       var filteredList = rawAssets.map((e) => e.exregisterJson).toList();
 
-      List<String> tableHeaders = (userType == 'onshore')
-          ? [
-              "RFID Reference",
-              "Location",
-              "Sub Location",
-              "Area",
-              "Zone",
-              "Discipline",
-              "Equipment Tag Number",
-              "Equipment Description",
-              "Equipment Manufacturer",
-              "Equipment Protection",
-              "Inspection Faults",
-              "Inspection Status",
-              "Completed Repairs",
-              "Existing Faults",
-              "Current Status",
-            ]
-          : [
-              "RFID Reference",
-              "Field Name",
-              "Platform",
-              "Deck Level",
-              "Zone",
-              "Discpline",
-              "Equipment Tag Number",
-              "Equipment Description",
-              "Manufacutrer",
-              "Equipment Protection",
-              "Inspection Faults",
-              "Inspection Status",
-              "Completed Repairs",
-              "Existing Faults",
-              "Current Status"
-            ];
+      List<String> tableHeaders = _getTableHeaders(userType);
       emit(WorkOrderToServerLoaded(
           tableHeaders: tableHeaders,
           assets: filteredList,
@@ -142,19 +108,46 @@ class ToServerBloc extends Bloc<ToServerEvent, ToServerState> {
         ? await _dbHelper.getExRegisterOnshore()
         : await _dbHelper.getExRegister();
 
-    return results.map((map) {
-      final rawJson = map['exregister_json'];
-      final jsonMap = rawJson is String ? jsonDecode(rawJson) : rawJson;
+    final List<ExRegisterTableModel> list = [];
+    for (var map in results) {
+      try {
+        final jsonRaw = map['exregister_json'];
+        final jsonMap = (jsonRaw is String)
+            ? jsonDecode(jsonRaw)
+            : jsonRaw as Map<String, dynamic>?;
+        if (jsonMap == null) continue;
 
-      return ExRegisterTableModel(
-        id: map['id'],
-        exregisterJson: ExRegister.fromJson(jsonMap['asset']),
-        createdBy: map['created_by'],
-        updatedBy: map['updated_by'],
-        createdDate: map['created_date'],
-        updatedDate: map['updated_date'],
-      );
-    }).toList();
+        final dynamic rawAsset = jsonMap['asset'] ?? jsonMap;
+        Map<String, dynamic> assetMap = {};
+        if (rawAsset is Map<String, dynamic>) {
+          assetMap = Map<String, dynamic>.from(rawAsset);
+        } else if (rawAsset is Map) {
+          assetMap = Map<String, dynamic>.from(rawAsset);
+        }
+        if ((assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) &&
+            map['asset_id'] != null &&
+            map['asset_id'].toString().isNotEmpty) {
+          assetMap['_id'] = map['asset_id'];
+        }
+        if (assetMap['primaryId'] == null && map['id'] != null) {
+          assetMap['primaryId'] = map['id'] is int
+              ? map['id']
+              : int.tryParse(map['id'].toString());
+        }
+
+        list.add(ExRegisterTableModel(
+          id: map['id'],
+          exregisterJson: ExRegister.fromJson(assetMap),
+          createdBy: map['created_by'],
+          updatedBy: map['updated_by'],
+          createdDate: map['created_date'],
+          updatedDate: map['updated_date'],
+        ));
+      } catch (e) {
+        // Safe skip on corrupt row
+      }
+    }
+    return list;
   }
 
   List<String> _getTableHeaders(String? userType) {
@@ -182,10 +175,10 @@ class ToServerBloc extends Bloc<ToServerEvent, ToServerState> {
             "Platform",
             "Deck Level",
             "Zone",
-            "Discpline",
+            "Discipline",
             "Equipment Tag Number",
             "Equipment Description",
-            "Manufacutrer",
+            "Manufacturer",
             "Equipment Protection",
             "Inspection Faults",
             "Inspection Status",

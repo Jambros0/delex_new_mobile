@@ -115,7 +115,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       _equipmentDescription.clear();
       _selectedAtexCategory = '';
       _selectedEpl = '';
-      _selectedProtectionStandard = 'IEC / ATEX';
+      _selectedProtectionStandard = '';
       _selectedProtectionType = '';
       _selectedGasGroup = null;
       _selectedTClass = null;
@@ -163,24 +163,17 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     _cableIdController.text = request?.cableId ?? '';
     _equipmentCategoryController.text = request?.equipmentCategory ?? '';
     _selectedEquipmentCategory = request?.equipmentCategory ?? '';
-    _selectedEquipmentStatus = request?.areaStatus ?? (request?.isActive == true ? 'Active' : 'In Active');
+    _selectedEquipmentStatus = request?.areaStatus ??
+        (request?.isActive == true ? 'Active' : 'In Active');
     _equipmentDescription.text = request?.description ?? '';
     _manufacturerController.text = request?.manufacturer ?? '';
     _typeController.text = request?.type ?? '';
+    _serialNumberController.text = request?.serialNumber?.toString() ?? '';
     final loadedStd = request?.protectionStd?.toString();
     if (loadedStd != null && loadedStd.isNotEmpty) {
-      final lower = loadedStd.toLowerCase();
-      if (lower == 'iec' || lower.contains('iec') || lower.contains('atex')) {
-        _selectedProtectionStandard = 'IEC / ATEX';
-      } else if (lower == 'nec' || lower.contains('nec') || lower.contains('cec')) {
-        _selectedProtectionStandard = 'NEC / CEC';
-      } else if (lower.contains('applicable')) {
-        _selectedProtectionStandard = 'Not Applicable';
-      } else {
-        _selectedProtectionStandard = loadedStd;
-      }
+      _selectedProtectionStandard = loadedStd;
     } else {
-      _selectedProtectionStandard = 'IEC / ATEX';
+      _selectedProtectionStandard = 'IEC';
     }
     //
     // _selectedAtexCategory = request?.atexCatg ?? '';
@@ -363,34 +356,28 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           Map<String, dynamic>.from(_defaultProtectionStandardMap);
     }
 
-    final List<String> availableStandards = [
-      'IEC / ATEX',
-      'NEC / CEC',
-      'Not Applicable'
-    ];
+    final List<String> availableStandards = [];
     for (final key in protectionStandardMap.keys) {
       final strKey = key.toString();
-      if (!availableStandards.contains(strKey) &&
-          strKey != 'IEC' &&
-          strKey != 'NEC' &&
-          strKey != 'Not Available') {
+      if (!availableStandards.contains(strKey) && strKey != 'Not Available') {
         availableStandards.add(strKey);
       }
+    }
+    if (availableStandards.isEmpty) {
+      availableStandards.addAll(['IEC', 'NEC', 'ATEX', 'Not Applicable']);
     }
 
     if (_selectedProtectionStandard == null ||
         _selectedProtectionStandard!.isEmpty) {
-      _selectedProtectionStandard = 'IEC / ATEX';
+      _selectedProtectionStandard =
+          availableStandards.contains('IEC') ? 'IEC' : availableStandards.first;
     } else if (!availableStandards.contains(_selectedProtectionStandard)) {
-      final lower = _selectedProtectionStandard!.toLowerCase();
-      if (lower == 'iec' || lower.contains('iec') || lower.contains('atex')) {
-        _selectedProtectionStandard = 'IEC / ATEX';
-      } else if (lower == 'nec' ||
-          lower.contains('nec') ||
-          lower.contains('cec')) {
-        _selectedProtectionStandard = 'NEC / CEC';
-      } else if (lower.contains('applicable')) {
-        _selectedProtectionStandard = 'Not Applicable';
+      final match = availableStandards.firstWhere(
+        (s) => s.toLowerCase() == _selectedProtectionStandard!.toLowerCase(),
+        orElse: () => '',
+      );
+      if (match.isNotEmpty) {
+        _selectedProtectionStandard = match;
       } else {
         availableStandards.add(_selectedProtectionStandard!);
       }
@@ -446,35 +433,44 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
             .toList() ??
         ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'Not Applicable'];
 
-    final descriptions = (exRegisterDropDown['equipementDescription'] as List<dynamic>?)
-        ?.map((item) => item.toString())
-        .where((item) => item != 'Others' && !item.toLowerCase().startsWith('other ('))
-        .toList() ?? [];
+    final descriptions = (exRegisterDropDown['equipementDescription']
+                as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .where((item) =>
+                item != 'Others' && !item.toLowerCase().startsWith('other ('))
+            .toList() ??
+        [];
     if (!descriptions.contains('Others')) {
       descriptions.insert(0, 'Others');
     }
 
-    final filteredEquipmentCategory =
-        (exRegisterDropDown['equipmentCategory'] as List<dynamic>?)
+    final filteredEquipmentCategory = (exRegisterDropDown['equipmentCategory']
+                as List<dynamic>?)
             ?.map((item) => item.toString())
-            .where((item) => item != 'Others' && !item.toLowerCase().startsWith('other ('))
-            .toList() ?? [];
+            .where((item) =>
+                item != 'Others' && !item.toLowerCase().startsWith('other ('))
+            .toList() ??
+        [];
     if (!filteredEquipmentCategory.contains('Others')) {
       filteredEquipmentCategory.insert(0, 'Others');
     }
 
     final manufacturers = (exRegisterDropDown['manufacturer'] as List<dynamic>?)
-        ?.map((item) => item.toString())
-        .where((item) => item != 'Others' && !item.toLowerCase().startsWith('other ('))
-        .toList() ?? [];
+            ?.map((item) => item.toString())
+            .where((item) =>
+                item != 'Others' && !item.toLowerCase().startsWith('other ('))
+            .toList() ??
+        [];
     if (!manufacturers.contains('Others')) {
       manufacturers.insert(0, 'Others');
     }
 
-    List<String> certificationBody = (exRegisterDropDown['certificationBody'] as List<dynamic>?)
-        ?.map((item) => item.toString())
-        .where((item) => item != 'Others' && !item.startsWith('Other ('))
-        .toList() ?? [];
+    List<String> certificationBody = (exRegisterDropDown['certificationBody']
+                as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .where((item) => item != 'Others' && !item.startsWith('Other ('))
+            .toList() ??
+        [];
     if (certificationBody.isEmpty) {
       certificationBody = [
         'Baseefa',
@@ -499,8 +495,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     }
 
     final areaStatusList = (exRegisterDropDown['areaStatus'] as List<dynamic>?)
-        ?.map((item) => item.toString())
-        .toList() ?? ['Active', 'In Active'];
+            ?.map((item) => item.toString())
+            .toList() ??
+        ['Active', 'In Active'];
 
     if (_selectedDescription.isEmpty) {
       final loadedDesc = _equipmentDescription.text;
@@ -511,7 +508,8 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           _selectedDescription = 'Others';
         }
       }
-    } else if (!descriptions.contains(_selectedDescription) && _selectedDescription != 'Others') {
+    } else if (!descriptions.contains(_selectedDescription) &&
+        _selectedDescription != 'Others') {
       _equipmentDescription.text = _selectedDescription;
       _selectedDescription = 'Others';
     }
@@ -525,12 +523,14 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           _selectedManufacturer = 'Others';
         }
       }
-    } else if (!manufacturers.contains(_selectedManufacturer) && _selectedManufacturer != 'Others') {
+    } else if (!manufacturers.contains(_selectedManufacturer) &&
+        _selectedManufacturer != 'Others') {
       _manufacturerController.text = _selectedManufacturer;
       _selectedManufacturer = 'Others';
     }
 
-    if (_selectedEquipmentCategory == null || _selectedEquipmentCategory!.isEmpty) {
+    if (_selectedEquipmentCategory == null ||
+        _selectedEquipmentCategory!.isEmpty) {
       final loadedCat = _equipmentCategoryController.text;
       if (loadedCat.isNotEmpty) {
         if (filteredEquipmentCategory.contains(loadedCat)) {
@@ -539,12 +539,15 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           _selectedEquipmentCategory = 'Others';
         }
       }
-    } else if (!filteredEquipmentCategory.contains(_selectedEquipmentCategory) && _selectedEquipmentCategory != 'Others') {
+    } else if (!filteredEquipmentCategory
+            .contains(_selectedEquipmentCategory) &&
+        _selectedEquipmentCategory != 'Others') {
       _equipmentCategoryController.text = _selectedEquipmentCategory!;
       _selectedEquipmentCategory = 'Others';
     }
 
-    if (_selectedCertificationBody == null || _selectedCertificationBody!.isEmpty) {
+    if (_selectedCertificationBody == null ||
+        _selectedCertificationBody!.isEmpty) {
       final loadedCertBody = _certificationBodyController.text;
       if (loadedCertBody.isNotEmpty) {
         if (certificationBody.contains(loadedCertBody)) {
@@ -553,7 +556,8 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           _selectedCertificationBody = 'Others';
         }
       }
-    } else if (!certificationBody.contains(_selectedCertificationBody) && _selectedCertificationBody != 'Others') {
+    } else if (!certificationBody.contains(_selectedCertificationBody) &&
+        _selectedCertificationBody != 'Others') {
       _certificationBodyController.text = _selectedCertificationBody!;
       _selectedCertificationBody = 'Others';
     }
@@ -775,10 +779,12 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                     _selectedEpl = value.isEmpty ? '' : value.join(', ');
                   });
                   // Zone validation
-                  final zone =
-                      (widget.exInspectionRequest.functionalAreaRequest?.zone.isNotEmpty == true)
-                          ? widget.exInspectionRequest.functionalAreaRequest!.zone
-                          : (widget.exInspectionRequest.equipmentTagRequest?.zone ?? '');
+                  final zone = (widget.exInspectionRequest.functionalAreaRequest
+                              ?.zone.isNotEmpty ==
+                          true)
+                      ? widget.exInspectionRequest.functionalAreaRequest!.zone
+                      : (widget.exInspectionRequest.equipmentTagRequest?.zone ??
+                          '');
                   if (zone.isNotEmpty && value.isNotEmpty) {
                     final invalidEPL = _getInvalidEPLForZone(zone, value);
                     if (invalidEPL != null) {
@@ -807,10 +813,12 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                         value.isEmpty ? '' : value.join(', ');
                   });
                   // Zone validation
-                  final zone =
-                      (widget.exInspectionRequest.functionalAreaRequest?.zone.isNotEmpty == true)
-                          ? widget.exInspectionRequest.functionalAreaRequest!.zone
-                          : (widget.exInspectionRequest.equipmentTagRequest?.zone ?? '');
+                  final zone = (widget.exInspectionRequest.functionalAreaRequest
+                              ?.zone.isNotEmpty ==
+                          true)
+                      ? widget.exInspectionRequest.functionalAreaRequest!.zone
+                      : (widget.exInspectionRequest.equipmentTagRequest?.zone ??
+                          '');
                   if (zone.isNotEmpty && value.isNotEmpty) {
                     final invalidType =
                         _getInvalidProtectionTypeForZone(zone, value);
@@ -839,9 +847,17 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                     _selectedGasGroup = value.isEmpty ? null : value.join(', ');
                   });
                   // Gas Group compatibility validation against area gas group
-                  final areaGasGroups = (widget.exInspectionRequest.functionalAreaRequest?.locationGasGroup.isNotEmpty == true)
-                          ? widget.exInspectionRequest.functionalAreaRequest!.locationGasGroup
-                          : (widget.exInspectionRequest.equipmentTagRequest?.locationGasGroup ?? []);
+                  final areaGasGroups = (widget
+                              .exInspectionRequest
+                              .functionalAreaRequest
+                              ?.locationGasGroup
+                              .isNotEmpty ==
+                          true)
+                      ? widget.exInspectionRequest.functionalAreaRequest!
+                          .locationGasGroup
+                      : (widget.exInspectionRequest.equipmentTagRequest
+                              ?.locationGasGroup ??
+                          []);
                   if (areaGasGroups.isNotEmpty && value.isNotEmpty) {
                     final warning =
                         _getGasGroupValidationWarning(areaGasGroups, value);
@@ -971,8 +987,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     );
   }
 
-  static const Map<String, Map<String, List<String>>> _defaultProtectionStandardMap = {
-    'IEC / ATEX': {
+  static const Map<String, Map<String, List<String>>>
+      _defaultProtectionStandardMap = {
+    'IEC': {
       'atexCategory': [
         '1G',
         '2G',
@@ -984,17 +1001,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'M2',
         'Not Applicable'
       ],
-      'epl': [
-        'Ga',
-        'Gb',
-        'Gc',
-        'Da',
-        'Db',
-        'Dc',
-        'Ma',
-        'Mb',
-        'Not Applicable'
-      ],
+      'epl': ['Ga', 'Gb', 'Gc', 'Da', 'Db', 'Dc', 'Ma', 'Mb', 'Not Applicable'],
       'protectionType': [
         'Ex d',
         'Ex db',
@@ -1049,17 +1056,78 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'IIIC',
         'Not Applicable'
       ],
-      'temperatureClass': [
-        'T1',
-        'T2',
-        'T3',
-        'T4',
-        'T5',
-        'T6',
-        'Not Applicable'
-      ]
+      'temperatureClass': ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'Not Applicable']
     },
-    'NEC / CEC': {
+    'ATEX': {
+      'atexCategory': [
+        '1G',
+        '2G',
+        '3G',
+        '1D',
+        '2D',
+        '3D',
+        'M1',
+        'M2',
+        'Not Applicable'
+      ],
+      'epl': ['Ga', 'Gb', 'Gc', 'Da', 'Db', 'Dc', 'Ma', 'Mb', 'Not Applicable'],
+      'protectionType': [
+        'Ex d',
+        'Ex db',
+        'Ex e',
+        'Ex eb',
+        'Ex ec',
+        'Ex ia',
+        'Ex ib',
+        'Ex ic',
+        'Ex m',
+        'Ex ma',
+        'Ex mb',
+        'Ex mc',
+        'Ex nA',
+        'Ex nC',
+        'Ex nR',
+        'Ex o',
+        'Ex ob',
+        'Ex oc',
+        'Ex p',
+        'Ex px',
+        'Ex py',
+        'Ex pz',
+        'Ex pxb',
+        'Ex pyb',
+        'Ex pzc',
+        'Ex q',
+        'Ex qb',
+        'Ex s',
+        'Ex op is',
+        'Ex op pr',
+        'Ex op sh',
+        'Ex ta',
+        'Ex tb',
+        'Ex tc',
+        'Ex ia D',
+        'Ex ib D',
+        'Ex ma D',
+        'Ex mb D',
+        'Ex pD',
+        'Ex tD',
+        'Not Applicable',
+        'Others'
+      ],
+      'gasGroup': [
+        'I',
+        'IIA',
+        'IIB',
+        'IIC',
+        'IIIA',
+        'IIIB',
+        'IIIC',
+        'Not Applicable'
+      ],
+      'temperatureClass': ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'Not Applicable']
+    },
+    'NEC': {
       'atexCategory': ['Not Applicable'],
       'epl': [
         'Class I, Div 1',
@@ -1153,9 +1221,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     String? standardKey,
   ) {
     if (standardKey == null || standardKey.trim().isEmpty) {
-      return (protectionStandardMap['IEC / ATEX'] as Map<String, dynamic>?) ??
-          (protectionStandardMap['IEC'] as Map<String, dynamic>?) ??
-          _defaultProtectionStandardMap['IEC / ATEX'];
+      return (protectionStandardMap['IEC'] as Map<String, dynamic>?) ??
+          (protectionStandardMap['IEC / ATEX'] as Map<String, dynamic>?) ??
+          _defaultProtectionStandardMap['IEC'];
     }
     final cleanKey = standardKey.trim();
     if (protectionStandardMap.containsKey(cleanKey)) {
@@ -1174,45 +1242,14 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           return Map<String, dynamic>.from(entry.value as Map);
         }
       }
-      if ((lower.contains('iec') || lower.contains('atex')) &&
-          (entryLower.contains('iec') || entryLower.contains('atex'))) {
-        if (entry.value is Map<String, dynamic>) {
-          return entry.value as Map<String, dynamic>;
-        }
-        if (entry.value is Map) {
-          return Map<String, dynamic>.from(entry.value as Map);
-        }
-      }
-      if ((lower.contains('nec') || lower.contains('cec')) &&
-          (entryLower.contains('nec') || entryLower.contains('cec'))) {
-        if (entry.value is Map<String, dynamic>) {
-          return entry.value as Map<String, dynamic>;
-        }
-        if (entry.value is Map) {
-          return Map<String, dynamic>.from(entry.value as Map);
-        }
-      }
-      if (lower.contains('applicable') && entryLower.contains('applicable')) {
-        if (entry.value is Map<String, dynamic>) {
-          return entry.value as Map<String, dynamic>;
-        }
-        if (entry.value is Map) {
-          return Map<String, dynamic>.from(entry.value as Map);
-        }
-      }
     }
     for (final entry in _defaultProtectionStandardMap.entries) {
       final entryLower = entry.key.toLowerCase();
-      if (entryLower == lower ||
-          ((lower.contains('iec') || lower.contains('atex')) &&
-              (entryLower.contains('iec') || entryLower.contains('atex'))) ||
-          ((lower.contains('nec') || lower.contains('cec')) &&
-              (entryLower.contains('nec') || entryLower.contains('cec'))) ||
-          (lower.contains('applicable') && entryLower.contains('applicable'))) {
+      if (entryLower == lower) {
         return entry.value;
       }
     }
-    return _defaultProtectionStandardMap['IEC / ATEX'];
+    return _defaultProtectionStandardMap['IEC'];
   }
 
   List<String> _getProtectionTypeForProtectionStandard(
@@ -1234,7 +1271,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           .toList();
       if (list.isNotEmpty) return list;
     }
-    return _defaultProtectionStandardMap['IEC / ATEX']!['protectionType']!;
+    return _defaultProtectionStandardMap['IEC']!['protectionType']!;
   }
 
   List<String> _getGasGroupForProtectionStandard(
@@ -1255,7 +1292,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           .toList();
       if (list.isNotEmpty) return list;
     }
-    return _defaultProtectionStandardMap['IEC / ATEX']!['gasGroup']!;
+    return _defaultProtectionStandardMap['IEC']!['gasGroup']!;
   }
 
   List<String> _getAtexCategoryProtectionStandard(
@@ -1277,7 +1314,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           .toList();
       if (list.isNotEmpty) return list;
     }
-    return _defaultProtectionStandardMap['IEC / ATEX']!['atexCategory']!;
+    return _defaultProtectionStandardMap['IEC']!['atexCategory']!;
   }
 
   List<String> _getEPLProtectionStandard(
@@ -1298,7 +1335,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
           .toList();
       if (list.isNotEmpty) return list;
     }
-    return _defaultProtectionStandardMap['IEC / ATEX']!['epl']!;
+    return _defaultProtectionStandardMap['IEC']!['epl']!;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1326,12 +1363,16 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
 
     final trimmedZone = zone.trim().toLowerCase();
     for (final type in selectedTypes) {
-      if (trimmedZone == 'zone 0' || trimmedZone == 'class 1, div 1' || trimmedZone == 'class 1 div 1') {
+      if (trimmedZone == 'zone 0' ||
+          trimmedZone == 'class 1, div 1' ||
+          trimmedZone == 'class 1 div 1') {
         final normalized = type.trim();
         final isAllowed = zone0Allowed.any((allowed) =>
             normalized.toLowerCase().startsWith(allowed.toLowerCase()));
         if (!isAllowed) return type;
-      } else if (trimmedZone == 'zone 20' || trimmedZone == 'class 2, div 1' || trimmedZone == 'class 2 div 1') {
+      } else if (trimmedZone == 'zone 20' ||
+          trimmedZone == 'class 2, div 1' ||
+          trimmedZone == 'class 2 div 1') {
         final normalized = type.trim();
         final isAllowed = zone20Allowed.any((allowed) =>
             normalized.toLowerCase().startsWith(allowed.toLowerCase()));
@@ -1353,11 +1394,15 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
 
     final trimmedZone = zone.trim().toLowerCase();
     List<String>? allowedList;
-    if (trimmedZone == 'zone 0' || trimmedZone == 'class 1, div 1' || trimmedZone == 'class 1 div 1') {
+    if (trimmedZone == 'zone 0' ||
+        trimmedZone == 'class 1, div 1' ||
+        trimmedZone == 'class 1 div 1') {
       allowedList = zone0RequiredEPL;
     } else if (trimmedZone == 'zone 1') {
       allowedList = zone1AllowedEPL;
-    } else if (trimmedZone == 'zone 20' || trimmedZone == 'class 2, div 1' || trimmedZone == 'class 2 div 1') {
+    } else if (trimmedZone == 'zone 20' ||
+        trimmedZone == 'class 2, div 1' ||
+        trimmedZone == 'class 2 div 1') {
       allowedList = zone20RequiredEPL;
     } else if (trimmedZone == 'zone 21') {
       allowedList = zone21AllowedEPL;
@@ -1367,7 +1412,8 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
 
     for (final epl in selectedEPLs) {
       final normalized = epl.trim();
-      if (!allowedList.any((a) => a.toLowerCase() == normalized.toLowerCase())) {
+      if (!allowedList
+          .any((a) => a.toLowerCase() == normalized.toLowerCase())) {
         return epl;
       }
     }
@@ -1433,7 +1479,8 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  void _updateCertificationNumberPrefix(String oldPrefixText, String newPrefixText) {
+  void _updateCertificationNumberPrefix(
+      String oldPrefixText, String newPrefixText) {
     final oldPrefix = oldPrefixText.isNotEmpty ? '$oldPrefixText-' : '';
     final newPrefix = newPrefixText.isNotEmpty ? '$newPrefixText-' : '';
     final currentText = _certificationNumberController.text;
@@ -1626,52 +1673,52 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                   : (label == 'GPS Coordinates' ||
                                           label == 'RFID Reference')
                                       ? GestureDetector(
-                                      behavior: HitTestBehavior.translucent,
-                                      onTap: !isEditMode
-                                          ? null
-                                          : label == 'GPS Coordinates'
-                                              ? _getCurrentLocation
-                                              : () async {
-                                                  getRFIDTag(controller);
-                                                  // bool isAvailable =
-                                                  //     await NFCUtility(context)
-                                                  //         .isNfcAvailable();
-                                                  // if (!isAvailable) {
-                                                  //   ScaffoldMessenger.of(context)
-                                                  //       .showSnackBar(
-                                                  //     const SnackBar(
-                                                  //         content: Text(
-                                                  //             "NFC is not available.")),
-                                                  //   );
-                                                  //   return;
-                                                  // }
-                                                  // await NFCUtility(context)
-                                                  //     .startNfcSession(controller);
-                                                  // setState(() {
-                                                  //   nfcUsed = true;
-                                                  // });
-                                                },
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(10.0),
-                                        child: SvgPicture.asset(
-                                          label == 'GPS Coordinates'
-                                              ? 'lib/src/features/ex_inspections/assets/R-Icon1.svg'
-                                              : 'lib/src/features/ex_register/assets/rfid-icon.svg',
-                                          height: MediaQuery.of(
-                                                context,
-                                              ).size.height *
-                                              0.03,
-                                          width: MediaQuery.of(
-                                                context,
-                                              ).size.width *
-                                              0.06,
-                                          color: !isEditMode
-                                              ? const Color(0xFFBABABA)
-                                              : const Color(0xFF3B475B),
-                                        ),
-                                      ),
-                                    )
-                                  : null,
+                                          behavior: HitTestBehavior.translucent,
+                                          onTap: !isEditMode
+                                              ? null
+                                              : label == 'GPS Coordinates'
+                                                  ? _getCurrentLocation
+                                                  : () async {
+                                                      getRFIDTag(controller);
+                                                      // bool isAvailable =
+                                                      //     await NFCUtility(context)
+                                                      //         .isNfcAvailable();
+                                                      // if (!isAvailable) {
+                                                      //   ScaffoldMessenger.of(context)
+                                                      //       .showSnackBar(
+                                                      //     const SnackBar(
+                                                      //         content: Text(
+                                                      //             "NFC is not available.")),
+                                                      //   );
+                                                      //   return;
+                                                      // }
+                                                      // await NFCUtility(context)
+                                                      //     .startNfcSession(controller);
+                                                      // setState(() {
+                                                      //   nfcUsed = true;
+                                                      // });
+                                                    },
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(10.0),
+                                            child: SvgPicture.asset(
+                                              label == 'GPS Coordinates'
+                                                  ? 'lib/src/features/ex_inspections/assets/R-Icon1.svg'
+                                                  : 'lib/src/features/ex_register/assets/rfid-icon.svg',
+                                              height: MediaQuery.of(
+                                                    context,
+                                                  ).size.height *
+                                                  0.03,
+                                              width: MediaQuery.of(
+                                                    context,
+                                                  ).size.width *
+                                                  0.06,
+                                              color: !isEditMode
+                                                  ? const Color(0xFFBABABA)
+                                                  : const Color(0xFF3B475B),
+                                            ),
+                                          ),
+                                        )
+                                      : null,
                             ),
                             // || label=='RFID Reference'
                             readOnly: !isEditMode || label == 'GPS Coordinates',
@@ -3003,37 +3050,49 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         : widget.exInspectionRequest.functionalAreaRequest?.locationId ?? '';
     widget.exInspectionRequest.equipmentTagRequest = EquipmentTagRequest(
       locationId: locationId,
-      location: widget.exInspectionRequest.functionalAreaRequest?.location ?? '',
+      location:
+          widget.exInspectionRequest.functionalAreaRequest?.location ?? '',
       area: widget.exInspectionRequest.functionalAreaRequest?.area ?? '',
       subArea: widget.exInspectionRequest.functionalAreaRequest?.subArea,
       zone: widget.exInspectionRequest.functionalAreaRequest?.zone ?? '',
-      isActive: widget.exInspectionRequest.functionalAreaRequest?.isActive ?? true,
+      isActive:
+          widget.exInspectionRequest.functionalAreaRequest?.isActive ?? true,
       locationGasGroup:
-          widget.exInspectionRequest.functionalAreaRequest?.locationGasGroup ?? [],
+          widget.exInspectionRequest.functionalAreaRequest?.locationGasGroup ??
+              [],
       locationTClass:
-          widget.exInspectionRequest.functionalAreaRequest?.locationTClass ?? [],
+          widget.exInspectionRequest.functionalAreaRequest?.locationTClass ??
+              [],
 
       locationIpRating:
-          widget.exInspectionRequest.functionalAreaRequest?.locationIpRating ?? [],
+          widget.exInspectionRequest.functionalAreaRequest?.locationIpRating ??
+              [],
       locationTAmbient:
           widget.exInspectionRequest.functionalAreaRequest?.tAmbient ?? '',
-      areaClassDrawAttach:
-          widget.exInspectionRequest.functionalAreaRequest?.areaClassDrawAttach ?? [],
+      areaClassDrawAttach: widget
+              .exInspectionRequest.functionalAreaRequest?.areaClassDrawAttach ??
+          [],
       areaClassDrawNo:
-          widget.exInspectionRequest.functionalAreaRequest?.areaClassDrawNo ?? [],
-      eqpmtLytDrawAttach:
-          widget.exInspectionRequest.functionalAreaRequest?.eqpmtLytDrawAttach ?? [],
+          widget.exInspectionRequest.functionalAreaRequest?.areaClassDrawNo ??
+              [],
+      eqpmtLytDrawAttach: widget
+              .exInspectionRequest.functionalAreaRequest?.eqpmtLytDrawAttach ??
+          [],
       eqpmtLytDrawNo:
-          widget.exInspectionRequest.functionalAreaRequest?.eqpmtLytDrawNo ?? [],
-      eqpmtLytDrawAttachOrgName: widget
-          .exInspectionRequest.functionalAreaRequest?.eqpmtLytDrawAttachOrgName ?? [],
+          widget.exInspectionRequest.functionalAreaRequest?.eqpmtLytDrawNo ??
+              [],
+      eqpmtLytDrawAttachOrgName: widget.exInspectionRequest
+              .functionalAreaRequest?.eqpmtLytDrawAttachOrgName ??
+          [],
       areaClassDrawAttachOrgName: widget.exInspectionRequest
-          .functionalAreaRequest?.areaClassDrawAttachOrgName ?? [],
+              .functionalAreaRequest?.areaClassDrawAttachOrgName ??
+          [],
       locationLatitude:
           widget.exInspectionRequest.functionalAreaRequest?.locationLatitude,
       locationLongitude:
           widget.exInspectionRequest.functionalAreaRequest?.locationLongitude,
-      deckLevel: widget.exInspectionRequest.functionalAreaRequest?.deckLevel ?? '',
+      deckLevel:
+          widget.exInspectionRequest.functionalAreaRequest?.deckLevel ?? '',
       rfidRef: _getTextFieldValue(_rfidReferenceController),
       gpsCord: _getTextFieldValue(_gpsCoordinatesController),
       eqpmtCatg: _selectedDicipline.toString(),

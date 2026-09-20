@@ -302,11 +302,14 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
       final userId = prefs.getString('userId');
 
       if (event.request.equipmentTagRequest?.assetId == null ||
-          event.request.equipmentTagRequest!.assetId!.isEmpty) {
+          event.request.equipmentTagRequest!.assetId!.isEmpty ||
+          event.request.equipmentTagRequest!.assetId == '0') {
+        final requestMap = event.request.equipmentTagRequest!.toJson();
+        final Map<String, dynamic> assetMap = (requestMap['asset'] is Map)
+            ? Map<String, dynamic>.from(requestMap['asset'] as Map)
+            : Map<String, dynamic>.from(requestMap);
         final exRegisterData = {
-          'exregister_json': jsonEncode(
-            event.request.equipmentTagRequest!.toJson(),
-          ),
+          'exregister_json': jsonEncode({'asset': assetMap}),
           'created_by': userId,
           'updated_by': userId,
           'updated_date': DateTime.now().toIso8601String(),
@@ -325,21 +328,30 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
           emit(ExInspectionError(result['msg'] ?? 'Unknown error occurred'));
         }
       } else {
+        final requestMap = event.request.equipmentTagRequest!.toJson();
+        final Map<String, dynamic> assetMap = (requestMap['asset'] is Map)
+            ? Map<String, dynamic>.from(requestMap['asset'] as Map)
+            : Map<String, dynamic>.from(requestMap);
+        final assetIdStr = event.request.equipmentTagRequest!.assetId.toString();
+        final primaryIdVal = event.request.equipmentTagRequest!.primaryId ??
+            int.tryParse(assetIdStr);
+        assetMap['_id'] = assetIdStr;
+        assetMap['primaryId'] = primaryIdVal;
+
         final exRegisterData = {
+          'id': primaryIdVal,
+          'exregister_json': jsonEncode({'asset': assetMap}),
           'created_by': userId,
           'updated_by': userId,
           'updated_date': DateTime.now().toIso8601String(),
         };
-        exRegisterData['exregister_json'] = jsonEncode(
-          event.request.equipmentTagRequest!.toJson(),
-        );
         await exregisterRepo.updateExRegister(exRegisterData);
         final message = _getSuccessMessage(event.screenType, "Updated");
         if (message != null) {
           emit(
             ExInspectionSuccess(
               message,
-              event.request.equipmentTagRequest!.assetId!,
+              assetIdStr,
               event.clearFlag,
               userUpdateSign: event.userUpdateSign,
             ),

@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert';
 import 'package:deex_bloc_mobile_app_dev/src/custom_widgets/multi_select_dropdown.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/bloc/ex_inspection_event.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/bloc/ex_inspection_state.dart';
@@ -2882,19 +2883,23 @@ class InspectionChecklistStepState extends State<InspectionChecklistStep> {
   Future<void> _fetchAssetDataFromOffline(String assetId) async {
     try {
       final String? userType = await authUtils.getUserType();
-      List<Map<String, dynamic>> results = (userType == 'onshore')
-          ? await _dbHelper.getExRegisterOnshore()
-          : await _dbHelper.getExRegister();
+      final record = (userType == 'onshore')
+          ? await _dbHelper.getExRegisterByIdOnshore(assetId)
+          : await _dbHelper.getExRegisterById(assetId);
       Map<String, dynamic> assetDetails = {};
-      for (var record in results) {
+      if (record != null) {
         dynamic exRegisterJson = record['exregister_json'];
-        Map<String, dynamic> jsonMap = CommonFunctions().decodeJson(
-          exRegisterJson,
-        );
-        if (jsonMap['asset']['_id'] == assetId) {
-          assetDetails = jsonMap['asset'];
-          break;
-        }
+        Map<String, dynamic> jsonMap = (exRegisterJson is String)
+            ? jsonDecode(exRegisterJson)
+            : exRegisterJson as Map<String, dynamic>;
+        assetDetails = (jsonMap['asset'] is Map)
+            ? Map<String, dynamic>.from(jsonMap['asset'])
+            : Map<String, dynamic>.from(jsonMap);
+        final int rowId = record['id'] is int
+            ? record['id']
+            : int.tryParse(record['id'].toString()) ?? int.tryParse(assetId) ?? 0;
+        assetDetails['primaryId'] = rowId;
+        assetDetails['_id'] = rowId.toString();
       }
 
       String locationId = assetDetails['locationId'] ?? '';

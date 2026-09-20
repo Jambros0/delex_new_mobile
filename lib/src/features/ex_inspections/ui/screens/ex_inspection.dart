@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/equipment_tag_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/ex_inspection_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/inspection_checklist_request.dart';
@@ -406,19 +407,23 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
     if (_isDataFetched) return;
     try {
       final String? userType = await authUtils.getUserType();
-      List<Map<String, dynamic>> results = (userType == 'onshore')
-          ? await _dbHelper.getExRegisterOnshore()
-          : await _dbHelper.getExRegister();
+      final record = (userType == 'onshore')
+          ? await _dbHelper.getExRegisterByIdOnshore(assetId)
+          : await _dbHelper.getExRegisterById(assetId);
       Map<String, dynamic> assetDetails = {};
-      for (var record in results) {
+      if (record != null) {
         dynamic exRegisterJson = record['exregister_json'];
-        Map<String, dynamic> jsonMap = CommonFunctions().decodeJson(
-          exRegisterJson,
-        );
-        if (jsonMap['asset']['_id'] == assetId) {
-          assetDetails = jsonMap['asset'];
-          break;
-        }
+        Map<String, dynamic> jsonMap = (exRegisterJson is String)
+            ? jsonDecode(exRegisterJson)
+            : exRegisterJson as Map<String, dynamic>;
+        assetDetails = (jsonMap['asset'] is Map)
+            ? Map<String, dynamic>.from(jsonMap['asset'])
+            : Map<String, dynamic>.from(jsonMap);
+        final int rowId = record['id'] is int
+            ? record['id']
+            : int.tryParse(record['id'].toString()) ?? int.tryParse(assetId) ?? 0;
+        assetDetails['primaryId'] = rowId;
+        assetDetails['_id'] = rowId.toString();
       }
 
       String locationId = assetDetails['locationId'] ?? '';
@@ -616,7 +621,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
       description: assetDetails['description'] ?? '',
       manufacturer: assetDetails['manufacturer'] ?? '',
       type: assetDetails['type'] ?? '',
-      serialNumber: assetDetails['serialNumber'] ?? '',
+      serialNumber: assetDetails['serialNumber'] ?? assetDetails['serialNo'] ?? '',
       atexCatg: List<String>.from(assetDetails['atexCatg'] ?? []),
       epl: List<String>.from(assetDetails['epl'] ?? []),
       protectionStd: assetDetails['protectionStd'] ?? '',
