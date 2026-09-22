@@ -74,6 +74,10 @@ class WorkOrderTableJson {
   dynamic costVariance;
   dynamic costBudgetRemarks;
   dynamic projectName;
+  dynamic assignedTo;
+  dynamic userId;
+  dynamic assignedUserId;
+  dynamic inspectorId;
 
   WorkOrderTableJson({
     required this.id,
@@ -141,82 +145,122 @@ class WorkOrderTableJson {
     required this.costBudgetRemarks,
     required this.projectName,
     required this.assets,
+    this.assignedTo,
+    this.userId,
+    this.assignedUserId,
+    this.inspectorId,
   });
 
-  factory WorkOrderTableJson.fromJson(Map<String, dynamic> json) =>
-      WorkOrderTableJson(
-        id: json["_id"],
-        assets: json["assets"] == null
-            ? []
-            : List<ExRegister>.from(
-                (json["assets"] as List).map((x) => ExRegister.fromJson(x))),
-        woNumber: json["woNumber"].toString(),
-        woType: json["woType"].toString(),
-        discipline: json["discipline"].toString(),
-        woDate: DateTime.now(),
-        department: json["department"].toString(),
-        maintanaceType: json["maintanaceType"].toString(),
-        description: json["description"].toString(),
-        startDate: DateTime.now(),
-        endDate: DateTime.now(),
-        datumDuration: json["duration"].toString(),
-        permitType: json["permitType"].toString(),
-        priority: json["priority"].toString(),
-        attachments: json["attachments"].toString(),
-        createdBy: json["createdBy"].toString(),
-        isActive: json["isActive"],
-        total: json["total"].toString(),
-        completed: json["completed"].toString(),
-        status: json["status"].toString(),
-        remark: json["remark"].toString(),
-        attachementUrl: json["attachementUrl"].toString(),
-        woRequestFormattachements: json["woRequestFormattachements"].toString(),
-        woCompletedFormAttachements:
-            json["woCompletedFormAttachements"].toString(),
-        woRequestFormattachementUrl:
-            json["woRequestFormattachementUrl"].toString(),
-        woCompletedFormAttachementstUrl:
-            json["woCompletedFormAttachementstUrl"].toString(),
-        fieldName: json["fieldName"].toString(),
-        platform: json["platform"].toString(),
-        deckLevel: json["deckLevel"].toString(),
-        custodian: json["custodian"].toString(),
-        issuedBy: json["issuedBy"].toString(),
-        assigendTeam: json["assigendTeam"].toString(),
-        issueDate: json["issueDate"].toString(),
-        duration: json["Duration"].toString(),
-        comletionDate: json["comletionDate"].toString(),
-        closedOutBy: json["closedOutBy"].toString(),
-        closeOutDate: json["closeOutDate"].toString(),
-        progress: json["progress"].toString(),
-        currentStatus: json["currentStatus"].toString(),
-        remarks: json["remarks"].toString(),
-        uploadedDate: DateTime.now(),
-        uploadedBy: json["uploadedBy"].toString(),
-        workOrderRequest: json["workOrderRequest"].toString(),
-        riskAssessmentForm: json["riskAssessmentForm"].toString(),
-        completeWorkOrderForm: json["completeWorkOrderForm"].toString(),
-        schedulingStartDate: json["schedulingStartDate"].toString(),
-        schedulingFinishDate: json["schedulingFinishDate"].toString(),
-        schedulingDuration: json["schedulingDuration"].toString(),
-        actualStartDate: json["actualStartDate"].toString(),
-        actualFinishDate: json["actualFinishDate"].toString(),
-        actualDuration: json["actualDuration"].toString(),
-        scheduledVariance: json["scheduledVariance"].toString(),
-        estimateManPowerCost: json["estimateManPowerCost"].toString(),
-        estimatedManHours: json["estimatedManHours"].toString(),
-        estimateMaterialCost: json["estimateMaterialCost"].toString(),
-        estimateMachineryCost: json["estimateMachineryCost"].toString(),
-        estimateTotalCost: json["estimateTotalCost"].toString(),
-        actualManHours: json["actualManHours"].toString(),
-        actualManPowerCost: json["actualManPowerCost"].toString(),
-        actualMaterialCost: json["actualMaterialCost"].toString(),
-        actualMachineryCost: json["actualMachineryCost"].toString(),
-        actualTotalCost: json["actualTotalCost"].toString(),
-        costVariance: json["costVariance"].toString(),
-        costBudgetRemarks: json["costBudgetRemarks"].toString(),
-        projectName: json["projectName"].toString(),
-      );
+  factory WorkOrderTableJson.fromJson(Map<String, dynamic> json) {
+    List<ExRegister> parsedAssets = [];
+    final rawAssets = json["assignedAssets"] ?? json["assets"] ?? json["asset"] ?? json["work_order_assets"] ?? json["workOrder_assets"];
+    if (rawAssets is List) {
+      for (var item in rawAssets) {
+        if (item is ExRegister) {
+          parsedAssets.add(item);
+        } else if (item is Map<String, dynamic>) {
+          try {
+            parsedAssets.add(ExRegister.fromJson(item));
+          } catch (_) {}
+        } else if (item is Map) {
+          try {
+            parsedAssets.add(
+                ExRegister.fromJson(Map<String, dynamic>.from(item)));
+          } catch (_) {}
+        }
+      }
+    } else if (rawAssets is Map) {
+      try {
+        parsedAssets.add(
+            ExRegister.fromJson(Map<String, dynamic>.from(rawAssets)));
+      } catch (_) {}
+    }
+
+    return WorkOrderTableJson(
+      id: json["_id"] ?? json["id"] ?? '',
+      assets: parsedAssets,
+      woNumber: json["woNumber"]?.toString() ?? '',
+      woType: json["woType"]?.toString() ?? '',
+      discipline: json["discipline"]?.toString() ?? '',
+      woDate: json["woDate"] != null
+          ? (DateTime.tryParse(json["woDate"].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      department: json["department"]?.toString() ?? '',
+      maintanaceType: json["maintanaceType"]?.toString() ?? '',
+      description: json["description"]?.toString() ?? '',
+      startDate: json["startDate"] != null
+          ? (DateTime.tryParse(json["startDate"].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      endDate: json["endDate"] != null
+          ? (DateTime.tryParse(json["endDate"].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      datumDuration: json["duration"]?.toString() ?? '',
+      permitType: json["permitType"]?.toString() ?? '',
+      priority: json["priority"]?.toString() ?? '',
+      attachments: json["attachments"]?.toString() ?? '',
+      createdBy: json["createdBy"]?.toString() ?? '',
+      isActive: json["isActive"] ?? true,
+      total: json["total"]?.toString() ?? '',
+      completed: json["completed"]?.toString() ?? '',
+      status: json["status"]?.toString() ?? '',
+      remark: json["remark"]?.toString() ?? '',
+      attachementUrl: json["attachementUrl"]?.toString() ?? '',
+      woRequestFormattachements:
+          json["woRequestFormattachements"]?.toString() ?? '',
+      woCompletedFormAttachements:
+          json["woCompletedFormAttachements"]?.toString() ?? '',
+      woRequestFormattachementUrl:
+          json["woRequestFormattachementUrl"]?.toString() ?? '',
+      woCompletedFormAttachementstUrl:
+          json["woCompletedFormAttachementstUrl"]?.toString() ?? '',
+      fieldName: json["fieldName"]?.toString() ?? json["location"]?.toString() ?? '',
+      platform: json["platform"]?.toString() ?? json["subLocation"]?.toString() ?? '',
+      deckLevel: json["deckLevel"]?.toString() ?? json["area"]?.toString() ?? '',
+      custodian: json["custodian"]?.toString() ?? '',
+      issuedBy: json["issuedBy"]?.toString() ?? '',
+      assigendTeam: json["assigendTeam"] ?? json["assignedTeam"] ?? '',
+      issueDate: json["issueDate"]?.toString() ?? '',
+      duration: (json["Duration"] ?? json["duration"])?.toString() ?? '',
+      comletionDate: json["comletionDate"]?.toString() ?? '',
+      closedOutBy: json["closedOutBy"]?.toString() ?? '',
+      closeOutDate: json["closeOutDate"]?.toString() ?? '',
+      progress: json["progress"]?.toString() ?? '',
+      currentStatus: json["currentStatus"]?.toString() ?? '',
+      remarks: json["remarks"]?.toString() ?? '',
+      uploadedDate: json["uploadedDate"] != null
+          ? (DateTime.tryParse(json["uploadedDate"].toString()) ??
+              DateTime.now())
+          : DateTime.now(),
+      uploadedBy: json["uploadedBy"]?.toString() ?? '',
+      workOrderRequest: json["workOrderRequest"]?.toString() ?? '',
+      riskAssessmentForm: json["riskAssessmentForm"]?.toString() ?? '',
+      completeWorkOrderForm: json["completeWorkOrderForm"]?.toString() ?? '',
+      schedulingStartDate: json["schedulingStartDate"]?.toString() ?? '',
+      schedulingFinishDate: json["schedulingFinishDate"]?.toString() ?? '',
+      schedulingDuration: json["schedulingDuration"]?.toString() ?? '',
+      actualStartDate: json["actualStartDate"]?.toString() ?? '',
+      actualFinishDate: json["actualFinishDate"]?.toString() ?? '',
+      actualDuration: json["actualDuration"]?.toString() ?? '',
+      scheduledVariance: json["scheduledVariance"]?.toString() ?? '',
+      estimateManPowerCost: json["estimateManPowerCost"]?.toString() ?? '',
+      estimatedManHours: json["estimatedManHours"]?.toString() ?? '',
+      estimateMaterialCost: json["estimateMaterialCost"]?.toString() ?? '',
+      estimateMachineryCost: json["estimateMachineryCost"]?.toString() ?? '',
+      estimateTotalCost: json["estimateTotalCost"]?.toString() ?? '',
+      actualManHours: json["actualManHours"]?.toString() ?? '',
+      actualManPowerCost: json["actualManPowerCost"]?.toString() ?? '',
+      actualMaterialCost: json["actualMaterialCost"]?.toString() ?? '',
+      actualMachineryCost: json["actualMachineryCost"]?.toString() ?? '',
+      actualTotalCost: json["actualTotalCost"]?.toString() ?? '',
+      costVariance: json["costVariance"]?.toString() ?? '',
+      costBudgetRemarks: json["costBudgetRemarks"]?.toString() ?? '',
+      projectName: json["projectName"]?.toString() ?? '',
+      assignedTo: json["assignedTo"] ?? json["assigned_to"],
+      userId: json["userId"] ?? json["user_id"],
+      assignedUserId: json["assignedUserId"] ?? json["assigned_user_id"],
+      inspectorId: json["inspectorId"] ?? json["technicianId"] ?? json["assignedInspector"],
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         "_id": id,
@@ -284,5 +328,9 @@ class WorkOrderTableJson {
         "costVariance": costVariance,
         "costBudgetRemarks": costBudgetRemarks,
         "projectName": projectName,
+        "assignedTo": assignedTo,
+        "userId": userId,
+        "assignedUserId": assignedUserId,
+        "inspectorId": inspectorId,
       };
 }

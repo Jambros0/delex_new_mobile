@@ -6,7 +6,8 @@ class ColumnStyleHelper {
             header == "Temperature Class" ||
             header == "IP Rating" ||
             header == "Location ID" ||
-            header == "Area Classification Drawing No:")
+            header == "Area Classification Drawing No:" ||
+            header == "Area Classification Drawing No")
         ? 24
         : 8;
   }
@@ -19,7 +20,8 @@ class ColumnStyleHelper {
       return 130;
     } else if (header == "Gas Group") {
       return 135;
-    } else if (header == "Area Classification Drawing No:") {
+    } else if (header == "Area Classification Drawing No:" ||
+        header == "Area Classification Drawing No") {
       return 256;
     } else if (header == "Location ID") {
       return 150;
@@ -29,23 +31,28 @@ class ColumnStyleHelper {
     return defaultWidth;
   }
 
-  static double getFunctionalCellRightPadding(int key) {
-    return (key == 7 || key == 8) ? 60 : 8;
+  static double getFunctionalCellRightPadding(int key, [String? header]) {
+    if (header != null && header.isNotEmpty) {
+      return getFunctionalHeaderRightPadding(header);
+    }
+    return (key == 4 || key == 5 || key == 6 || key == 7 || key == 8) ? 24 : 8;
   }
 
-  static double getFunctionalCellCustomWidth(int key, double defaultWidth) {
+  static double getFunctionalCellCustomWidth(int key, double defaultWidth,
+      [String? header]) {
+    if (header != null && header.isNotEmpty) {
+      return getFunctionalHeaderCustomWidth(header, defaultWidth);
+    }
     if (key == 5) {
-      return 165;
-    } else if (key == 7) {
+      return 170;
+    } else if (key == 6 || key == 7) {
       return 256;
     } else if (key == 8) {
       return 150;
     } else if (key == 3) {
-      return 135;
+      return 130;
     } else if (key == 4) {
       return 135;
-    } else if (key == 6) {
-      return 125;
     }
     return defaultWidth;
   }
@@ -68,21 +75,23 @@ class ColumnStyleHelper {
       String header, double defaultWidth) {
     if (header == "RFID Reference") {
       return defaultWidth;
-    } else if (header == "Field Name") {
+    } else if (header == "Field Name" || header == "Location") {
       return defaultWidth;
-    } else if (header == "Platform") {
+    } else if (header == "Platform" || header == "Sub Location") {
       return defaultWidth;
-    } else if (header == "Deck Level") {
+    } else if (header == "Deck Level" || header == "Area") {
       return defaultWidth;
     } else if (header == "Zone") {
       return 140;
-    } else if (header == "Discpline") {
+    } else if (header == "Discpline" || header == "Discipline") {
       return 160;
     } else if (header == "Equipment Tag Number") {
       return 160;
     } else if (header == "Equipment Description") {
       return 220;
-    } else if (header == "Manufacutrer") {
+    } else if (header == "Manufacutrer" ||
+        header == "Equipment Manufacturer" ||
+        header == "Manufacturer") {
       return defaultWidth;
     } else if (header == "Equipment Protection") {
       return 200;

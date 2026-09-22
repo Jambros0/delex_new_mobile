@@ -63,3 +63,11 @@ class SortLoadMoreWorkOrder extends DeviceSyncEvent {
         assets
       ];
 }
+
+class RemoveTransferredAssetsFromDeviceSync extends DeviceSyncEvent {
+  final List<String> transferredAssetIds;
+  RemoveTransferredAssetsFromDeviceSync(this.transferredAssetIds);
+
+  @override
+  List<Object> get props => [transferredAssetIds];
+}

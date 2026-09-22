@@ -134,7 +134,22 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
               "Invalid type for functional_area_json: ${functionalAreaJson.runtimeType}");
         }
 
-        return Location.fromJson(jsonMap['location']);
+        final Map<String, dynamic> locMap = (jsonMap['location'] is Map)
+            ? Map<String, dynamic>.from(jsonMap['location'])
+            : Map<String, dynamic>.from(jsonMap);
+        final String rowId = e['id']?.toString() ?? '';
+        if (locMap['locationId'] == null ||
+            locMap['locationId'].toString().isEmpty) {
+          locMap['locationId'] = locMap['_id']?.toString() ??
+              jsonMap['locationId']?.toString() ??
+              jsonMap['_id']?.toString() ??
+              rowId;
+        }
+        if (locMap['_id'] == null || locMap['_id'].toString().isEmpty) {
+          locMap['_id'] = locMap['locationId'] ?? rowId;
+        }
+
+        return Location.fromJson(locMap);
       }).toList();
       List<Location> filteredLocations =
           _applyFilters(locations, event.filterList);
@@ -258,7 +273,22 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
               "Invalid type for functional_area_json: ${functionalAreaJson.runtimeType}");
         }
 
-        return Location.fromJson(jsonMap['location']);
+        final Map<String, dynamic> locMap = (jsonMap['location'] is Map)
+            ? Map<String, dynamic>.from(jsonMap['location'])
+            : Map<String, dynamic>.from(jsonMap);
+        final String rowId = e['id']?.toString() ?? '';
+        if (locMap['locationId'] == null ||
+            locMap['locationId'].toString().isEmpty) {
+          locMap['locationId'] = locMap['_id']?.toString() ??
+              jsonMap['locationId']?.toString() ??
+              jsonMap['_id']?.toString() ??
+              rowId;
+        }
+        if (locMap['_id'] == null || locMap['_id'].toString().isEmpty) {
+          locMap['_id'] = locMap['locationId'] ?? rowId;
+        }
+
+        return Location.fromJson(locMap);
       }).toList();
       List<String> tableHeaders = (userType == 'onshore')
           ? [
@@ -407,7 +437,21 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
           throw FormatException(
               "Invalid type for functional_area_json: ${functionalAreaJson.runtimeType}");
         }
-        return Location.fromJson(jsonMap['location']);
+        final Map<String, dynamic> locMap = (jsonMap['location'] is Map)
+            ? Map<String, dynamic>.from(jsonMap['location'])
+            : Map<String, dynamic>.from(jsonMap);
+        final String rowId = e['id']?.toString() ?? '';
+        if (locMap['locationId'] == null ||
+            locMap['locationId'].toString().isEmpty) {
+          locMap['locationId'] = locMap['_id']?.toString() ??
+              jsonMap['locationId']?.toString() ??
+              jsonMap['_id']?.toString() ??
+              rowId;
+        }
+        if (locMap['_id'] == null || locMap['_id'].toString().isEmpty) {
+          locMap['_id'] = locMap['locationId'] ?? rowId;
+        }
+        return Location.fromJson(locMap);
       }).toList();
       List<Location> filteredLocations =
           _applyFilters(newLocations, event.filterList);
@@ -522,7 +566,22 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
                     "Invalid type for exregister_json: ${locationJson.runtimeType}");
               }
 
-              return Location.fromJson(jsonMap['location']);
+              final Map<String, dynamic> locMap = (jsonMap['location'] is Map)
+                  ? Map<String, dynamic>.from(jsonMap['location'])
+                  : Map<String, dynamic>.from(jsonMap);
+              final String rowId = map['id']?.toString() ?? '';
+              if (locMap['locationId'] == null ||
+                  locMap['locationId'].toString().isEmpty) {
+                locMap['locationId'] = locMap['_id']?.toString() ??
+                    jsonMap['locationId']?.toString() ??
+                    jsonMap['_id']?.toString() ??
+                    rowId;
+              }
+              if (locMap['_id'] == null || locMap['_id'].toString().isEmpty) {
+                locMap['_id'] = locMap['locationId'] ?? rowId;
+              }
+
+              return Location.fromJson(locMap);
             }).toList();
       List<Location> filteredLocations =
           _applyFilters(resultLocations, event.filters);

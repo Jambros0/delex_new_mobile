@@ -70,7 +70,11 @@ class AuthUtils {
   String? extractUserType(String token) {
     try {
       final payload = JwtDecoder.decode(token);
-      return payload['userType'];
+      final raw = payload['userType'] ??
+          payload['user_type'] ??
+          payload['role'] ??
+          payload['accountType'];
+      return raw?.toString().toLowerCase();
     } catch (e) {
       return null;
     }
@@ -78,7 +82,20 @@ class AuthUtils {
 
   Future<String?> getUserType() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('userType');
+    String? type = prefs.getString('userType');
+    if (type != null && type.isNotEmpty) {
+      return type.toLowerCase();
+    }
+    final tokens = await getSessionTokens();
+    final accessToken = tokens['accessToken'];
+    if (accessToken != null && accessToken.isNotEmpty) {
+      type = extractUserType(accessToken);
+      if (type != null && type.isNotEmpty) {
+        await prefs.setString('userType', type);
+        return type.toLowerCase();
+      }
+    }
+    return null;
   }
 
   Future<String?> getUserId() async {

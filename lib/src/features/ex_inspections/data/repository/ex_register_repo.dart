@@ -106,36 +106,108 @@ class ExregisterRepo {
       {required DuplicateAsset asset}) async {
     try {
       final String? userType = await authUtils.getUserType();
+      final String? userId = await authUtils.getUserId();
       final String? locationId = asset.locationId;
-      if (locationId != null) {
-        asset.locationId = locationId;
-        asset.isDuplicate = true;
-        Map<String, dynamic> assetMap = asset.toJson();
-        assetMap.remove('_id');
-        assetMap.remove('primaryId');
-        assetMap.remove('id');
-        assetMap['isDuplicate'] = true;
 
-        final String? userId = await authUtils.getUserId();
-        Map<String, dynamic> exRegisterJson = {
-          'exregister_json': jsonEncode({'asset': assetMap}),
+      String newLocationId = '';
+      if (locationId != null && locationId.isNotEmpty) {
+        final functionalAreaData = (userType == 'onshore')
+            ? await _dbHelper.getFunctionalAreaByIdOnshore(locationId)
+            : await _dbHelper.getFunctionalAreaById(locationId);
+
+        if (functionalAreaData != null) {
+          final dynamic faJsonRaw = functionalAreaData['functional_area_json'];
+          final Map<String, dynamic> faMap = (faJsonRaw is String)
+              ? jsonDecode(faJsonRaw) as Map<String, dynamic>
+              : Map<String, dynamic>.from(faJsonRaw as Map);
+
+          final Map<String, dynamic> loc = (faMap['location'] is Map)
+              ? Map<String, dynamic>.from(faMap['location'] as Map)
+              : Map<String, dynamic>.from(faMap);
+          loc.remove('locationId');
+          loc.remove('id');
+          loc.remove('_id');
+
+          final newFaJson = {
+            'functional_area_json': jsonEncode({'location': loc}),
+            'created_by': userId,
+            'updated_by': userId,
+          };
+
+          final createdLocId = (userType == 'onshore')
+              ? await _dbHelper.saveFunctionalAreaOnshore(newFaJson)
+              : await _dbHelper.saveFunctionalArea(newFaJson);
+
+          if (createdLocId != null && createdLocId.isNotEmpty) {
+            newLocationId = createdLocId;
+          }
+        }
+      }
+
+      // If existing functional area wasn't found by locationId, create one from asset fields
+      if (newLocationId.isEmpty) {
+        final loc = {
+          'location': asset.location ?? '',
+          'area': asset.area ?? '',
+          'deckLevel': asset.deckLevel ?? '',
+          'subArea': asset.subArea ?? '',
+          'zone': asset.zone ?? '',
+          'locationGasGroup': asset.locationGasGroup,
+          'locationTClass': asset.locationTClass,
+          'locationIpRating': asset.locationIpRating,
+          'locationLatitude': asset.locationLatitude ?? '',
+          'locationLongitude': asset.locationLongitude ?? '',
+          'tAmbient': asset.locationTAmbient ?? '',
+          'areaClassDrawNo': asset.areaClassDrawNo,
+          'areaClassDrawAttach': asset.areaClassDrawAttach,
+          'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
+          'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
+          'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
+          'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
+          'isActive': asset.isActive ?? true,
+        };
+        final newFaJson = {
+          'functional_area_json': jsonEncode({'location': loc}),
           'created_by': userId,
           'updated_by': userId,
-          'created_date': DateTime.now().toIso8601String(),
-          'updated_date': DateTime.now().toIso8601String(),
         };
-
-        (userType == 'onshore')
-            ? await _dbHelper.saveExRegisterOnshore(exRegisterJson)
-            : await _dbHelper.saveExRegister(exRegisterJson);
-
-        return {
-          'status': true,
-          'message': 'Asset saved successfully!',
-        };
-      } else {
-        throw Exception('Failed to save Area Detail: No locationId returned');
+        final createdLocId = (userType == 'onshore')
+            ? await _dbHelper.saveFunctionalAreaOnshore(newFaJson)
+            : await _dbHelper.saveFunctionalArea(newFaJson);
+        if (createdLocId != null && createdLocId.isNotEmpty) {
+          newLocationId = createdLocId;
+        }
       }
+
+      if (newLocationId.isNotEmpty) {
+        asset.locationId = newLocationId;
+      }
+      asset.isDuplicate = true;
+      Map<String, dynamic> assetMap = asset.toJson();
+      assetMap.remove('_id');
+      assetMap.remove('primaryId');
+      assetMap.remove('id');
+      if (newLocationId.isNotEmpty) {
+        assetMap['locationId'] = newLocationId;
+      }
+      assetMap['isDuplicate'] = true;
+
+      Map<String, dynamic> exRegisterJson = {
+        'exregister_json': jsonEncode({'asset': assetMap}),
+        'created_by': userId,
+        'updated_by': userId,
+        'created_date': DateTime.now().toIso8601String(),
+        'updated_date': DateTime.now().toIso8601String(),
+      };
+
+      (userType == 'onshore')
+          ? await _dbHelper.saveExRegisterOnshore(exRegisterJson)
+          : await _dbHelper.saveExRegister(exRegisterJson);
+
+      return {
+        'status': true,
+        'message': 'Asset saved successfully!',
+      };
     } catch (e) {
       return {
         'status': false,

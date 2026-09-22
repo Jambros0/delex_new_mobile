@@ -127,6 +127,12 @@ class ExRegister {
   final bool isActive;
   int? inspectionPriority;
   String? signature;
+  String? assignedTo;
+  String? assignedUserId;
+  String? userId;
+  String? inspectedId;
+  String? inspectorId;
+  dynamic assignedTeam;
 
   ExRegister({
     required this.id,
@@ -248,6 +254,12 @@ class ExRegister {
     this.remarksIfAny,
     this.inspectionPriority,
     this.signature,
+    this.assignedTo,
+    this.assignedUserId,
+    this.userId,
+    this.inspectedId,
+    this.inspectorId,
+    this.assignedTeam,
   });
 
   factory ExRegister.fromJson(Map<String, dynamic> json) {
@@ -256,20 +268,30 @@ class ExRegister {
         json['id']?.toString() ??
         json['primaryId']?.toString() ??
         '';
+    final parsedPrimaryId = json['primaryId'] != null
+        ? (json['primaryId'] is int
+            ? json['primaryId'] as int
+            : int.tryParse(json['primaryId'].toString()))
+        : (json['id'] != null
+            ? (json['id'] is int
+                ? json['id'] as int
+                : int.tryParse(json['id'].toString()))
+            : null);
+
     return ExRegister(
       id: rawId,
       repairPriority: json['repairPriority'],
-      defectDefectCategory: json['defectDefectCategory'].toString(),
-      primaryId: json['primaryId'],
-      rfidRef: json['rfidRef']?.toString() ?? '',
-      location: json['location']?.toString() ?? '',
-      area: json['area']?.toString() ?? '',
-      deckLevel: json['deckLevel']?.toString(),
-      isActive: json['isActive'] ?? false,
-      zone: json['zone']?.toString() ?? '',
-      eqpmtTag: json['eqpmtTag']?.toString(),
-      description: json['description']?.toString() ?? '',
-      manufacturer: json['manufacturer']?.toString() ?? '',
+      defectDefectCategory: json['defectDefectCategory']?.toString() ?? '',
+      primaryId: parsedPrimaryId,
+      rfidRef: json['rfidRef']?.toString() ?? json['rfidReference']?.toString() ?? json['rfid']?.toString() ?? '',
+      location: json['location']?.toString() ?? json['fieldName']?.toString() ?? json['locationName']?.toString() ?? '',
+      area: json['area']?.toString() ?? json['platform']?.toString() ?? json['platformName']?.toString() ?? json['subLocation']?.toString() ?? json['sublocationName']?.toString() ?? json['areaName']?.toString() ?? '',
+      deckLevel: json['deckLevel']?.toString() ?? json['deck']?.toString() ?? json['deckLevelName']?.toString(),
+      isActive: json['isActive'] == true || json['isActive'] == 1 || json['isActive'] == 'true' || json['isActive'] == '1',
+      zone: json['zone']?.toString() ?? json['zoneName']?.toString() ?? '',
+      eqpmtTag: json['eqpmtTag']?.toString() ?? json['equipmentTag']?.toString() ?? json['tagNo']?.toString() ?? json['equipmentTagNo']?.toString() ?? json['tagNumber']?.toString(),
+      description: json['description']?.toString() ?? json['equipmentDescription']?.toString() ?? json['desc']?.toString() ?? '',
+      manufacturer: json['manufacturer']?.toString() ?? json['equipmentManufacturer']?.toString() ?? json['mfg']?.toString() ?? '',
       epl: toStringList(json['epl']),
       inspectionStatus: json['inspectionStatus']?.toString() ?? '',
       existingFaults: json['existingFaults'],
@@ -279,11 +301,11 @@ class ExRegister {
           ? Map<String, dynamic>.from(json['yesNoSelection'] as Map)
           : null,
       inspectionReferenceNumber: json['inspectionReferenceNumber']?.toString(),
-      subArea: json['subArea']?.toString(),
+      subArea: json['subArea']?.toString() ?? json['subAreaName']?.toString() ?? json['nearestLandmark']?.toString(),
       locationGasGroup: toStringList(json['locationGasGroup']),
       locationIpRating: toStringList(json['locationIpRating']),
       locationTClass: toStringList(json['locationTClass']),
-      locationTAmbient: json['locationTAmbient']?.toString() ?? '',
+      locationTAmbient: json['locationTAmbient']?.toString() ?? json['tAmbient']?.toString() ?? '',
       tAmbient: json['tAmbient']?.toString(),
       tAmbientEquip: json['tAmbientEquip']?.toString(),
       inspectionSignOff: json['inspectionSignOff']?.toString(),
@@ -291,14 +313,14 @@ class ExRegister {
       status: (json['status'] == null || json['status'] == 'null')
           ? null
           : json['status'].toString(),
-      eqpmtCatg: json['eqpmtCatg']?.toString() ?? '',
+      eqpmtCatg: json['eqpmtCatg']?.toString() ?? json['discipline']?.toString() ?? json['disciplineName']?.toString() ?? json['equipmentCategory']?.toString() ?? json['category']?.toString() ?? '',
       oracleId: json['oracleId']?.toString(),
-      equipmentEquipmentType: json['equipmentEquipmentType']?.toString(),
-      serialNumber: json['serialNumber']?.toString(),
+      equipmentEquipmentType: json['equipmentEquipmentType']?.toString() ?? json['equipmentType']?.toString() ?? json['eqpmtType']?.toString(),
+      serialNumber: json['serialNumber']?.toString() ?? json['serialNo']?.toString() ?? json['serial']?.toString(),
       atexCatg: toStringList(json['atexCatg']),
-      equipmentGasGroup: toStringList(json['equipmentGasGroup']),
-      equipmentTClass: toStringList(json['equipmentTClass']),
-      equipmentIpRating: toStringList(json['equipmentIpRating']),
+      equipmentGasGroup: toStringList(json['equipmentGasGroup'] ?? json['gasGroup']),
+      equipmentTClass: toStringList(json['equipmentTClass'] ?? json['tClass'] ?? json['temperatureClass']),
+      equipmentIpRating: toStringList(json['equipmentIpRating'] ?? json['ipRating']),
       specialCond: json['specialCond']?.toString(),
       inspectionType: json['inspectionType']?.toString(),
       inspectionChecklistType: toStringList(json['inspectionChecklistType']),
@@ -320,8 +342,8 @@ class ExRegister {
       repairedBy: json['repairedBy']?.toString(),
       repairedDate: json['repairedDate']?.toString(),
       gpsCord: json['gpsCord']?.toString(),
-      protectionStd: json['protectionStd']?.toString(),
-      protectionType: toStringList(json['protectionType']),
+      protectionStd: json['protectionStd']?.toString() ?? json['protectionStandard']?.toString(),
+      protectionType: toStringList(json['protectionType'] ?? json['equipmentProtection'] ?? json['protection']),
       correctiveisolation: json['correctiveisolation'],
       correctiveOtherRequirements: json['correctiveOtherRequirements'],
       defectivePhoto1: json['defectivePhoto1']?.toString(),
@@ -338,14 +360,32 @@ class ExRegister {
       defectivePhoto6OrgName: json['defectivePhoto6OrgName']?.toString(),
       // materials: (json['materials'] as List<dynamic>?)
       checkList: (json['checkList'] as List<dynamic>?)
-          ?.map((item) => CheckList.fromJson(item as Map<String, dynamic>))
+          ?.map((item) {
+            if (item is CheckList) return item;
+            if (item is Map<String, dynamic>) return CheckList.fromJson(item);
+            if (item is Map) return CheckList.fromJson(Map<String, dynamic>.from(item));
+            return null;
+          })
+          .whereType<CheckList>()
           .toList(),
       materials: (json['materials'] as List<dynamic>?)
-          ?.map((x) => Materials.fromJson(x as Map<String, dynamic>))
+          ?.map((x) {
+            if (x is Materials) return x;
+            if (x is Map<String, dynamic>) return Materials.fromJson(x);
+            if (x is Map) return Materials.fromJson(Map<String, dynamic>.from(x));
+            return null;
+          })
+          .whereType<Materials>()
           .toList(),
       supplementaryMaterialReq:
           (json['supplementaryMaterialReq'] as List<dynamic>?)
-              ?.map((x) => Materials.fromJson(x as Map<String, dynamic>))
+              ?.map((x) {
+                if (x is Materials) return x;
+                if (x is Map<String, dynamic>) return Materials.fromJson(x);
+                if (x is Map) return Materials.fromJson(Map<String, dynamic>.from(x));
+                return null;
+              })
+              .whereType<Materials>()
               .toList(),
       defectCertificationNo: json['defectCertificationNo']?.toString(),
       defectCertificationOrgName:
@@ -369,7 +409,13 @@ class ExRegister {
       correctivePhoto6: json['correctivePhoto6']?.toString(),
       correctivePhoto6OrgName: json['correctivePhoto6OrgName']?.toString(),
       rbiStrategy: json['rbiStrategy'] != null
-          ? RbiStrategy.fromJson(json['rbiStrategy'] as Map<String, dynamic>)
+          ? (json['rbiStrategy'] is RbiStrategy
+              ? json['rbiStrategy'] as RbiStrategy
+              : RbiStrategy.fromJson(
+                  json['rbiStrategy'] is Map<String, dynamic>
+                      ? json['rbiStrategy'] as Map<String, dynamic>
+                      : Map<String, dynamic>.from(json['rbiStrategy'] as Map),
+                ))
           : null,
       additionalInfoForRepairs: json['additionalInfoForRepairs']?.toString(),
       areaClassDrawNo: toStringList(json['areaClassDrawNo']),
@@ -383,8 +429,8 @@ class ExRegister {
       ),
       eqpmtLytDrawAttach: toStringList(json['eqpmtLytDrawAttach']),
       locationId: json['locationId']?.toString() ?? '',
-      locationLatitude: json['locationLatitude']?.toString(),
-      locationLongitude: json['locationLongitude']?.toString(),
+      locationLatitude: json['locationLatitude']?.toString() ?? json['latitude']?.toString(),
+      locationLongitude: json['locationLongitude']?.toString() ?? json['longitude']?.toString(),
       circuitId: json['circuitId']?.toString(),
       cableId: json['cableId']?.toString(),
       equipmentCategory: json['equipmentCategory']?.toString(),
@@ -395,12 +441,20 @@ class ExRegister {
           ? null
           : json['areaStatus'].toString(),
       correctiveDefectCategory: json['correctiveDefectCategory']?.toString(),
-      isSubmit: json['isSubmit'],
+      isSubmit: json['isSubmit'] == true || json['isSubmit'] == 'true',
       repairTimeEstimate: json['repairTimeEstimate']?.toString(),
       repairDuration: json['repairDuration']?.toString(),
       remarksIfAny: json['remarksIfAny']?.toString(),
-      inspectionPriority: json['inspectionPriority'] ?? 0,
+      inspectionPriority: json['inspectionPriority'] is int
+          ? json['inspectionPriority'] as int
+          : int.tryParse(json['inspectionPriority']?.toString() ?? ''),
       signature: json['signature']?.toString(),
+      assignedTo: json['assignedTo']?.toString() ?? json['assigned_to']?.toString(),
+      assignedUserId: json['assignedUserId']?.toString() ?? json['assigned_user_id']?.toString(),
+      userId: json['userId']?.toString() ?? json['user_id']?.toString(),
+      inspectedId: json['inspectedId']?.toString() ?? json['inspected_id']?.toString() ?? json['inspectedBy']?.toString(),
+      inspectorId: json['inspectorId']?.toString() ?? json['technicianId']?.toString(),
+      assignedTeam: json['assignedTeam'] ?? json['assigendTeam'],
     );
   }
   Map<String, dynamic> toJson() {
@@ -413,11 +467,33 @@ class ExRegister {
       'inspectionGrade': inspectionGrade,
       'yesNoSelection': yesNoSelection,
       'equipmentEquipmentType': equipmentEquipmentType,
-      'materials': materials?.map((x) => x.toJson()).toList(),
-      'supplementaryMaterialReq': supplementaryMaterialReq
-          ?.map((x) => x.toJson())
-          .toList(),
-      'checkList': checkList,
+      'materials': materials?.map((dynamic x) {
+        if (x is Materials) return x.toJson();
+        if (x is Map) return Map<String, dynamic>.from(x);
+        try {
+          return x.toJson();
+        } catch (_) {
+          return x;
+        }
+      }).toList(),
+      'supplementaryMaterialReq': supplementaryMaterialReq?.map((dynamic x) {
+        if (x is Materials) return x.toJson();
+        if (x is Map) return Map<String, dynamic>.from(x);
+        try {
+          return x.toJson();
+        } catch (_) {
+          return x;
+        }
+      }).toList(),
+      'checkList': checkList?.map((dynamic x) {
+        if (x is CheckList) return x.toJson();
+        if (x is Map) return Map<String, dynamic>.from(x);
+        try {
+          return x.toJson();
+        } catch (_) {
+          return x;
+        }
+      }).toList(),
       'primaryId': primaryId,
       'rfidRef': rfidRef,
       'location': location,
@@ -526,15 +602,34 @@ class ExRegister {
       'remarksIfAny': remarksIfAny,
       'inspectionPriority': inspectionPriority,
       'signature': signature,
+      'assignedTo': assignedTo,
+      'assignedUserId': assignedUserId,
+      'userId': userId,
+      'inspectedId': inspectedId,
+      'inspectorId': inspectorId,
+      'assignedTeam': assignedTeam,
     };
   }
 }
 
 List<String> toStringList(dynamic value) {
   if (value is List) {
-    return value.map((e) => e.toString()).toList();
+    return value
+        .where((e) => e != null)
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty && e.toLowerCase() != 'null')
+        .toList();
   } else if (value is String) {
-    return [value];
+    final str = value.trim();
+    if (str.isEmpty || str.toLowerCase() == 'null') return [];
+    if (str.contains(',')) {
+      return str
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty && e.toLowerCase() != 'null')
+          .toList();
+    }
+    return [str];
   } else {
     return [];
   }

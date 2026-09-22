@@ -1,6 +1,7 @@
 // ignore_for_file: unnecessary_null_comparison
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:excel/excel.dart';
@@ -41,6 +42,35 @@ class ExcelFunctions {
     } catch (e) {
       return '';
     }
+  }
+
+  double calculateDynamicRowHeight(
+    List<Map<String, dynamic>> rowCells,
+    Map<int, double> colWidths, {
+    double minHeight = 38.0,
+  }) {
+    int maxLines = 1;
+    for (int c = 0; c < rowCells.length; c++) {
+      final val = rowCells[c]['val']?.toString() ?? '';
+      if (val.trim().isEmpty) continue;
+      final width = colWidths[c] ?? 14.0;
+      final lines = val.split('\n');
+      int cellLines = 0;
+      for (final line in lines) {
+        if (line.isEmpty) {
+          cellLines += 1;
+        } else {
+          final effectiveWidth = (width * 1.2).clamp(5.0, 100.0);
+          final wrapped = (line.length / effectiveWidth).ceil();
+          cellLines += (wrapped > 0 ? wrapped : 1);
+        }
+      }
+      if (cellLines > maxLines) {
+        maxLines = cellLines;
+      }
+    }
+    final calculatedHeight = (maxLines * 16.0) + 12.0;
+    return math.max(minHeight, calculatedHeight);
   }
 
   Future<void> initialize() async {
@@ -466,20 +496,33 @@ class ExcelFunctions {
     // End of Asset Sub Header
 
     // Column Widths
+    final Map<int, double> columnWidths = {};
     for (int colIndex = 0; colIndex < assetExcelHeaders.length; colIndex++) {
       sheetObject.setColumnWidth(colIndex, 14);
+      columnWidths[colIndex] = 14.0;
     }
     sheetObject.setColumnWidth(0, 5); // Sl.No
+    columnWidths[0] = 5.0;
     sheetObject.setColumnWidth(1, 15); // RFID
+    columnWidths[1] = 15.0;
     sheetObject.setColumnWidth(2, 15); // Inspection Ref
+    columnWidths[2] = 15.0;
     sheetObject.setColumnWidth(19, 20); // Description
+    columnWidths[19] = 20.0;
     sheetObject.setColumnWidth(40, 25); // Findings
+    columnWidths[40] = 25.0;
     sheetObject.setColumnWidth(41, 25); // Remedial Actions
+    columnWidths[41] = 25.0;
     sheetObject.setColumnWidth(42, 20); // Photos
+    columnWidths[42] = 20.0;
     sheetObject.setColumnWidth(52, 25); // Material Requirements
+    columnWidths[52] = 25.0;
     sheetObject.setColumnWidth(55, 25); // Repairs Done
+    columnWidths[55] = 25.0;
     sheetObject.setColumnWidth(64, 25); // Supplementary Material
+    columnWidths[64] = 25.0;
     sheetObject.setColumnWidth(66, 20); // Current Photos
+    columnWidths[66] = 20.0;
 
     CellStyle defaultCell({
       int fontSize = 5,
@@ -532,6 +575,7 @@ class ExcelFunctions {
         fontColorHex: ExcelColor.black,
         fontSize: 7,
         bold: true,
+        textWrapping: TextWrapping.WrapText,
         bottomBorder: Border(
           borderStyle: BorderStyle.Thin,
           borderColorHex: ExcelColor.grey400,
@@ -553,7 +597,6 @@ class ExcelFunctions {
 
     for (int i = 0; i < assets.length; i++) {
       final asset = assets[i];
-      sheetObject.setRowHeight(i + 4, 38);
 
       var inspectedCheck = (asset.inspectedBy.toString().isEmpty ||
               asset.inspectedBy == null ||
@@ -775,6 +818,13 @@ class ExcelFunctions {
         // 68: Repaired Date
         {'val': inspectedCheck ? "" : formatInspectedDate(asset.repairedDate?.toString()), 'style': defaultCell()},
       ];
+
+      double dynamicRowHeight = calculateDynamicRowHeight(
+        rowCells,
+        columnWidths,
+        minHeight: 38.0,
+      );
+      sheetObject.setRowHeight(i + 4, dynamicRowHeight);
 
       for (int c = 0; c < rowCells.length; c++) {
         var cell = sheetObject.cell(CellIndex.indexByString("${intToExcelColumn(c)}${i + 5}"));

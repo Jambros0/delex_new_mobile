@@ -40,34 +40,60 @@ class DeviceToServerSync {
     required String fileOf,
     required ScaffoldMessengerState scaffoldMessenger,
   }) async {
-    if (filePath?.isNotEmpty == true) {
-      final file = File(filePath!);
-      await Future.delayed(const Duration(milliseconds: 500));
+    if (filePath != null && filePath.isNotEmpty && filePath != "null") {
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        return filePath;
+      }
+      final file = File(filePath);
+      await Future.delayed(const Duration(milliseconds: 50));
       if (await file.exists()) {
-        // final resultfileSizeInBytes = await file.length();
-        // final resultfileSizeInMB = resultfileSizeInBytes / (1024 * 1024);
         try {
           final fileService = FileUploadUtil();
-          final uploadedFile = await fileService.fileUpload(file, fileOf);
-          return uploadedFile['data']?['uploadStatus']['file'] ?? '';
+          Map<String, dynamic> uploadedFile;
+          if (fileOf == 'DefectUpload' || fileOf == 'CorrectiveUpload') {
+            uploadedFile = await fileService.imageUpload(file, fileOf);
+          } else {
+            uploadedFile = await fileService.fileUpload(file, fileOf);
+          }
+
+          final dynamic data = uploadedFile['data'];
+          if (data is Map) {
+            final uploadStatus = data['uploadStatus'];
+            if (uploadStatus is Map) {
+              return uploadStatus['file']?.toString() ??
+                  data['file']?.toString() ??
+                  filePath;
+            }
+            return data['file']?.toString() ?? filePath;
+          } else if (data is List && data.isNotEmpty) {
+            final first = data[0];
+            if (first is Map) {
+              final uploadStatus = first['uploadStatus'];
+              if (uploadStatus is Map) {
+                return uploadStatus['file']?.toString() ??
+                    first['file']?.toString() ??
+                    filePath;
+              }
+              return first['file']?.toString() ?? filePath;
+            }
+            return first?.toString() ?? filePath;
+          } else if (data is String && data.isNotEmpty) {
+            return data;
+          }
+          return filePath;
         } catch (e) {
+          debugPrint('Failed to upload $fileOf ($filePath): $e');
           _showToast(
             'Failed to upload file: ${e.toString()}',
             Colors.red,
             scaffoldMessenger,
           );
-          return null;
+          return filePath;
         }
       } else {
-        _showToast(
-          'File not found at path: $filePath',
-          Colors.red,
-          scaffoldMessenger,
-        );
-        return null;
+        return filePath;
       }
     } else {
-      _showToast('No file path provided', Colors.red, scaffoldMessenger);
       return null;
     }
   }
@@ -77,73 +103,53 @@ class DeviceToServerSync {
     required String fileOf,
     required ScaffoldMessengerState scaffoldMessenger,
   }) async {
-    if (filePaths.isNotEmpty) {
-      try {
-        final List<File> imageFiles =
-            filePaths.map((filePath) => File(filePath)).toList();
+    if (filePaths.isEmpty) return [];
+    try {
+      final List<String?> results = List<String?>.from(filePaths);
+      final List<File> localFilesToUpload = [];
+      final List<int> localFileIndices = [];
 
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        bool allExist = true;
-        for (var file in imageFiles) {
-          // final resultfileSizeInBytes = await file.length();
-          // final resultfileSizeInMB = resultfileSizeInBytes / (1024 * 1024);
-          if (!await file.exists()) {
-            allExist = false;
-            break;
-          }
-        }
-
-        if (allExist) {
-          final fileService = FileUploadUtil();
-          final uploadedFiles = await fileService.photoFileUpload(
-            imageFiles,
-            fileOf,
-          );
-          final List<dynamic>? dataList = uploadedFiles['data'];
-
-          if (dataList != null && dataList.isNotEmpty) {
-            List<String?> uploadedFileUrls = [];
-            for (var data in dataList) {
-              var fileStatus = data['uploadStatus'];
-              if (fileStatus != null && fileStatus is Map<String, dynamic>) {
-                uploadedFileUrls.add(fileStatus['file']?.toString());
-              } else {
-                _showToast(
-                  'Malformed upload response for one of the files',
-                  Colors.red,
-                  scaffoldMessenger,
-                );
-              }
-            }
-            return uploadedFileUrls;
-          } else {
-            _showToast(
-              'No data returned from upload',
-              Colors.red,
-              scaffoldMessenger,
-            );
-            return null;
-          }
+      for (int i = 0; i < filePaths.length; i++) {
+        final p = filePaths[i];
+        if (p.isEmpty || p == 'null') continue;
+        if (p.startsWith('http://') || p.startsWith('https://')) {
+          results[i] = p;
         } else {
-          _showToast(
-            'One or more images not found at specified paths',
-            Colors.red,
-            scaffoldMessenger,
-          );
-          return null;
+          final file = File(p);
+          if (await file.exists()) {
+            localFilesToUpload.add(file);
+            localFileIndices.add(i);
+          }
         }
-      } catch (e) {
-        _showToast(
-          'Failed to upload images: ${e.toString()}',
-          Colors.red,
-          scaffoldMessenger,
-        );
-        return null;
       }
-    } else {
-      _showToast('No image paths provided', Colors.red, scaffoldMessenger);
-      return null;
+
+      if (localFilesToUpload.isNotEmpty) {
+        final fileService = FileUploadUtil();
+        final uploadedFiles = await fileService.photoFileUpload(
+          localFilesToUpload,
+          fileOf,
+        );
+        final List<dynamic>? dataList = uploadedFiles['data'];
+
+        if (dataList != null && dataList.isNotEmpty) {
+          for (int j = 0; j < dataList.length && j < localFileIndices.length; j++) {
+            var fileStatus = dataList[j]['uploadStatus'];
+            if (fileStatus != null && fileStatus is Map<String, dynamic>) {
+              results[localFileIndices[j]] = fileStatus['file']?.toString();
+            } else if (dataList[j]['file'] != null) {
+              results[localFileIndices[j]] = dataList[j]['file']?.toString();
+            }
+          }
+        }
+      }
+      return results;
+    } catch (e) {
+      _showToast(
+        'Failed to upload images: ${e.toString()}',
+        Colors.red,
+        scaffoldMessenger,
+      );
+      return filePaths;
     }
   }
 
@@ -152,70 +158,53 @@ class DeviceToServerSync {
     required String fileOf,
     required ScaffoldMessengerState scaffoldMessenger,
   }) async {
-    if (filePaths.isNotEmpty) {
-      try {
-        final List<File> imageFiles =
-            filePaths.map((filePath) => File(filePath)).toList();
-        await Future.delayed(const Duration(milliseconds: 500));
+    if (filePaths.isEmpty) return [];
+    try {
+      final List<String?> results = List<String?>.from(filePaths);
+      final List<File> localFilesToUpload = [];
+      final List<int> localFileIndices = [];
 
-        bool allExist = true;
-        for (var file in imageFiles) {
-          if (!await file.exists()) {
-            allExist = false;
-            break;
-          }
-        }
-
-        if (allExist) {
-          final fileService = FileUploadUtil();
-          final uploadedFiles = await fileService.photoUpload(
-            imageFiles,
-            fileOf,
-          );
-          final List<dynamic>? dataList = uploadedFiles['data'];
-
-          if (dataList != null && dataList.isNotEmpty) {
-            List<String?> uploadedFileUrls = [];
-            for (var data in dataList) {
-              var fileStatus = data['uploadStatus'];
-              if (fileStatus != null && fileStatus is Map<String, dynamic>) {
-                uploadedFileUrls.add(fileStatus['file']?.toString());
-              } else {
-                _showToast(
-                  'Malformed upload response for one of the files',
-                  Colors.red,
-                  scaffoldMessenger,
-                );
-              }
-            }
-            return uploadedFileUrls;
-          } else {
-            _showToast(
-              'No data returned from upload',
-              Colors.red,
-              scaffoldMessenger,
-            );
-            return null;
-          }
+      for (int i = 0; i < filePaths.length; i++) {
+        final p = filePaths[i];
+        if (p.isEmpty || p == 'null') continue;
+        if (p.startsWith('http://') || p.startsWith('https://')) {
+          results[i] = p;
         } else {
-          _showToast(
-            'One or more images not found at specified paths',
-            Colors.red,
-            scaffoldMessenger,
-          );
-          return null;
+          final file = File(p);
+          if (await file.exists()) {
+            localFilesToUpload.add(file);
+            localFileIndices.add(i);
+          }
         }
-      } catch (e) {
-        _showToast(
-          'Failed to upload images: ${e.toString()}',
-          Colors.red,
-          scaffoldMessenger,
-        );
-        return null;
       }
-    } else {
-      _showToast('No image paths provided', Colors.red, scaffoldMessenger);
-      return null;
+
+      if (localFilesToUpload.isNotEmpty) {
+        final fileService = FileUploadUtil();
+        final uploadedFiles = await fileService.photoUpload(
+          localFilesToUpload,
+          fileOf,
+        );
+        final List<dynamic>? dataList = uploadedFiles['data'];
+
+        if (dataList != null && dataList.isNotEmpty) {
+          for (int j = 0; j < dataList.length && j < localFileIndices.length; j++) {
+            var fileStatus = dataList[j]['uploadStatus'];
+            if (fileStatus != null && fileStatus is Map<String, dynamic>) {
+              results[localFileIndices[j]] = fileStatus['file']?.toString();
+            } else if (dataList[j]['file'] != null) {
+              results[localFileIndices[j]] = dataList[j]['file']?.toString();
+            }
+          }
+        }
+      }
+      return results;
+    } catch (e) {
+      _showToast(
+        'Failed to upload images: ${e.toString()}',
+        Colors.red,
+        scaffoldMessenger,
+      );
+      return filePaths;
     }
   }
 
@@ -223,7 +212,6 @@ class DeviceToServerSync {
     BuildContext context,
     ProgressNotifier progressNotifier,
   ) async {
-    //  ExRegister selectedAsset
     final ScaffoldMessengerState scaffoldMessenger = ScaffoldMessenger.of(
       context,
     );
@@ -233,512 +221,534 @@ class DeviceToServerSync {
     final userId = loggedInUser;
 
     final totalAssets = assets.length;
-    int processedAssets = 0;
     int lastReportedProgress = 0;
-    for (var asset in assets) {
-      final localFiles = collectLocalFiles(asset);
-      final dbHelper = DBHelper();
-      // print("asset before => ${asset.id}");
-      // final data = await dbHelper.getExRegisterByIdOnshore(asset.id);
-      // print("asset after => ${jsonEncode(data)}");
-      // print("location before => ${asset.locationId}");
-      // final location =
-      //     await dbHelper.getFunctionalAreaByIdOnshore(asset.locationId);
-      // print("location after => ${jsonEncode(location)}");
-      // ExRegister asset = selectedAsset;
-      final primaryId = asset.id;
-      final locationJson = {
-        'location': asset.location.toString(),
-        'area': asset.area.toString(),
-        'deckLevel': asset.deckLevel.toString(),
-        'subArea': asset.subArea.toString(),
-        'zone': asset.zone.toString(),
-        'tAmbient': asset.locationTAmbient.toString(),
-        'locationLatitude': asset.locationLatitude.toString(),
-        'locationLongitude': asset.locationLongitude.toString(),
-        'locationId': asset.locationId,
-        'isActive': asset.isActive,
-        'locationGasGroup': asset.locationGasGroup,
-        'locationTClass': asset.locationTClass,
-        'locationIpRating': asset.locationIpRating,
-        'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
-        'areaClassDrawAttach': asset.areaClassDrawAttach,
-        'areaClassDrawNo': asset.areaClassDrawNo,
-        'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
-        'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
-        'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
-      };
 
-      if (asset.areaClassDrawAttach.isNotEmpty == true) {
-        final uploadedAreaClassDrawAttach = await _uploadFileImages(
-          filePaths: asset.areaClassDrawAttach,
-          fileOf: 'areaClassDrawAttach',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        asset.areaClassDrawAttach =
-            uploadedAreaClassDrawAttach?.whereType<String>().toList() ??
-                asset.areaClassDrawAttach;
-        locationJson['areaClassDrawAttach'] = asset.areaClassDrawAttach;
+    void updateSubProgress(int newProgress) {
+      final clamped = newProgress.clamp(0, 100);
+      if (clamped > lastReportedProgress) {
+        lastReportedProgress = clamped;
+        progressNotifier.updateProgress(clamped);
       }
-      if (asset.eqpmtLytDrawAttach.isNotEmpty == true) {
-        final uploadedEqpmtLytDrawAttach = await _uploadFileImages(
-          filePaths: asset.eqpmtLytDrawAttach,
-          fileOf: 'eqpmtLytDrawAttach',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        asset.eqpmtLytDrawAttach =
-            uploadedEqpmtLytDrawAttach?.whereType<String>().toList() ??
-                asset.eqpmtLytDrawAttach;
-        locationJson['eqpmtLytDrawAttach'] = asset.eqpmtLytDrawAttach;
-      }
-      // if (asset.areaClassDrawAttach?.isNotEmpty == true) {
-      //   final List<String>? uploadedAreaClassDrawAttach = await _uploadImages(
-      //     filePaths: asset.areaClassDrawAttach,
-      //     fileOf: 'areaClassDrawAttach',
-      //     scaffoldMessenger: scaffoldMessenger,
-      //   ) as List<String>?;
-      //   asset.areaClassDrawAttach =
-      //       uploadedAreaClassDrawAttach ?? asset.areaClassDrawAttach;
-      //   locationJson['areaClassDrawAttach'] = asset.areaClassDrawAttach;
-      // }
+    }
 
-      // if (asset.eqpmtLytDrawAttach?.isNotEmpty == true) {
-      //   final List<String>? uploadedEqpmtLytDrawAttach = await _uploadImages(
-      //     filePaths: asset.eqpmtLytDrawAttach,
-      //     fileOf: 'eqpmtLytDrawAttach',
-      //     scaffoldMessenger: scaffoldMessenger,
-      //   ) as List<String>?;
-      //   asset.eqpmtLytDrawAttach =
-      //       uploadedEqpmtLytDrawAttach ?? asset.eqpmtLytDrawAttach;
-      //   locationJson['eqpmtLytDrawAttach'] = asset.eqpmtLytDrawAttach;
-      // }
-      final location = FunctionalAreaRequest.fromJson(locationJson);
-      final isObjectId = RegExp(
-        r'^[a-fA-F0-9]{24}$',
-      ).hasMatch(asset.locationId);
-      final locationIdToPass = isObjectId ? asset.locationId : null;
-      final createdLocation = await assetService.functionalAreaPost(
-        location,
-        locationId: locationIdToPass,
-      );
+    updateSubProgress(5);
 
-      final locationId = createdLocation['data']?['locationId'] ?? '';
-      asset.locationId = locationId.isNotEmpty ? locationId : asset.locationId;
-      final activity = Activity(
-        assetId: primaryId.toString(),
-        functionality: FunctionalityType.location,
-        functionalityApiResponseId:
-            locationId.isNotEmpty ? locationId : asset.locationId,
-        status: true,
-        lastSync: DateTime.now().toIso8601String(),
-        createdBy: userId,
-        updatedBy: userId,
-      );
-      await repository.insertOrUpdateDeviceToServer(activity.toMap());
+    for (int assetIndex = 0; assetIndex < totalAssets; assetIndex++) {
+      final double assetBase = (assetIndex / totalAssets) * 100;
+      final double assetWeight = 100 / totalAssets;
 
-      final prefs = await SharedPreferences.getInstance();
-      var usersign = await dbHelper.getLoggedInUserByUserId(userId);
-      usersign ??= await dbHelper.getLoggedInUser();
-      String userSignature = (usersign?.signature ?? '').trim();
+      try {
+        final asset = assets[assetIndex];
+        final localFiles = collectLocalFiles(asset);
+        final dbHelper = DBHelper();
+        final primaryId = asset.id;
+        final locationJson = {
+          'location': asset.location.toString(),
+          'area': asset.area.toString(),
+          'deckLevel': asset.deckLevel.toString(),
+          'subArea': asset.subArea.toString(),
+          'zone': asset.zone.toString(),
+          'tAmbient': asset.locationTAmbient.toString(),
+          'locationLatitude': asset.locationLatitude.toString(),
+          'locationLongitude': asset.locationLongitude.toString(),
+          'locationId': asset.locationId,
+          'isActive': asset.isActive,
+          'locationGasGroup': asset.locationGasGroup,
+          'locationTClass': asset.locationTClass,
+          'locationIpRating': asset.locationIpRating,
+          'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
+          'areaClassDrawAttach': asset.areaClassDrawAttach,
+          'areaClassDrawNo': asset.areaClassDrawNo,
+          'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
+          'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
+          'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
+          'areaStatus': asset.areaStatus ?? 'Active',
+        };
 
-      if (userSignature.isEmpty) {
-        final directory = await getApplicationDocumentsDirectory();
-        final candidateNames = [
-          'signature.jpg',
-          'signature.png',
-          'signature.jpeg',
-          'user_signature.png',
-          'user_signature.jpg',
-        ];
-        for (final name in candidateNames) {
-          final f = File('${directory.path}/$name');
-          if (f.existsSync()) {
-            userSignature = f.path;
-            break;
-          }
-        }
-      }
-
-      if (userSignature.isEmpty) {
-        userSignature = (prefs.getString('userSignature') ??
-                prefs.getString('signature_$userId') ??
-                '')
-            .trim();
-      }
-
-      if (userSignature.isEmpty) {
-        if (asset.signature != null &&
-            asset.signature.toString().isNotEmpty &&
-            asset.signature.toString() != "null") {
-          userSignature = asset.signature.toString().trim();
-        } else if (asset.inspectionSignOff != null &&
-            asset.inspectionSignOff.toString().isNotEmpty &&
-            asset.inspectionSignOff.toString() != "null") {
-          userSignature = asset.inspectionSignOff.toString().trim();
-        } else if (asset.repairSignOff != null &&
-            asset.repairSignOff.toString().isNotEmpty &&
-            asset.repairSignOff.toString() != "null") {
-          userSignature = asset.repairSignOff.toString().trim();
-        }
-      }
-
-      if (userSignature.isNotEmpty &&
-          !userSignature.startsWith('http') &&
-          !userSignature.startsWith('data:')) {
-        final sigFile = File(userSignature);
-        if (await sigFile.exists()) {
-          final uploadedSig = await _uploadFile(
-            filePath: userSignature,
-            fileOf: 'userSignature',
-            scaffoldMessenger: scaffoldMessenger,
-          );
-          if (uploadedSig != null && uploadedSig.isNotEmpty) {
-            userSignature = uploadedSig;
-          }
-        }
-      }
-
-      final inspectedByValue = (asset.inspectedBy != null &&
-              asset.inspectedBy.toString().isNotEmpty &&
-              asset.inspectedBy.toString() != "null")
-          ? asset.inspectedBy
-          : (usersign != null
-              ? ('${usersign.firstName} ${usersign.lastName}'.trim().isNotEmpty
-                  ? '${usersign.firstName} ${usersign.lastName}'.trim()
-                  : usersign.userName)
-              : '');
-
-      final assetJson = {
-        '_id': asset.id,
-        'rfidRef': asset.rfidRef,
-        'location': asset.location,
-        'area': asset.area,
-        'deckLevel': asset.deckLevel,
-        'zone': asset.zone,
-        'eqpmtTag': asset.eqpmtTag,
-        'description': asset.description,
-        'manufacturer': asset.manufacturer,
-        'epl': asset.epl,
-        'inspectionStatus': asset.inspectionStatus,
-        'existingFaults': asset.existingFaults,
-        'currentStatus': asset.currentStatus,
-        'checkList': asset.checkList,
-        'inspectionReferenceNumber': asset.inspectionReferenceNumber,
-        'subArea': asset.subArea,
-        'isActive': asset.isActive,
-        'locationGasGroup': asset.locationGasGroup,
-        'locationIpRating': asset.locationIpRating,
-        'locationTClass': asset.locationTClass,
-        'tAmbient': asset.tAmbient,
-        'tAmbientEquip': asset.tAmbientEquip,
-        'inspectionSignOff': asset.inspectionSignOff,
-        'repairSignOff': asset.repairSignOff,
-        'areaClassDrawNo': asset.areaClassDrawNo,
-        'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
-        'locationTAmbient': asset.locationTAmbient,
-        'status': asset.status,
-        'eqpmtCatg': asset.eqpmtCatg,
-        'oracleId': asset.oracleId,
-        'equipmentEquipmentType': asset.equipmentEquipmentType,
-        'serialNumber': asset.serialNumber,
-        'atexCatg': asset.atexCatg,
-        'equipmentGasGroup': asset.equipmentGasGroup,
-        'equipmentTClass': asset.equipmentTClass,
-        'equipmentIpRating': asset.equipmentIpRating,
-        'specialCond': asset.specialCond,
-        'inspectionType': asset.inspectionType,
-        'inspectionChecklistType': asset.inspectionChecklistType,
-        'inspectionGrade': asset.inspectionGrade,
-        'faultyItems': asset.faultyItems,
-        'repairPriority': asset.repairPriority,
-        'defectOverallCondition': asset.defectOverallCondition,
-        'defectIsolation': asset.defectIsolation,
-        'defectOtherRequirements': asset.defectOtherRequirements,
-        'remarks': asset.remarks,
-        'dataSheet': asset.dataSheet,
-        'dataSheetNo': asset.dataSheetNo,
-        'dataSheetOrgName': asset.dataSheetOrgName,
-        'inspectedBy': inspectedByValue,
-        'repairsDone': asset.repairsDone,
-        'defectDefectCategory': asset.defectDefectCategory,
-        'correctiveOverallCondition': asset.correctiveOverallCondition,
-        'repairedBy': asset.repairedBy,
-        'inspectedDate': (asset.inspectedDate == null ||
-                asset.inspectedDate.toString().isEmpty ||
-                asset.inspectedDate == "null")
-            ? ''
-            : (DateTime.tryParse(asset.inspectedDate.toString())
-                    ?.toUtc()
-                    .toIso8601String() ??
-                asset.inspectedDate.toString()),
-        'repairedDate': (asset.repairedDate == null ||
-                asset.repairedDate.toString().isEmpty ||
-                asset.repairedDate == "null")
-            ? ''
-            : (DateTime.tryParse(asset.repairedDate.toString())
-                    ?.toUtc()
-                    .toIso8601String() ??
-                asset.repairedDate.toString()),
-        'yesNoSelection': asset.yesNoSelection,
-        'gpsCord': asset.gpsCord,
-        'protectionStd': asset.protectionStd,
-        'protectionType': asset.protectionType,
-        'correctiveisolation': asset.correctiveisolation,
-        'correctiveOtherRequirements': asset.correctiveOtherRequirements,
-        'defectivePhoto1': asset.defectivePhoto1,
-        'defectivePhoto1OrgName': asset.defectivePhoto1OrgName,
-        'defectivePhoto2': asset.defectivePhoto2,
-        'defectivePhoto2OrgName': asset.defectivePhoto2OrgName,
-        'defectivePhoto3': asset.defectivePhoto3,
-        'defectivePhoto3OrgName': asset.defectivePhoto3OrgName,
-        'defectivePhoto4': asset.defectivePhoto4,
-        'defectivePhoto4OrgName': asset.defectivePhoto4OrgName,
-        'defectivePhoto5': asset.defectivePhoto5,
-        'defectivePhoto5OrgName': asset.defectivePhoto5OrgName,
-        'defectivePhoto6': asset.defectivePhoto6,
-        'defectivePhoto6OrgName': asset.defectivePhoto6OrgName,
-        'materials': asset.materials?.map((x) => x.toJson()).toList(),
-        'supplementaryMaterialReq':
-            asset.supplementaryMaterialReq?.map((x) => x.toJson()).toList(),
-        'defectCertificationNo': asset.defectCertificationNo,
-        'defectCertificationOrgName': asset.defectCertificationOrgName,
-        'defectCertificationAttach': asset.defectCertificationAttach,
-        'correctiveCertificationNo': asset.correctiveCertificationNo,
-        'correctiveCertificationOrgName': asset.correctiveCertificationOrgName,
-        'correctiveCertificationAttach': asset.correctiveCertificationAttach,
-        'correctivePhoto1': asset.correctivePhoto1,
-        'correctivePhoto1OrgName': asset.correctivePhoto1OrgName,
-        'correctivePhoto2': asset.correctivePhoto2,
-        'correctivePhoto2OrgName': asset.correctivePhoto2OrgName,
-        'correctivePhoto3': asset.correctivePhoto3,
-        'correctivePhoto3OrgName': asset.correctivePhoto3OrgName,
-        'correctivePhoto4': asset.correctivePhoto4,
-        'correctivePhoto4OrgName': asset.correctivePhoto4OrgName,
-        'correctivePhoto5': asset.correctivePhoto5,
-        'correctivePhoto5OrgName': asset.correctivePhoto5OrgName,
-        'correctivePhoto6': asset.correctivePhoto6,
-        'correctivePhoto6OrgName': asset.correctivePhoto6OrgName,
-        'rbiStrategy': asset.rbiStrategy?.toJson(),
-        'additionalInfoForRepairs': asset.additionalInfoForRepairs,
-        'areaClassDrawAttach': asset.areaClassDrawAttach,
-        'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
-        'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
-        'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
-        'locationId': asset.locationId,
-        'locationLatitude': asset.locationLatitude,
-        'locationLongitude': asset.locationLongitude,
-        'eqpmtLatitude': asset.locationLatitude,
-        'eqpmtLongitude': asset.locationLongitude,
-        'circuitId': asset.circuitId,
-        'cableId': asset.cableId,
-        'equipmentCategory': asset.equipmentCategory,
-        'type': asset.type,
-        'certfnBody': asset.certfnBody,
-        'certfnNo': asset.certfnNo,
-        'correctiveDefectCategory': asset.correctiveDefectCategory,
-        'repairDuration': asset.repairDuration,
-        'repairTimeEstimate': asset.repairTimeEstimate,
-        'remarksIfAny': asset.remarksIfAny,
-        'signature': userSignature,
-        'areaStatus': asset.areaStatus,
-        'inspectedId': userId,
-      };
-      if (asset.dataSheet != null &&
-          asset.dataSheet!.isNotEmpty &&
-          asset.dataSheet != "null") {
-        final uploadedDataSheet = await _uploadFile(
-          filePath: asset.dataSheet!,
-          fileOf: 'datasheet',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        asset.dataSheet = uploadedDataSheet ?? asset.dataSheet;
-        assetJson['dataSheet'] = asset.dataSheet;
-      }
-
-      if (asset.inspectionSignOff != null &&
-          asset.inspectionSignOff.toString().isNotEmpty &&
-          asset.inspectionSignOff.toString() != "null") {
-        final uploadedSignOff = await _uploadFile(
-          filePath: asset.inspectionSignOff.toString(),
-          fileOf: 'inspectionSignOff',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        asset.inspectionSignOff = uploadedSignOff ?? asset.inspectionSignOff;
-        assetJson['inspectionSignOff'] = asset.inspectionSignOff;
-      }
-
-      if (asset.repairSignOff != null &&
-          asset.repairSignOff.toString().isNotEmpty &&
-          asset.repairSignOff.toString() != "null") {
-        final uploadedSignOff = await _uploadFile(
-          filePath: asset.repairSignOff.toString(),
-          fileOf: 'repairSignOff',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        asset.repairSignOff = uploadedSignOff ?? asset.repairSignOff;
-        assetJson['repairSignOff'] = asset.repairSignOff;
-      }
-
-      if (asset.materials?.isNotEmpty == true) {
-        for (final material in asset.materials!) {
-          if (material.certificationAttach?.isNotEmpty == true) {
-            final uploadedCertificationAttach = await _uploadFile(
-              filePath: material.certificationAttach,
-              fileOf: 'defectCertificationAttach',
+        // Stage 1: Drawings uploaded (15%)
+        if (asset.areaClassDrawAttach.isNotEmpty == true) {
+          try {
+            final uploadedAreaClassDrawAttach = await _uploadFileImages(
+              filePaths: asset.areaClassDrawAttach,
+              fileOf: 'areaClassDrawAttach',
               scaffoldMessenger: scaffoldMessenger,
             );
-            material.certificationAttach =
-                uploadedCertificationAttach ?? material.certificationAttach;
-          }
+            asset.areaClassDrawAttach =
+                uploadedAreaClassDrawAttach?.whereType<String>().toList() ??
+                    asset.areaClassDrawAttach;
+            locationJson['areaClassDrawAttach'] = asset.areaClassDrawAttach;
+          } catch (_) {}
         }
-        assetJson['materials'] =
-            asset.materials!.map((material) => material.toJson()).toList();
-      }
-      // if (asset.supplementaryMaterialReq?.isNotEmpty == true) {
-      //   for (final supplementMaterial in asset.supplementaryMaterialReq!) {
-      //     if (supplementMaterial.certificationAttach?.isNotEmpty == true) {
-      //       final uploadedCertificationAttach = await _uploadFile(
-      //         filePath: supplementMaterial.certificationAttach,
-      //         fileOf: 'correctiveCertificationAttach',
-      //         scaffoldMessenger: scaffoldMessenger,
-      //       );
-      //       supplementMaterial.certificationAttach =
-      //           uploadedCertificationAttach ??
-      //               supplementMaterial.certificationAttach;
-      //     }
-      //   }
-      //   assetJson['supplementaryMaterialReq'] = asset.supplementaryMaterialReq!
-      //       .map((material) => material.toJson())
-      //       .toList();
-      // }
-      List<String> defectivePhotos = [
-        asset.defectivePhoto1,
-        asset.defectivePhoto2,
-        asset.defectivePhoto3,
-        asset.defectivePhoto4,
-        asset.defectivePhoto5,
-        asset.defectivePhoto6,
-      ].whereType<String>().where((path) => path.isNotEmpty).toList();
-      List<String> correctivePhotos = [
-        asset.correctivePhoto1 == null || asset.correctivePhoto1 == "null"
-            ? ""
-            : asset.correctivePhoto1 ?? "",
-        asset.correctivePhoto2 == null || asset.correctivePhoto2 == "null"
-            ? ""
-            : asset.correctivePhoto2 ?? "",
-        asset.correctivePhoto3 == null || asset.correctivePhoto3 == "null"
-            ? ""
-            : asset.correctivePhoto3 ?? "",
-        asset.correctivePhoto4 == null || asset.correctivePhoto4 == "null"
-            ? ""
-            : asset.correctivePhoto4 ?? "",
-        asset.correctivePhoto5 == null || asset.correctivePhoto5 == "null"
-            ? ""
-            : asset.correctivePhoto5 ?? "",
-        asset.correctivePhoto6 == null || asset.correctivePhoto6 == "null"
-            ? ""
-            : asset.correctivePhoto6 ?? "",
-      ].whereType<String>().where((path) => path.isNotEmpty).toList();
-
-      if (defectivePhotos.isNotEmpty) {
-        final uploadedDefectiveImageUrls = await _uploadImages(
-          filePaths: defectivePhotos.cast<String>(),
-          fileOf: 'DefectUpload',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        if (uploadedDefectiveImageUrls != null) {
-          for (int i = 0; i < defectivePhotos.length; i++) {
-            if (i < uploadedDefectiveImageUrls.length) {
-              assetJson['defectivePhoto${i + 1}'] =
-                  uploadedDefectiveImageUrls[i];
-            }
-          }
-        }
-      }
-
-      if (correctivePhotos.isNotEmpty) {
-        final uploadedCorrectiveImageUrls = await _uploadImages(
-          filePaths: correctivePhotos.cast<String>(),
-          fileOf: 'CorrectiveUpload',
-          scaffoldMessenger: scaffoldMessenger,
-        );
-        if (uploadedCorrectiveImageUrls != null) {
-          for (int i = 0; i < correctivePhotos.length; i++) {
-            if (i < uploadedCorrectiveImageUrls.length) {
-              assetJson['correctivePhoto${i + 1}'] =
-                  uploadedCorrectiveImageUrls[i];
-            }
-          }
-        }
-      }
-      final assetRequest = EquipmentTagRequest.fromJson(assetJson);
-
-      // const encoder = JsonEncoder.withIndent('  ');
-      // void printFullText(String text) {
-      //   final pattern = RegExp('.{1,800}');
-      //   pattern.allMatches(text).forEach((match) => print(match.group(0)));
-      // }
-      // printFullText(jsonEncode(assetRequest.toJson()));
-      final createdAssets = await deviceSyncService.syncAssetsToServer(
-        assetRequest,
-      );
-      final assetId = createdAssets['data'] ?? '';
-      asset.id = assetId.isNotEmpty ? assetId : asset.id;
-      final assetActivity = Activity(
-        assetId: primaryId.toString(),
-        functionality: FunctionalityType.asset,
-        functionalityApiResponseId: assetId.isNotEmpty ? assetId : asset.id,
-        status: true,
-        lastSync: DateTime.now().toIso8601String(),
-        createdBy: userId,
-        updatedBy: userId,
-      );
-
-      await repository.insertOrUpdateDeviceToServer(assetActivity.toMap());
-      // final dbHelper = DBHelper();
-      final authUtils = AuthUtils();
-      final String? userType = await authUtils.getUserType();
-      final existingAsset = (userType == 'onshore')
-          ? await dbHelper.getExRegisterByIdOnshore(primaryId.toString())
-          : await dbHelper.getExRegisterById(primaryId.toString());
-      // final exregisterJsonString = existingAsset!['exregister_json'] as String;
-      // dynamic localAssetIdCheck;
-      // if (exregisterJsonString.toString().isNotEmpty) {
-      //   final exregisterJson = jsonDecode(exregisterJsonString);
-      //   localAssetIdCheck = exregisterJson['asset']['_id'];
-      // } else {
-      //   localAssetIdCheck = '';
-      // }
-      final localAssetIdStr =
-          existingAsset?['id']?.toString() ?? asset.id.toString();
-      final localAssetId = int.tryParse(localAssetIdStr) ?? 0;
-
-      (userType == 'onshore')
-          ? await dbHelper.deleteExRegisterByIdOnshore(
-              localAssetId.toString(),
-              asset.id,
-            )
-          : await dbHelper.deleteExRegisterById(
-              localAssetId.toString(),
-              asset.id,
+        if (asset.eqpmtLytDrawAttach.isNotEmpty == true) {
+          try {
+            final uploadedEqpmtLytDrawAttach = await _uploadFileImages(
+              filePaths: asset.eqpmtLytDrawAttach,
+              fileOf: 'eqpmtLytDrawAttach',
+              scaffoldMessenger: scaffoldMessenger,
             );
-      if (userType == 'onshore') {
-        await dbHelper.getExRegisterByIdOnshore(asset.id);
-        await dbHelper.deleteFunctionalAreaOnshore(asset.locationId);
-      } else {
-        await dbHelper.deleteExRegister(asset.id);
-        await dbHelper.deleteFunctionalArea(asset.locationId);
-      }
-      await deleteLocalFiles(localFiles);
+            asset.eqpmtLytDrawAttach =
+                uploadedEqpmtLytDrawAttach?.whereType<String>().toList() ??
+                    asset.eqpmtLytDrawAttach;
+            locationJson['eqpmtLytDrawAttach'] = asset.eqpmtLytDrawAttach;
+          } catch (_) {}
+        }
+        updateSubProgress((assetBase + assetWeight * 0.15).round());
 
-      // await clearTempCache();
-      processedAssets++;
+        // Stage 2: Functional area submitted (30%)
+        final location = FunctionalAreaRequest.fromJson(locationJson);
+        final isObjectId = RegExp(
+          r'^[a-fA-F0-9]{24}$',
+        ).hasMatch(asset.locationId);
+        final locationIdToPass = isObjectId ? asset.locationId : null;
+        String? createdLocationId;
+        try {
+          final createdLocation = await assetService.functionalAreaPost(
+            location,
+            locationId: locationIdToPass,
+          );
+          final locData = createdLocation['data'];
+          if (locData is Map) {
+            createdLocationId = (locData['locationId'] ??
+                    locData['_id'] ??
+                    locData['id'] ??
+                    (locData['location'] is Map ? locData['location']['_id'] : null))
+                ?.toString();
+          } else if (locData is String && locData.isNotEmpty) {
+            createdLocationId = locData;
+          }
+          if (createdLocationId == null || createdLocationId.isEmpty) {
+            createdLocationId = (createdLocation['locationId'] ??
+                    createdLocation['_id'] ??
+                    createdLocation['id'])
+                ?.toString();
+          }
+        } catch (e) {
+          debugPrint('functionalAreaPost error: $e');
+        }
 
-      int progress = ((processedAssets / totalAssets) * 100).round();
+        final effectiveLocationId = (createdLocationId != null && createdLocationId.isNotEmpty)
+            ? createdLocationId
+            : asset.locationId;
+        asset.locationId = effectiveLocationId;
+        final activity = Activity(
+          assetId: primaryId.toString(),
+          functionality: FunctionalityType.location,
+          functionalityApiResponseId: effectiveLocationId,
+          status: true,
+          lastSync: DateTime.now().toIso8601String(),
+          createdBy: userId,
+          updatedBy: userId,
+        );
+        try {
+          await repository.insertOrUpdateDeviceToServer(activity.toMap());
+        } catch (_) {}
+        updateSubProgress((assetBase + assetWeight * 0.30).round());
 
-      if (progress > lastReportedProgress) {
-        lastReportedProgress = progress;
-        progressNotifier.updateProgress(progress);
+        // Stage 3: Signatures & documents uploaded (45%)
+        final prefs = await SharedPreferences.getInstance();
+        var usersign = await dbHelper.getLoggedInUserByUserId(userId);
+        usersign ??= await dbHelper.getLoggedInUser();
+        String userSignature = (usersign?.signature ?? '').trim();
+
+        if (userSignature.isEmpty) {
+          try {
+            final directory = await getApplicationDocumentsDirectory();
+            final candidateNames = [
+              'signature.jpg',
+              'signature.png',
+              'signature.jpeg',
+              'user_signature.png',
+              'user_signature.jpg',
+            ];
+            for (final name in candidateNames) {
+              final f = File('${directory.path}/$name');
+              if (f.existsSync()) {
+                userSignature = f.path;
+                break;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (userSignature.isEmpty) {
+          userSignature = (prefs.getString('userSignature') ??
+                  prefs.getString('signature_$userId') ??
+                  '')
+              .trim();
+        }
+
+        if (userSignature.isEmpty) {
+          if (asset.signature != null &&
+              asset.signature.toString().isNotEmpty &&
+              asset.signature.toString() != "null") {
+            userSignature = asset.signature.toString().trim();
+          } else if (asset.inspectionSignOff != null &&
+              asset.inspectionSignOff.toString().isNotEmpty &&
+              asset.inspectionSignOff.toString() != "null") {
+            userSignature = asset.inspectionSignOff.toString().trim();
+          } else if (asset.repairSignOff != null &&
+              asset.repairSignOff.toString().isNotEmpty &&
+              asset.repairSignOff.toString() != "null") {
+            userSignature = asset.repairSignOff.toString().trim();
+          }
+        }
+
+        if (userSignature.isNotEmpty &&
+            !userSignature.startsWith('http') &&
+            !userSignature.startsWith('data:')) {
+          try {
+            final sigFile = File(userSignature);
+            if (await sigFile.exists()) {
+              final uploadedSig = await _uploadFile(
+                filePath: userSignature,
+                fileOf: 'userSignature',
+                scaffoldMessenger: scaffoldMessenger,
+              );
+              if (uploadedSig != null && uploadedSig.isNotEmpty) {
+                userSignature = uploadedSig;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (asset.dataSheet != null &&
+            asset.dataSheet!.isNotEmpty &&
+            asset.dataSheet != "null") {
+          try {
+            final uploadedDataSheet = await _uploadFile(
+              filePath: asset.dataSheet!,
+              fileOf: 'datasheet',
+              scaffoldMessenger: scaffoldMessenger,
+            );
+            asset.dataSheet = uploadedDataSheet ?? asset.dataSheet;
+          } catch (_) {}
+        }
+
+        if (asset.inspectionSignOff != null &&
+            asset.inspectionSignOff.toString().isNotEmpty &&
+            asset.inspectionSignOff.toString() != "null") {
+          try {
+            final uploadedSignOff = await _uploadFile(
+              filePath: asset.inspectionSignOff.toString(),
+              fileOf: 'inspectionSignOff',
+              scaffoldMessenger: scaffoldMessenger,
+            );
+            asset.inspectionSignOff = uploadedSignOff ?? asset.inspectionSignOff;
+          } catch (_) {}
+        }
+
+        if (asset.repairSignOff != null &&
+            asset.repairSignOff.toString().isNotEmpty &&
+            asset.repairSignOff.toString() != "null") {
+          try {
+            final uploadedSignOff = await _uploadFile(
+              filePath: asset.repairSignOff.toString(),
+              fileOf: 'repairSignOff',
+              scaffoldMessenger: scaffoldMessenger,
+            );
+            asset.repairSignOff = uploadedSignOff ?? asset.repairSignOff;
+          } catch (_) {}
+        }
+
+        if (asset.materials?.isNotEmpty == true) {
+          for (final material in asset.materials!) {
+            if (material.certificationAttach?.isNotEmpty == true) {
+              try {
+                final uploadedCertificationAttach = await _uploadFile(
+                  filePath: material.certificationAttach,
+                  fileOf: 'defectCertificationAttach',
+                  scaffoldMessenger: scaffoldMessenger,
+                );
+                material.certificationAttach =
+                    uploadedCertificationAttach ?? material.certificationAttach;
+              } catch (_) {}
+            }
+          }
+        }
+        updateSubProgress((assetBase + assetWeight * 0.45).round());
+
+        // Stage 4: Defect photos uploaded (65%)
+        final defectivePhotoList = [
+          asset.defectivePhoto1,
+          asset.defectivePhoto2,
+          asset.defectivePhoto3,
+          asset.defectivePhoto4,
+          asset.defectivePhoto5,
+          asset.defectivePhoto6,
+        ];
+        final List<String?> uploadedDefectPhotos = List<String?>.from(defectivePhotoList);
+        for (int i = 0; i < 6; i++) {
+          final p = defectivePhotoList[i];
+          if (p != null && p.isNotEmpty && p != "null") {
+            if (p.startsWith('http://') || p.startsWith('https://')) {
+              uploadedDefectPhotos[i] = p;
+            } else {
+              try {
+                final uploaded = await _uploadFile(
+                  filePath: p,
+                  fileOf: 'DefectUpload',
+                  scaffoldMessenger: scaffoldMessenger,
+                );
+                if (uploaded != null && uploaded.isNotEmpty) {
+                  uploadedDefectPhotos[i] = uploaded;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+        asset.defectivePhoto1 = uploadedDefectPhotos[0];
+        asset.defectivePhoto2 = uploadedDefectPhotos[1];
+        asset.defectivePhoto3 = uploadedDefectPhotos[2];
+        asset.defectivePhoto4 = uploadedDefectPhotos[3];
+        asset.defectivePhoto5 = uploadedDefectPhotos[4];
+        asset.defectivePhoto6 = uploadedDefectPhotos[5];
+        updateSubProgress((assetBase + assetWeight * 0.65).round());
+
+        // Stage 5: Corrective photos uploaded (80%)
+        final correctivePhotoList = [
+          asset.correctivePhoto1,
+          asset.correctivePhoto2,
+          asset.correctivePhoto3,
+          asset.correctivePhoto4,
+          asset.correctivePhoto5,
+          asset.correctivePhoto6,
+        ];
+        final List<String?> uploadedCorrectivePhotos = List<String?>.from(correctivePhotoList);
+        for (int i = 0; i < 6; i++) {
+          final p = correctivePhotoList[i];
+          if (p != null && p.isNotEmpty && p != "null") {
+            if (p.startsWith('http://') || p.startsWith('https://')) {
+              uploadedCorrectivePhotos[i] = p;
+            } else {
+              try {
+                final uploaded = await _uploadFile(
+                  filePath: p,
+                  fileOf: 'CorrectiveUpload',
+                  scaffoldMessenger: scaffoldMessenger,
+                );
+                if (uploaded != null && uploaded.isNotEmpty) {
+                  uploadedCorrectivePhotos[i] = uploaded;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+        asset.correctivePhoto1 = uploadedCorrectivePhotos[0];
+        asset.correctivePhoto2 = uploadedCorrectivePhotos[1];
+        asset.correctivePhoto3 = uploadedCorrectivePhotos[2];
+        asset.correctivePhoto4 = uploadedCorrectivePhotos[3];
+        asset.correctivePhoto5 = uploadedCorrectivePhotos[4];
+        asset.correctivePhoto6 = uploadedCorrectivePhotos[5];
+        updateSubProgress((assetBase + assetWeight * 0.80).round());
+
+        // Stage 6: Equipment tag synced to server (95%)
+        final inspectedByValue = (asset.inspectedBy != null &&
+                asset.inspectedBy.toString().isNotEmpty &&
+                asset.inspectedBy.toString() != "null")
+            ? asset.inspectedBy
+            : (usersign != null
+                ? ('${usersign.firstName} ${usersign.lastName}'.trim().isNotEmpty
+                    ? '${usersign.firstName} ${usersign.lastName}'.trim()
+                    : usersign.userName)
+                : '');
+
+        final assetJson = {
+          '_id': asset.id,
+          'rfidRef': asset.rfidRef,
+          'location': asset.location,
+          'area': asset.area,
+          'deckLevel': asset.deckLevel,
+          'zone': asset.zone,
+          'eqpmtTag': asset.eqpmtTag,
+          'description': asset.description,
+          'manufacturer': asset.manufacturer,
+          'epl': asset.epl,
+          'inspectionStatus': asset.inspectionStatus,
+          'existingFaults': asset.existingFaults,
+          'currentStatus': asset.currentStatus,
+          'checkList': asset.checkList?.map((item) => item.toJson()).toList() ?? [],
+          'inspectionReferenceNumber': asset.inspectionReferenceNumber,
+          'subArea': asset.subArea,
+          'isActive': asset.isActive,
+          'locationGasGroup': asset.locationGasGroup,
+          'locationIpRating': asset.locationIpRating,
+          'locationTClass': asset.locationTClass,
+          'tAmbient': asset.tAmbient,
+          'tAmbientEquip': asset.tAmbientEquip,
+          'inspectionSignOff': asset.inspectionSignOff,
+          'repairSignOff': asset.repairSignOff,
+          'areaClassDrawNo': asset.areaClassDrawNo,
+          'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
+          'locationTAmbient': asset.locationTAmbient,
+          'status': asset.status,
+          'eqpmtCatg': asset.eqpmtCatg,
+          'oracleId': asset.oracleId,
+          'equipmentEquipmentType': asset.equipmentEquipmentType,
+          'serialNumber': asset.serialNumber,
+          'atexCatg': asset.atexCatg,
+          'equipmentGasGroup': asset.equipmentGasGroup,
+          'equipmentTClass': asset.equipmentTClass,
+          'equipmentIpRating': asset.equipmentIpRating,
+          'specialCond': asset.specialCond,
+          'inspectionType': asset.inspectionType,
+          'inspectionChecklistType': asset.inspectionChecklistType,
+          'inspectionGrade': asset.inspectionGrade,
+          'faultyItems': asset.faultyItems,
+          'repairPriority': asset.repairPriority,
+          'defectOverallCondition': asset.defectOverallCondition,
+          'defectIsolation': asset.defectIsolation,
+          'defectOtherRequirements': asset.defectOtherRequirements,
+          'remarks': asset.remarks,
+          'dataSheet': asset.dataSheet,
+          'dataSheetNo': asset.dataSheetNo,
+          'dataSheetOrgName': asset.dataSheetOrgName,
+          'inspectedBy': inspectedByValue,
+          'repairsDone': asset.repairsDone,
+          'defectDefectCategory': asset.defectDefectCategory,
+          'correctiveOverallCondition': asset.correctiveOverallCondition,
+          'repairedBy': asset.repairedBy,
+          'inspectedDate': (asset.inspectedDate == null ||
+                  asset.inspectedDate.toString().isEmpty ||
+                  asset.inspectedDate == "null")
+              ? ''
+              : (DateTime.tryParse(asset.inspectedDate.toString())
+                      ?.toUtc()
+                      .toIso8601String() ??
+                  asset.inspectedDate.toString()),
+          'repairedDate': (asset.repairedDate == null ||
+                  asset.repairedDate.toString().isEmpty ||
+                  asset.repairedDate == "null")
+              ? ''
+              : (DateTime.tryParse(asset.repairedDate.toString())
+                      ?.toUtc()
+                      .toIso8601String() ??
+                  asset.repairedDate.toString()),
+          'yesNoSelection': asset.yesNoSelection,
+          'gpsCord': asset.gpsCord,
+          'protectionStd': asset.protectionStd,
+          'protectionType': asset.protectionType,
+          'correctiveisolation': asset.correctiveisolation,
+          'correctiveOtherRequirements': asset.correctiveOtherRequirements,
+          'defectivePhoto1': asset.defectivePhoto1,
+          'defectivePhoto1OrgName': asset.defectivePhoto1OrgName,
+          'defectivePhoto2': asset.defectivePhoto2,
+          'defectivePhoto2OrgName': asset.defectivePhoto2OrgName,
+          'defectivePhoto3': asset.defectivePhoto3,
+          'defectivePhoto3OrgName': asset.defectivePhoto3OrgName,
+          'defectivePhoto4': asset.defectivePhoto4,
+          'defectivePhoto4OrgName': asset.defectivePhoto4OrgName,
+          'defectivePhoto5': asset.defectivePhoto5,
+          'defectivePhoto5OrgName': asset.defectivePhoto5OrgName,
+          'defectivePhoto6': asset.defectivePhoto6,
+          'defectivePhoto6OrgName': asset.defectivePhoto6OrgName,
+          'materials': asset.materials?.map((x) => x.toJson()).toList() ?? [],
+          'supplementaryMaterialReq':
+              asset.supplementaryMaterialReq?.map((x) => x.toJson()).toList() ?? [],
+          'defectCertificationNo': asset.defectCertificationNo,
+          'defectCertificationOrgName': asset.defectCertificationOrgName,
+          'defectCertificationAttach': asset.defectCertificationAttach,
+          'correctiveCertificationNo': asset.correctiveCertificationNo,
+          'correctiveCertificationOrgName': asset.correctiveCertificationOrgName,
+          'correctiveCertificationAttach': asset.correctiveCertificationAttach,
+          'correctivePhoto1': asset.correctivePhoto1,
+          'correctivePhoto1OrgName': asset.correctivePhoto1OrgName,
+          'correctivePhoto2': asset.correctivePhoto2,
+          'correctivePhoto2OrgName': asset.correctivePhoto2OrgName,
+          'correctivePhoto3': asset.correctivePhoto3,
+          'correctivePhoto3OrgName': asset.correctivePhoto3OrgName,
+          'correctivePhoto4': asset.correctivePhoto4,
+          'correctivePhoto4OrgName': asset.correctivePhoto4OrgName,
+          'correctivePhoto5': asset.correctivePhoto5,
+          'correctivePhoto5OrgName': asset.correctivePhoto5OrgName,
+          'correctivePhoto6': asset.correctivePhoto6,
+          'correctivePhoto6OrgName': asset.correctivePhoto6OrgName,
+          'rbiStrategy': asset.rbiStrategy?.toJson(),
+          'additionalInfoForRepairs': asset.additionalInfoForRepairs,
+          'areaClassDrawAttach': asset.areaClassDrawAttach,
+          'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
+          'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
+          'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
+          'locationId': asset.locationId,
+          'locationLatitude': asset.locationLatitude,
+          'locationLongitude': asset.locationLongitude,
+          'eqpmtLatitude': asset.locationLatitude,
+          'eqpmtLongitude': asset.locationLongitude,
+          'circuitId': asset.circuitId,
+          'cableId': asset.cableId,
+          'equipmentCategory': asset.equipmentCategory,
+          'type': asset.type,
+          'certfnBody': asset.certfnBody,
+          'certfnNo': asset.certfnNo,
+          'correctiveDefectCategory': asset.correctiveDefectCategory,
+          'repairDuration': asset.repairDuration,
+          'repairTimeEstimate': asset.repairTimeEstimate,
+          'remarksIfAny': asset.remarksIfAny,
+          'signature': userSignature,
+          'areaStatus': asset.areaStatus,
+          'inspectedId': userId,
+        };
+
+        final assetRequest = EquipmentTagRequest.fromJson(assetJson);
+        final isAssetObjectId = RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(asset.id);
+        final createdAssets = await deviceSyncService.syncAssetsToServer(
+          assetRequest,
+          assetId: isAssetObjectId ? asset.id : null,
+        );
+        final assetId = createdAssets['data']?.toString() ?? '';
+        asset.id = assetId.isNotEmpty ? assetId : asset.id;
+        final assetActivity = Activity(
+          assetId: primaryId.toString(),
+          functionality: FunctionalityType.asset,
+          functionalityApiResponseId: assetId.isNotEmpty ? assetId : asset.id,
+          status: true,
+          lastSync: DateTime.now().toIso8601String(),
+          createdBy: userId,
+          updatedBy: userId,
+        );
+
+        try {
+          await repository.insertOrUpdateDeviceToServer(assetActivity.toMap());
+        } catch (_) {}
+        updateSubProgress((assetBase + assetWeight * 0.95).round());
+
+        // Stage 7: Local cleanup (100%)
+        final authUtils = AuthUtils();
+        final String? userType = await authUtils.getUserType();
+        final isOnshore = userType == 'onshore';
+
+        final originalLocalId = primaryId.toString();
+        final assetPrimaryIdStr = asset.primaryId?.toString() ?? '';
+        final currentAssetId = asset.id.toString();
+
+        try {
+          if (isOnshore) {
+            await dbHelper.deleteExRegisterByIdOnshore(originalLocalId, assetPrimaryIdStr);
+            if (currentAssetId.isNotEmpty && currentAssetId != originalLocalId) {
+              await dbHelper.deleteExRegisterByIdOnshore(currentAssetId, '');
+            }
+            if (asset.locationId != null && asset.locationId.toString().isNotEmpty) {
+              await dbHelper.deleteFunctionalAreaOnshore(asset.locationId);
+            }
+          } else {
+            await dbHelper.deleteExRegisterById(originalLocalId, assetPrimaryIdStr);
+            if (currentAssetId.isNotEmpty && currentAssetId != originalLocalId) {
+              await dbHelper.deleteExRegisterById(currentAssetId, '');
+            }
+            if (asset.locationId != null && asset.locationId.toString().isNotEmpty) {
+              await dbHelper.deleteFunctionalArea(asset.locationId);
+            }
+          }
+        } catch (e) {
+          debugPrint('Local cleanup error: $e');
+        }
+
+        try {
+          await deleteLocalFiles(localFiles);
+        } catch (_) {}
+      } catch (e, stack) {
+        debugPrint('Error syncing asset $assetIndex: $e\n$stack');
+      } finally {
+        updateSubProgress((((assetIndex + 1) / totalAssets) * 100).round());
       }
     }
   }

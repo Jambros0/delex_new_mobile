@@ -2,6 +2,9 @@
 
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_event.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_state.dart';
@@ -13,16 +16,21 @@ import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/data/services/
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/ui/widgets/device_to_server_sync.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/ui/widgets/device_to_server_table.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/ui/widgets/server_to_device_table.dart';
-import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/repository/file_uploads_repo.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex_register_model.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/work_order_table_model.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/login/data/models/user_details.dart';
+import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/progress_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SyncPopupScreen extends StatefulWidget {
@@ -103,38 +111,425 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
 
     _setLoadingState(true);
     try {
-      if (BlocProvider.of<DeviceSyncBloc>(context).state is WorkOrderLoaded) {
-        var state =
-            BlocProvider.of<DeviceSyncBloc>(context).state as WorkOrderLoaded;
+      final state = BlocProvider.of<DeviceSyncBloc>(context).state;
+      List<ExRegister> selectedAssets = [];
+      List<WorkOrderTableJson> workOrderCollection = [];
+      List<ExRegister> stateAssets = [];
+      if (state is WorkOrderLoaded) {
+        stateAssets = state.assets;
+        workOrderCollection = state.workOrderCollection;
+      } else if (state is WorkOrderNewLoaded) {
+        stateAssets = state.assets;
+        workOrderCollection = state.workOrderCollection;
+      }
 
-        List<ExRegister> selectedAssets = [];
-        if (_selectedRows.length != state.assets.length) {
+      if (stateAssets.isNotEmpty) {
+        if (_selectedRows.length != stateAssets.length) {
           _selectedRows.clear();
-          _selectedRows.addAll(List<bool>.filled(state.assets.length, false));
+          _selectedRows.addAll(List<bool>.filled(stateAssets.length, false));
         }
         for (int i = 0; i < _selectedRows.length; i++) {
           if (_selectedRows[i]) {
-            selectedAssets.add(state.assets[i]);
+            selectedAssets.add(stateAssets[i]);
           }
         }
         if (selectedAssets.isNotEmpty) {
           await _insertIntoLocalDB(
+            context,
             selectedAssets,
             navigator,
             scaffoldMessenger,
-            state.workOrderCollection,
+            workOrderCollection,
           );
         } else {
           _closeDialogIfOpen(navigator);
           _showToast("No items selected.", Colors.red, scaffoldMessenger);
         }
+      } else {
+        _closeDialogIfOpen(navigator);
+        _showToast("No items selected.", Colors.red, scaffoldMessenger);
       }
     } finally {
       _setLoadingState(false);
     }
   }
 
+  /// Downloads a remote server file and saves it permanently to app documents directory
+  Future<String?> _downloadAndSaveFile({
+    required String remotePath,
+    required String category,
+    required String? defaultUserType,
+    required String? token,
+    required String userId,
+    required DBHelper dbHelper,
+  }) async {
+    final trimmed = remotePath.trim();
+    if (trimmed.isEmpty || trimmed == 'null') return null;
+
+    // If already exists as a local file, reuse it
+    if (File(trimmed).existsSync()) {
+      return trimmed;
+    }
+
+    final rawBaseUrl =
+        (dotenv.env['API_URL'] ?? 'http://94.136.185.87:16000/').trim();
+    final cleanBaseUrl = rawBaseUrl.endsWith('/')
+        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
+        : rawBaseUrl;
+
+    final List<String> candidateUrls = [];
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      candidateUrls.add(trimmed);
+    } else {
+      String cleanPath = trimmed;
+      while (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      }
+
+      if (cleanPath.startsWith('onshore/') ||
+          cleanPath.startsWith('offshore/')) {
+        candidateUrls.add('$cleanBaseUrl/$cleanPath');
+      } else {
+        final userType = (defaultUserType != null && defaultUserType.isNotEmpty)
+            ? defaultUserType.toLowerCase()
+            : 'onshore';
+        candidateUrls.add('$cleanBaseUrl/$userType/$cleanPath');
+
+        final altUserType = (userType == 'onshore') ? 'offshore' : 'onshore';
+        candidateUrls.add('$cleanBaseUrl/$altUserType/$cleanPath');
+
+        candidateUrls.add('$cleanBaseUrl/$cleanPath');
+      }
+    }
+
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final targetDir = Directory('${appDocDir.path}/$category');
+    if (!await targetDir.exists()) {
+      await targetDir.create(recursive: true);
+    }
+
+    final originalName = path.basename(trimmed.split('?').first);
+    final sanitizedName = originalName.isEmpty
+        ? 'file_${DateTime.now().millisecondsSinceEpoch}'
+        : originalName;
+    final localFilePath = '${targetDir.path}/$sanitizedName';
+    final localFile = File(localFilePath);
+
+    if (await localFile.exists() && await localFile.length() > 0) {
+      return localFile.path;
+    }
+
+    final client = http.Client();
+    try {
+      for (final urlStr in candidateUrls) {
+        try {
+          final uri = Uri.parse(urlStr);
+          final headers = <String, String>{};
+          if (token != null && token.isNotEmpty) {
+            headers['Authorization'] = 'Bearer $token';
+          }
+          final res = await client.get(uri, headers: headers).timeout(
+            const Duration(seconds: 15),
+          );
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            await localFile.writeAsBytes(res.bodyBytes);
+
+            if (Platform.isAndroid) {
+              try {
+                const MethodChannel('media_scan_channel')
+                    .invokeMethod('scanFile', {'path': localFile.path});
+              } catch (_) {}
+            }
+
+            try {
+              final dbData = {
+                'file_path': localFile.path,
+                'file_type':
+                    path.extension(localFile.path).replaceFirst('.', ''),
+                'file_of': category,
+                'file_name': path.basename(localFile.path),
+                'created_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTime.now().toIso8601String(),
+                'created_by': userId,
+                'updated_by': userId,
+              };
+              if (defaultUserType == 'onshore') {
+                await dbHelper.uploadFilesOnshore(dbData);
+              } else {
+                await dbHelper.uploadFiles(dbData);
+              }
+            } catch (_) {}
+
+            return localFile.path;
+          }
+        } catch (_) {
+          // Try next candidate URL
+        }
+      }
+    } finally {
+      client.close();
+    }
+
+    return null;
+  }
+
+  /// Safely converts an asset object (whether ExRegister, Map, or other) to a Map
+  Map<String, dynamic> _safeAssetToJson(dynamic asset) {
+    if (asset == null) return {};
+    if (asset is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(asset);
+    }
+    if (asset is Map) {
+      return Map<String, dynamic>.from(asset);
+    }
+    try {
+      if (asset is ExRegister) {
+        return asset.toJson();
+      }
+      return Map<String, dynamic>.from((asset as dynamic).toJson());
+    } catch (_) {
+      try {
+        return jsonDecode(jsonEncode(asset));
+      } catch (_) {
+        return {};
+      }
+    }
+  }
+
+  /// Processes and downloads all media files (photos, signatures, datasheets, certs, drawings)
+  /// and updates paths in the asset JSON to local persistent paths
+  Future<Map<String, dynamic>> _processAssetMediaFiles(
+    Map<String, dynamic> assetJson,
+    String userId,
+    String? userType,
+    String? token,
+    DBHelper dbHelper,
+  ) async {
+    final updated = Map<String, dynamic>.from(assetJson);
+
+    // 1. Defective and Corrective Photos (1 to 6)
+    for (int p = 1; p <= 6; p++) {
+      final dKey = 'defectivePhoto$p';
+      final dVal = updated[dKey]?.toString();
+      if (dVal != null && dVal.isNotEmpty && dVal != 'null') {
+        final localPath = await _downloadAndSaveFile(
+          remotePath: dVal,
+          category: 'defectivePhotos',
+          defaultUserType: userType,
+          token: token,
+          userId: userId,
+          dbHelper: dbHelper,
+        );
+        if (localPath != null) {
+          updated[dKey] = localPath;
+        }
+      }
+      final dOrgKey = 'defectivePhoto${p}OrgName';
+      if ((updated[dOrgKey] == null ||
+              updated[dOrgKey].toString().trim().isEmpty ||
+              updated[dOrgKey].toString() == 'null') &&
+          updated[dKey] != null &&
+          updated[dKey].toString().isNotEmpty &&
+          updated[dKey].toString() != 'null') {
+        updated[dOrgKey] = path.basename(updated[dKey].toString());
+      }
+
+      final cKey = 'correctivePhoto$p';
+      final cVal = updated[cKey]?.toString();
+      if (cVal != null && cVal.isNotEmpty && cVal != 'null') {
+        final localPath = await _downloadAndSaveFile(
+          remotePath: cVal,
+          category: 'correctivePhotos',
+          defaultUserType: userType,
+          token: token,
+          userId: userId,
+          dbHelper: dbHelper,
+        );
+        if (localPath != null) {
+          updated[cKey] = localPath;
+        }
+      }
+      final cOrgKey = 'correctivePhoto${p}OrgName';
+      if ((updated[cOrgKey] == null ||
+              updated[cOrgKey].toString().trim().isEmpty ||
+              updated[cOrgKey].toString() == 'null') &&
+          updated[cKey] != null &&
+          updated[cKey].toString().isNotEmpty &&
+          updated[cKey].toString() != 'null') {
+        updated[cOrgKey] = path.basename(updated[cKey].toString());
+      }
+    }
+
+    // 2. Datasheet (and populate OrgName & No so Download button appears)
+    final dsVal = updated['dataSheet']?.toString();
+    if (dsVal != null && dsVal.isNotEmpty && dsVal != 'null') {
+      final localPath = await _downloadAndSaveFile(
+        remotePath: dsVal,
+        category: 'attachments',
+        defaultUserType: userType,
+        token: token,
+        userId: userId,
+        dbHelper: dbHelper,
+      );
+      if (localPath != null) {
+        updated['dataSheet'] = localPath;
+      }
+    }
+    if ((updated['dataSheetOrgName'] == null ||
+            updated['dataSheetOrgName'].toString().trim().isEmpty ||
+            updated['dataSheetOrgName'].toString() == 'null') &&
+        updated['dataSheet'] != null &&
+        updated['dataSheet'].toString().isNotEmpty &&
+        updated['dataSheet'].toString() != 'null') {
+      updated['dataSheetOrgName'] =
+          path.basename(updated['dataSheet'].toString());
+    }
+    if ((updated['dataSheetNo'] == null ||
+            updated['dataSheetNo'].toString().trim().isEmpty ||
+            updated['dataSheetNo'].toString() == 'null') &&
+        updated['dataSheet'] != null &&
+        updated['dataSheet'].toString().isNotEmpty &&
+        updated['dataSheet'].toString() != 'null') {
+      updated['dataSheetNo'] = path.basename(updated['dataSheet'].toString());
+    }
+
+    // 3. Signatures (inspectionSignOff, repairSignOff, signature)
+    final sigFields = ['inspectionSignOff', 'repairSignOff', 'signature'];
+    for (final sigField in sigFields) {
+      final sigVal = updated[sigField]?.toString();
+      if (sigVal != null && sigVal.isNotEmpty && sigVal != 'null') {
+        final localPath = await _downloadAndSaveFile(
+          remotePath: sigVal,
+          category: 'signatures',
+          defaultUserType: userType,
+          token: token,
+          userId: userId,
+          dbHelper: dbHelper,
+        );
+        if (localPath != null) {
+          updated[sigField] = localPath;
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(sigField, localPath);
+            await prefs.setString('userSignature', localPath);
+            final appDocDir = await getApplicationDocumentsDirectory();
+            final fallbackFile = File('${appDocDir.path}/user_signature.jpg');
+            await File(localPath).copy(fallbackFile.path);
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 4. Certifications (defectCertificationAttach, correctiveCertificationAttach)
+    for (final certField in [
+      'defectCertificationAttach',
+      'correctiveCertificationAttach',
+    ]) {
+      final certVal = updated[certField]?.toString();
+      if (certVal != null && certVal.isNotEmpty && certVal != 'null') {
+        final localPath = await _downloadAndSaveFile(
+          remotePath: certVal,
+          category: 'certifications',
+          defaultUserType: userType,
+          token: token,
+          userId: userId,
+          dbHelper: dbHelper,
+        );
+        if (localPath != null) {
+          updated[certField] = localPath;
+        }
+      }
+      final orgField = certField.replaceFirst('Attach', 'OrgName');
+      if ((updated[orgField] == null ||
+              updated[orgField].toString().trim().isEmpty ||
+              updated[orgField].toString() == 'null') &&
+          updated[certField] != null &&
+          updated[certField].toString().isNotEmpty &&
+          updated[certField].toString() != 'null') {
+        updated[orgField] = path.basename(updated[certField].toString());
+      }
+    }
+
+    // 5. Materials & Supplementary Material Requirements
+    for (final matKey in ['materials', 'supplementaryMaterialReq']) {
+      if (updated[matKey] != null && updated[matKey] is List) {
+        final List list = updated[matKey];
+        for (var item in list) {
+          if (item is Map) {
+            final certPath = item['certificationAttach']?.toString();
+            if (certPath != null && certPath.isNotEmpty && certPath != 'null') {
+              final localPath = await _downloadAndSaveFile(
+                remotePath: certPath,
+                category: 'certifications',
+                defaultUserType: userType,
+                token: token,
+                userId: userId,
+                dbHelper: dbHelper,
+              );
+              if (localPath != null) {
+                item['certificationAttach'] = localPath;
+              }
+            }
+            if ((item['certificationOrgName'] == null ||
+                    item['certificationOrgName'].toString().trim().isEmpty ||
+                    item['certificationOrgName'].toString() == 'null') &&
+                item['certificationAttach'] != null &&
+                item['certificationAttach'].toString().isNotEmpty &&
+                item['certificationAttach'].toString() != 'null') {
+              item['certificationOrgName'] =
+                  path.basename(item['certificationAttach'].toString());
+            }
+          }
+        }
+      }
+    }
+
+    // 6. Drawings (areaClassDrawAttach and eqpmtLytDrawAttach)
+    for (final drawKey in ['areaClassDrawAttach', 'eqpmtLytDrawAttach']) {
+      if (updated[drawKey] != null) {
+        if (updated[drawKey] is List) {
+          final List list = updated[drawKey];
+          final List<String> updatedDrawings = [];
+          for (var item in list) {
+            final str = item?.toString() ?? '';
+            if (str.isNotEmpty && str != 'null') {
+              final localPath = await _downloadAndSaveFile(
+                remotePath: str,
+                category: 'drawings',
+                defaultUserType: userType,
+                token: token,
+                userId: userId,
+                dbHelper: dbHelper,
+              );
+              updatedDrawings.add(localPath ?? str);
+            }
+          }
+          updated[drawKey] = updatedDrawings;
+        } else if (updated[drawKey] is String) {
+          final str = updated[drawKey].toString();
+          if (str.isNotEmpty && str != 'null') {
+            final localPath = await _downloadAndSaveFile(
+              remotePath: str,
+              category: 'drawings',
+              defaultUserType: userType,
+              token: token,
+              userId: userId,
+              dbHelper: dbHelper,
+            );
+            if (localPath != null) {
+              updated[drawKey] = localPath;
+            }
+          }
+        }
+      }
+    }
+
+    return updated;
+  }
+
   Future<void> _insertIntoLocalDB(
+    BuildContext context,
     List<ExRegister> assets,
     NavigatorState navigator,
     ScaffoldMessengerState scaffoldMessenger,
@@ -142,7 +537,11 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
   ) async {
     final repository = WorkOrderRepository();
     final dbHelper = DBHelper();
-    final fileUploadRepo = FileUploadRepository();
+    final authUtils = AuthUtils();
+    final userType = await authUtils.getUserType();
+    final tokens = await authUtils.getSessionTokens();
+    final token = tokens['accessToken'];
+
     final UserDetails? loggedInUser = await dbHelper.getLoggedInUser();
     if (loggedInUser == null) {
       _closeDialogIfOpen(navigator);
@@ -166,198 +565,54 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             continue;
           }
           selectedAssetsSync.add(asset.id);
-          json['assets'] = asset.toJson();
-          final fileFields = [
-            "correctivePhoto1",
-            "correctivePhoto2",
-            "correctivePhoto3",
-            "correctivePhoto4",
-            "correctivePhoto5",
-            "correctivePhoto6",
-            "dataSheet",
-            "defectivePhoto1",
-            "defectivePhoto2",
-            "defectivePhoto3",
-            "defectivePhoto4",
-            "defectivePhoto5",
-            "defectivePhoto6",
-            // "inspectionSignOff",
-            // "repairSignOff",
-          ];
+          var assetMap = _safeAssetToJson(asset);
 
-          json['assets']['checkList'] = json['assets']['checkList']
-              ?.map((item) => item.toJson())
-              ?.toList();
-          if (json['assets']['checkList'].isNotEmpty &&
-              (json['assets']['yesNoSelection'] == null ||
-                  json['assets']['yesNoSelection'].isEmpty)) {
-            json['assets']['yesNoSelection'] ??= <String, dynamic>{};
-            for (var checklist in json['assets']['checkList']) {
-              for (var defectCodes in checklist['defectCodes']) {
-                json['assets']['yesNoSelection'][defectCodes['defectCode']] =
-                    "no";
-              }
-            }
-          }
-          for (var field in fileFields) {
-            final filePath = json['assets'][field];
-            if (filePath != null && filePath.isNotEmpty && filePath != "null") {
-              try {
-                final uploadResponse =
-                    await fileUploadRepo.downloadAndCacheFile(filePath, field);
-                if (uploadResponse['status'] == true) {
-                  final uploadedPath =
-                      uploadResponse['data']['uploadStatus']['file'];
-                  json['assets'][field] = uploadedPath;
-                } else {
-                  _showToast(
-                    "Failed to upload $field.",
-                    Colors.red,
-                    scaffoldMessenger,
-                  );
-                }
-              } catch (e) {
-                _showToast(
-                  "Error uploading $field: $e",
-                  Colors.red,
-                  scaffoldMessenger,
-                );
-              }
-            }
-          }
-          final fileSignFields = ["inspectionSignOff", "repairSignOff"];
-          for (var field in fileSignFields) {
-            final filePath = json['assets'][field];
-            if (filePath != null && filePath.isNotEmpty && filePath != "null") {
-              try {
-                final uploadResponse = await fileUploadRepo
-                    .downloadAndFullCacheFile(filePath, field);
-                if (uploadResponse['status'] == true) {
-                  final uploadedPath =
-                      uploadResponse['data']['uploadStatus']['file'];
-                  json['assets'][field] = uploadedPath;
-                } else {
-                  _showToast(
-                    "Failed to upload $field.",
-                    Colors.red,
-                    scaffoldMessenger,
-                  );
-                }
-              } catch (e) {
-                _showToast(
-                  "Error uploading $field: $e",
-                  Colors.red,
-                  scaffoldMessenger,
-                );
-              }
-            }
-          }
-
-          if (json['assets']['materials'] != null &&
-              json['assets']['materials'] is List) {
-            for (var item in json['assets']['materials']) {
-              final certPath = item['certificationAttach'];
-              if (certPath != null &&
-                  certPath.isNotEmpty &&
-                  certPath != "null") {
+          // Checklist processing
+          if (assetMap['checkList'] is List) {
+            final List clList = assetMap['checkList'];
+            final List<Map<String, dynamic>> processedCheckList = [];
+            for (var item in clList) {
+              if (item is Map) {
+                processedCheckList.add(Map<String, dynamic>.from(item));
+              } else {
                 try {
-                  final uploadResponse =
-                      await fileUploadRepo.downloadAndCacheFile(
-                    certPath,
-                    'defectCertificationAttach',
-                  );
-                  if (uploadResponse['status'] == true) {
-                    final uploadedPath =
-                        uploadResponse['data']['uploadStatus']['file'];
-                    item['certificationAttach'] = uploadedPath;
-                  } else {
-                    _showToast(
-                      "Failed to upload Material Certification Attach.",
-                      Colors.red,
-                      scaffoldMessenger,
-                    );
+                  processedCheckList.add(
+                      Map<String, dynamic>.from((item as dynamic).toJson()));
+                } catch (_) {}
+              }
+            }
+            assetMap['checkList'] = processedCheckList;
+            if (assetMap['checkList'].isNotEmpty &&
+                (assetMap['yesNoSelection'] == null ||
+                    assetMap['yesNoSelection'].isEmpty)) {
+              assetMap['yesNoSelection'] ??= <String, dynamic>{};
+              for (var checklist in assetMap['checkList']) {
+                if (checklist is Map && checklist['defectCodes'] is List) {
+                  for (var defectCodes in checklist['defectCodes']) {
+                    if (defectCodes is Map &&
+                        defectCodes['defectCode'] != null) {
+                      assetMap['yesNoSelection'][defectCodes['defectCode']] =
+                          "no";
+                    }
                   }
-                } catch (e) {
-                  _showToast(
-                    "Error uploading Material Certification Attach: $e",
-                    Colors.red,
-                    scaffoldMessenger,
-                  );
                 }
               }
             }
           }
-          if (json['assets']['areaClassDrawAttach'] != null &&
-              json['assets']['areaClassDrawAttach'] is List) {
-            List areaClassDrawAttachList =
-                json['assets']['areaClassDrawAttach'];
 
-            List<String> uploadedFiles = [];
-            for (var certPath in areaClassDrawAttachList) {
-              if (certPath != null && certPath.toString().isNotEmpty) {
-                try {
-                  final uploadResponse = await fileUploadRepo
-                      .downloadAndCacheFile(certPath, 'areaClassDrawAttach');
+          // Download and persist all media files locally
+          assetMap = await _processAssetMediaFiles(
+            assetMap,
+            userId,
+            userType,
+            token,
+            dbHelper,
+          );
 
-                  if (uploadResponse['status'] == true) {
-                    final uploadedPath =
-                        uploadResponse['data']['uploadStatus']['file'];
-                    uploadedFiles.add(uploadedPath);
-                  } else {
-                    _showToast(
-                      "Failed to upload Area Classification Drawing Number.",
-                      Colors.red,
-                      scaffoldMessenger,
-                    );
-                  }
-                } catch (e) {
-                  _showToast(
-                    "Error uploading Area Classification Drawing Number: $e",
-                    Colors.red,
-                    scaffoldMessenger,
-                  );
-                }
-              }
-            }
-            json['assets']['areaClassDrawAttach'] = uploadedFiles;
-          }
-          if (json['assets']['eqpmtLytDrawAttach'] != null &&
-              json['assets']['eqpmtLytDrawAttach'] is List) {
-            List eqpmtLytDrawAttachList = json['assets']['eqpmtLytDrawAttach'];
-
-            List<String> uploadedFiles = [];
-
-            for (var certPath in eqpmtLytDrawAttachList) {
-              if (certPath != null && certPath.toString().isNotEmpty) {
-                try {
-                  final uploadResponse = await fileUploadRepo
-                      .downloadAndCacheFile(certPath, 'eqpmtLytDrawAttach');
-
-                  if (uploadResponse['status'] == true) {
-                    final uploadedPath =
-                        uploadResponse['data']['uploadStatus']['file'];
-                    uploadedFiles.add(uploadedPath);
-                  } else {
-                    _showToast(
-                      "Failed to upload Equipment Layout Drawing Number.",
-                      Colors.red,
-                      scaffoldMessenger,
-                    );
-                  }
-                } catch (e) {
-                  _showToast(
-                    "Error uploading Equipment Layout Drawing Number: $e",
-                    Colors.red,
-                    scaffoldMessenger,
-                  );
-                }
-              }
-            }
-            json['assets']['eqpmtLytDrawAttach'] = uploadedFiles;
-          }
+          json['assets'] = assetMap;
 
           final workOrder = {
-            'id': json['assets']['_id'],
+            'id': json['assets']['_id'] ?? json['assets']['id'] ?? asset.id,
             'work_order_json': json,
             'created_by': userId,
             'updated_by': userId,
@@ -366,6 +621,96 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
 
           syncedCount++;
 
+          double progress = syncedCount / totalAssetsToSync;
+          _updateSyncProgress(progress);
+        }
+      }
+
+      for (final asset in assets) {
+        if (!selectedAssetsSync.contains(asset.id)) {
+          selectedAssetsSync.add(asset.id);
+          var assetJson = _safeAssetToJson(asset);
+
+          // Checklist processing
+          if (assetJson['checkList'] is List) {
+            final List clList = assetJson['checkList'];
+            final List<Map<String, dynamic>> processedCheckList = [];
+            for (var item in clList) {
+              if (item is Map) {
+                processedCheckList.add(Map<String, dynamic>.from(item));
+              } else {
+                try {
+                  processedCheckList.add(
+                      Map<String, dynamic>.from((item as dynamic).toJson()));
+                } catch (_) {}
+              }
+            }
+            assetJson['checkList'] = processedCheckList;
+            if (assetJson['checkList'].isNotEmpty &&
+                (assetJson['yesNoSelection'] == null ||
+                    assetJson['yesNoSelection'].isEmpty)) {
+              assetJson['yesNoSelection'] ??= <String, dynamic>{};
+              for (var checklist in assetJson['checkList']) {
+                if (checklist is Map && checklist['defectCodes'] is List) {
+                  for (var defectCodes in checklist['defectCodes']) {
+                    if (defectCodes is Map &&
+                        defectCodes['defectCode'] != null) {
+                      assetJson['yesNoSelection'][defectCodes['defectCode']] =
+                          "no";
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Download and persist all media files locally for fallback assets
+          assetJson = await _processAssetMediaFiles(
+            assetJson,
+            userId,
+            userType,
+            token,
+            dbHelper,
+          );
+
+          final syntheticJson = {
+            '_id': 'wo_${asset.id}',
+            'woNumber': 'WO-${asset.id}',
+            'woType': 'Inspection',
+            'discipline': asset.eqpmtCatg,
+            'woDate': DateTime.now().toIso8601String(),
+            'department': '',
+            'maintanaceType': '',
+            'description': asset.description,
+            'startDate': DateTime.now().toIso8601String(),
+            'endDate': DateTime.now().toIso8601String(),
+            'duration': '',
+            'permitType': '',
+            'priority': '',
+            'attachments': '',
+            'createdBy': userId,
+            'isActive': true,
+            'total': '1',
+            'completed': '0',
+            'status': 'Open',
+            'remark': '',
+            'attachementUrl': '',
+            'fieldName': asset.location,
+            'location': asset.location,
+            'platform': asset.area,
+            'subLocation': asset.area,
+            'deckLevel': asset.deckLevel ?? '',
+            'area': asset.deckLevel ?? '',
+            'assets': assetJson,
+          };
+          final workOrder = {
+            'id': asset.id,
+            'work_order_json': syntheticJson,
+            'created_by': userId,
+            'updated_by': userId,
+          };
+          await repository.insertWorkOrderAsset(workOrder);
+          syncedCount++;
           double progress = syncedCount / totalAssetsToSync;
           _updateSyncProgress(progress);
         }
@@ -393,6 +738,13 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
       } catch (e) {
         // Continue if server status update fails; local DB insertion succeeded
       }
+
+      if (context.mounted) {
+        BlocProvider.of<DeviceSyncBloc>(context).add(
+          RemoveTransferredAssetsFromDeviceSync(selectedIds),
+        );
+      }
+
       _closeDialogIfOpen(navigator);
       _showToast(
         "Items inserted into local DB successfully.",
@@ -470,6 +822,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             scaffoldMessenger,
           );
 
+          _selectedRows.clear();
           BlocProvider.of<ToServerBloc>(context).add(WorkOrderToServerLoad());
         } catch (e) {
           if (!mounted) return;
@@ -621,6 +974,9 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
               registerCollections = state.assets;
             }
             getAssets = state.assets;
+            if (_selectedRows.length != state.assets.length) {
+              _selectedRows = List<bool>.filled(state.assets.length, false);
+            }
             return StatefulBuilder(
               builder: (BuildContext context, StateSetter setState) {
                 return Container(
@@ -634,14 +990,17 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             return ServerToDeviceTable(
-                              // key: ValueKey(state.assets.hashCode),
+                              key: ValueKey(state.assets.hashCode),
                               assets: state.assets,
                               registerCollections: registerCollections,
                               headers: state.tableHeaders,
                               onRowSelected: (index) {
                                 setState(() {
-                                  _selectedRows[index] = !_selectedRows[index];
+                                  if (index < _selectedRows.length) {
+                                    _selectedRows[index] = !_selectedRows[index];
+                                  }
                                 });
+                                this.setState(() {});
                               },
                               sortOrder: state.sortOrder,
                               filterIndex: state.filterIndex,
@@ -681,6 +1040,9 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
                 selectedFilters = state.selectedFilters;
                 collectionSelectedFilter = state.collectionSelectedFilter;
                 getAssets = state.assets;
+                if (_selectedRows.length != state.assets.length) {
+                  _selectedRows = List<bool>.filled(state.assets.length, false);
+                }
               });
             }
           }

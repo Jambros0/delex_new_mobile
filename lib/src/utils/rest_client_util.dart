@@ -20,6 +20,8 @@ class HttpUtils {
     return baseUrl;
   }
 
+  static const Duration timeoutDuration = Duration(seconds: 45);
+
   static Future<http.Response> post(
     String endpoint, {
     Map<String, String>? headers,
@@ -33,11 +35,13 @@ class HttpUtils {
     // print("rawUrl => ${rawUrl}");
     // print("url => ${url}");
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: headers ?? {'Content-Type': _contentType},
-        body: body is String ? body : jsonEncode(body),
-      );
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: headers ?? {'Content-Type': _contentType},
+            body: body is String ? body : jsonEncode(body),
+          )
+          .timeout(timeoutDuration);
       return TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');
@@ -51,10 +55,12 @@ class HttpUtils {
   }) async {
     final url = '${await getApiUrl()}$endpoint';
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: headers ?? {'Content-Type': _contentType},
-      );
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: headers ?? {'Content-Type': _contentType},
+          )
+          .timeout(timeoutDuration);
       return TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');
@@ -86,7 +92,9 @@ class HttpUtils {
       final request = http.Request('GET', Uri.parse(url))
         ..headers.addAll(headers ?? {'Content-Type': _contentType})
         ..body = body != null ? jsonEncode(body) : '';
-      final response = await http.Response.fromStream(await request.send());
+      final response = await http.Response.fromStream(
+        await request.send().timeout(timeoutDuration),
+      ).timeout(timeoutDuration);
       return TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');
@@ -101,10 +109,12 @@ class HttpUtils {
     final rawUrl = '${await getApiUrl()}$endpoint';
     final url = _sanitizeUrl(rawUrl);
     try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers ?? {'Content-Type': _contentType},
-      );
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: headers ?? {'Content-Type': _contentType},
+          )
+          .timeout(timeoutDuration);
       return await TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');
@@ -124,8 +134,10 @@ class HttpUtils {
       ..files.add(await http.MultipartFile.fromPath(fileKey, file.path));
 
     try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final streamedResponse =
+          await request.send().timeout(timeoutDuration);
+      final response = await http.Response.fromStream(streamedResponse)
+          .timeout(timeoutDuration);
       return TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');
@@ -146,8 +158,10 @@ class HttpUtils {
       request.files.add(await http.MultipartFile.fromPath(fileKey, file.path));
     }
     try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final streamedResponse =
+          await request.send().timeout(timeoutDuration);
+      final response = await http.Response.fromStream(streamedResponse)
+          .timeout(timeoutDuration);
       return TokenInterceptor().intercept(response);
     } catch (e) {
       throw Exception('Failed to connect to the server');

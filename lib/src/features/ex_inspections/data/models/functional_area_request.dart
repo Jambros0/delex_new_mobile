@@ -61,7 +61,8 @@ class FunctionalAreaRequest {
         'eqpmtLytDrawAttachOrgName': eqpmtLytDrawAttachOrgName,
         'eqpmtLytDrawAttach': eqpmtLytDrawAttach,
         'eqpmtLytDrawNo': eqpmtLytDrawNo,
-        'locationId': locationId,
+        if (locationId != null && locationId.toString().isNotEmpty)
+          'locationId': locationId,
         'locationLongitude': locationLongitude,
         'locationLatitude': locationLatitude,
         'isActive': isActive,

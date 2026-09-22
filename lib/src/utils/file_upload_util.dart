@@ -4,16 +4,20 @@ import 'dart:convert';
 import 'dart:io';
 
 class FileUploadUtil {
-  final RegExp imageFileTypes = RegExp(r'\.(jpg|jpeg|png)$');
-  final RegExp generalFileTypes = RegExp(r'\.(pdf|jpeg|xlsx|xls|png|jpg)$');
+  final RegExp imageFileTypes =
+      RegExp(r'\.(jpg|jpeg|png|webp|jfif|bmp|heic|gif)$', caseSensitive: false);
+  final RegExp generalFileTypes = RegExp(
+      r'\.(pdf|jpeg|xlsx|xls|png|jpg|webp|jfif|bmp|heic|gif|doc|docx)$',
+      caseSensitive: false);
+
   bool isValidFileType(String fileName, RegExp allowedTypes) {
-    return allowedTypes.hasMatch(fileName.toLowerCase());
+    final cleanName = fileName.split('?').first.split('#').first;
+    if (!cleanName.contains('.')) return true;
+    return allowedTypes.hasMatch(cleanName.toLowerCase());
   }
 
   void getImageFileSize(File file) {
-    // int sizeInBytes = file.lengthSync(); // Gets the size in bytes
-    // double sizeInKB = sizeInBytes / 1024;
-    // double sizeInMB = sizeInKB / 1024;
+    // int sizeInBytes = file.lengthSync();
   }
 
   Future<Map<String, dynamic>> fileUpload(File file, String fileOf) async {
@@ -57,7 +61,7 @@ class FileUploadUtil {
     final accessToken = tokens['accessToken'];
     String url = "/Multifile?fileOf=$fileOf";
     if (!isValidFileType(file.path, imageFileTypes)) {
-      throw Exception('Invalid image file type. Allowed types: jpg, jpeg, png');
+      throw Exception('Invalid image file type. Allowed types: jpg, jpeg, png, webp');
     }
     final response = await HttpUtils.postMultipart(
       url,
@@ -96,7 +100,7 @@ class FileUploadUtil {
     for (var file in files) {
       if (!isValidFileType(file.path, imageFileTypes)) {
         throw Exception(
-            'Invalid image file type. Allowed types: jpg, jpeg, png');
+            'Invalid image file type. Allowed types: jpg, jpeg, png, webp');
       }
     }
     final response = await HttpUtils.photoMultipart(

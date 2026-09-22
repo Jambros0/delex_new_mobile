@@ -44,7 +44,10 @@ class Location {
 
   factory Location.fromJson(Map<String, dynamic> json) {
     return Location(
-        id: json['_id'] ?? json['locationId'] ?? '',
+        id: json['_id']?.toString() ??
+            json['locationId']?.toString() ??
+            json['id']?.toString() ??
+            '',
         location: json['location'] ?? '',
         area: json['area'] ?? '',
         deckLevel: json['deckLevel'],

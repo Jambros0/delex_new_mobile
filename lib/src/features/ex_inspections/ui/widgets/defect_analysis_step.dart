@@ -1756,9 +1756,76 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
     );
   }
 
+  bool _isRemoteImagePath(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return true;
+    }
+    if (path.startsWith('file://') ||
+        path.startsWith('/data/') ||
+        path.startsWith('/storage/') ||
+        path.startsWith('/sdcard/') ||
+        path.startsWith('C:') ||
+        path.startsWith('D:')) {
+      return false;
+    }
+    final file = File(path);
+    if (file.existsSync()) {
+      return false;
+    }
+    return true;
+  }
+
+  String _getResolvedImageUrl(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    final currentApiUrl = apiUrl ?? '';
+    final base = currentApiUrl.endsWith('/')
+        ? currentApiUrl.substring(0, currentApiUrl.length - 1)
+        : currentApiUrl;
+    return base.isNotEmpty ? "$base/$cleanPath" : cleanPath;
+  }
+
+  Widget _buildImagePreviewWidget(String imagePath,
+      {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+    if (_isRemoteImagePath(imagePath)) {
+      final url = _getResolvedImageUrl(imagePath);
+      return Image.network(
+        url,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: width,
+          height: height,
+          color: const Color(0xFFF1F5F9),
+          alignment: Alignment.center,
+          child:
+              const Icon(Icons.broken_image, color: Color(0xFF94A3B8), size: 28),
+        ),
+      );
+    } else {
+      final cleanPath =
+          imagePath.startsWith('file://') ? imagePath.substring(7) : imagePath;
+      return Image.file(
+        File(cleanPath),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: width,
+          height: height,
+          color: const Color(0xFFF1F5F9),
+          alignment: Alignment.center,
+          child:
+              const Icon(Icons.broken_image, color: Color(0xFF94A3B8), size: 28),
+        ),
+      );
+    }
+  }
+
   void _showImageDialog(String imagePath, String imageName) {
-    final isLocal =
-        imagePath.startsWith('/data/user/') || imagePath.startsWith('file://');
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1832,16 +1899,10 @@ class DefectAnalysisStepState extends State<DefectAnalysisStep> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12.0),
-                      child: isLocal
-                          ? Image.file(
-                              File(
-                                imagePath.startsWith('file://')
-                                    ? imagePath.substring(7)
-                                    : imagePath,
-                              ),
-                              fit: BoxFit.fill,
-                            )
-                          : Image.network(imagePath, fit: BoxFit.fill),
+                      child: _buildImagePreviewWidget(
+                        imagePath,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),

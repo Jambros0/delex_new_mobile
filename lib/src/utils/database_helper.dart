@@ -655,163 +655,24 @@ class DBHelper {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+    final Map<String, dynamic> fullAssetMap =
+        Map<String, dynamic>.from(assetFuncationJson);
+    fullAssetMap['_id'] = assetFuncationJson['_id'] ?? '';
+    fullAssetMap['locationId'] = assetFuncationJson['locationId'] ?? '';
+    fullAssetMap['location'] = assetFuncationJson['location'] ?? '';
+    fullAssetMap['area'] = assetFuncationJson['area'] ?? '';
+    fullAssetMap['zone'] = assetFuncationJson['zone'] ?? '';
+    fullAssetMap['isActive'] = assetFuncationJson['isActive'] ?? true;
+    fullAssetMap['isDuplicate'] = false;
+
+    final String nowTimestamp = DateTime.now().toIso8601String();
     final exRegisterData = {
       'exregister_json': jsonEncode({
-        'asset': {
-          '_id': assetFuncationJson['_id'] ?? '',
-          'locationId': assetFuncationJson['locationId'],
-          'location': assetFuncationJson['location'],
-          'area': assetFuncationJson['area'] ?? '',
-          'zone': assetFuncationJson['zone'] ?? '',
-          'areaClassDrawAttach':
-              assetFuncationJson['areaClassDrawAttach'] ?? [],
-          'areaClassDrawNo': assetFuncationJson['areaClassDrawNo'] ?? [],
-          'areaClassDrawAttachOrgName':
-              assetFuncationJson['areaClassDrawAttachOrgName'] ?? [],
-          'eqpmtLytDrawAttachOrgName':
-              assetFuncationJson['eqpmtLytDrawAttachOrgName'] ?? [],
-          'eqpmtLytDrawAttach': assetFuncationJson['eqpmtLytDrawAttach'] ?? [],
-          'locationGasGroup': assetFuncationJson['locationGasGroup'] ?? [],
-          'locationTClass': assetFuncationJson['locationTClass'] ?? [],
-          'locationIpRating': assetFuncationJson['locationIpRating'] ?? [],
-          'eqpmtLytDrawNo': assetFuncationJson['eqpmtLytDrawNo'] ?? [],
-          'deckLevel': assetFuncationJson['deckLevel'] ?? '',
-          'locationLongitude': assetFuncationJson['locationLongitude'] ?? '',
-          'locationLatitude': assetFuncationJson['locationLatitude'] ?? '',
-          'eqpmtLongitude': assetFuncationJson['eqpmtLongitude'] ?? '',
-          'eqpmtLatitude': assetFuncationJson['eqpmtLatitude'] ?? '',
-          'isActive': assetFuncationJson['isActive'] ?? '',
-          'eqpmtCatg': assetFuncationJson['eqpmtCatg'] ?? '',
-          'description': assetFuncationJson['description'] ?? '',
-          'atexCatg': assetFuncationJson['atexCatg'] ?? [],
-          'epl': assetFuncationJson['epl'] ?? [],
-          'protectionType': assetFuncationJson['protectionType'] ?? [],
-          'subArea': assetFuncationJson['subArea'] ?? '',
-          'rfidRef': assetFuncationJson['rfidRef'] ?? '',
-          'gpsCord': assetFuncationJson['gpsCord'] ?? '',
-          'eqpmtTag': assetFuncationJson['eqpmtTag'] ?? '',
-          'circuitId': assetFuncationJson['circuitId'] ?? '',
-          'cableId': assetFuncationJson['cableId'] ?? '',
-          'equipmentCategory': assetFuncationJson['equipmentCategory'] ?? '',
-          'manufacturer': assetFuncationJson['manufacturer'] ?? '',
-          'type': assetFuncationJson['type'] ?? '',
-          'serialNumber': assetFuncationJson['serialNumber'] ?? '',
-          'protectionStd': assetFuncationJson['protectionStd'] ?? '',
-          'equipmentGasGroup': assetFuncationJson['equipmentGasGroup'] ?? [],
-          'equipmentTClass': assetFuncationJson['equipmentTClass'] ?? [],
-          'equipmentIpRating': assetFuncationJson['equipmentIpRating'] ?? [],
-          'certfnBody': assetFuncationJson['certfnBody'] ?? '',
-          'locationTAmbient': assetFuncationJson['locationTAmbient'] ?? '',
-          'certfnNo': assetFuncationJson['certfnNo'] ?? '',
-          'tAmbient': assetFuncationJson['tAmbient'] ?? '',
-          'inspectionSignOff': assetFuncationJson['inspectionSignOff'] ?? '',
-          'repairSignOff': assetFuncationJson['repairSignOff'] ?? '',
-          'tAmbientEquip': assetFuncationJson['tAmbientEquip'] ?? '',
-          'specialCond': assetFuncationJson['specialCond'] ?? '',
-          'oracleId': assetFuncationJson['oracleId'] ?? '',
-          'yesNoSelection': assetFuncationJson['yesNoSelection'] ?? {},
-          'checkList': assetFuncationJson['checkList'] ?? [],
-          'inspectedBy': assetFuncationJson['inspectedBy'] ?? '',
-          'inspectedDate': assetFuncationJson['inspectedDate'] ?? '',
-          'repairedBy': assetFuncationJson['repairedBy'] ?? '',
-          'repairedDate': assetFuncationJson['repairedDate'] ?? '',
-          'faultyItems': assetFuncationJson['faultyItems'] ?? '',
-          'repairPriority': assetFuncationJson['repairPriority'] ?? '',
-          'inspectionStatus': assetFuncationJson['inspectionStatus'] ?? '',
-          'defectOverallCondition':
-              assetFuncationJson['defectOverallCondition'] ?? '',
-          'defectIsolation': assetFuncationJson['defectIsolation'] ?? '',
-          'defectOtherRequirements':
-              assetFuncationJson['defectOtherRequirements'] ?? [],
-          'remarks': assetFuncationJson['remarks'] ?? '',
-          'dataSheet': assetFuncationJson['dataSheet'] ?? '',
-          'dataSheetNo': assetFuncationJson['dataSheetNo'] ?? '',
-          'dataSheetOrgName': assetFuncationJson['dataSheetOrgName'] ?? '',
-          'defectivePhoto1': assetFuncationJson['defectivePhoto1'] ?? '',
-          'defectivePhoto1OrgName':
-              assetFuncationJson['defectivePhoto1OrgName'] ?? '',
-          'defectivePhoto2': assetFuncationJson['defectivePhoto2'] ?? '',
-          'defectivePhoto2OrgName':
-              assetFuncationJson['defectivePhoto2OrgName'] ?? '',
-          'defectivePhoto3': assetFuncationJson['defectivePhoto3'] ?? '',
-          'defectivePhoto3OrgName':
-              assetFuncationJson['defectivePhoto3OrgName'] ?? '',
-          'defectivePhoto4': assetFuncationJson['defectivePhoto4'] ?? '',
-          'defectivePhoto4OrgName':
-              assetFuncationJson['defectivePhoto4OrgName'] ?? '',
-          'defectivePhoto5': assetFuncationJson['defectivePhoto5'] ?? '',
-          'defectivePhoto5OrgName':
-              assetFuncationJson['defectivePhoto5OrgName'] ?? '',
-          'defectivePhoto6': assetFuncationJson['defectivePhoto6'] ?? '',
-          'defectivePhoto6OrgName':
-              assetFuncationJson['defectivePhoto6OrgName'] ?? '',
-          'materials': assetFuncationJson['materials'] ?? [],
-          'existingFaults': assetFuncationJson['existingFaults'] ?? '',
-          'correctiveDefectCategory':
-              assetFuncationJson['correctiveDefectCategory'] ?? '',
-          'currentStatus': assetFuncationJson['currentStatus'] ?? '',
-          'correctiveOverallCondition':
-              assetFuncationJson['correctiveOverallCondition'] ?? '',
-          'correctiveisolation':
-              assetFuncationJson['correctiveisolation'] ?? '',
-          'correctiveOtherRequirements':
-              assetFuncationJson['correctiveOtherRequirements'] ?? '',
-          'repairsDone': assetFuncationJson['repairsDone'] ?? '',
-          'rbiStrategy':
-              (assetFuncationJson['rbiStrategy'] as Map<String, dynamic>?) ??
-                  {},
-          'additionalInfoForRepairs':
-              assetFuncationJson['additionalInfoForRepairs'] ?? '',
-          'remarksIfAny': assetFuncationJson['remarksIfAny'] ?? '',
-          'supplementaryMaterialReq':
-              assetFuncationJson['supplementaryMaterialReq'] ?? [],
-          'defectCertificationOrgName':
-              assetFuncationJson['defectCertificationOrgName'] ?? '',
-          'defectCertificationNo':
-              assetFuncationJson['defectCertificationNo'] ?? '',
-          'defectCertificationAttach':
-              assetFuncationJson['defectCertificationAttach'] ?? '',
-          'correctiveCertificationNo':
-              assetFuncationJson['correctiveCertificationNo'] ?? '',
-          'correctiveCertificationOrgName':
-              assetFuncationJson['correctiveCertificationOrgName'] ?? '',
-          'correctiveCertificationAttach':
-              assetFuncationJson['correctiveCertificationAttach'] ?? '',
-          'inspectionChecklistType':
-              assetFuncationJson['inspectionChecklistType'] ?? [],
-          'inspectionType': assetFuncationJson['inspectionType'] ?? '',
-          'inspectionGrade': assetFuncationJson['inspectionGrade'] ?? '',
-          'equipmentEquipmentType':
-              assetFuncationJson['equipmentEquipmentType'] ?? '',
-          'correctivePhoto1': assetFuncationJson['correctivePhoto1'] ?? '',
-          'correctivePhoto1OrgName':
-              assetFuncationJson['correctivePhoto1OrgName'] ?? '',
-          'correctivePhoto2': assetFuncationJson['correctivePhoto2'] ?? '',
-          'correctivePhoto2OrgName':
-              assetFuncationJson['correctivePhoto2OrgName'] ?? '',
-          'correctivePhoto3': assetFuncationJson['correctivePhoto3'] ?? '',
-          'correctivePhoto3OrgName':
-              assetFuncationJson['correctivePhoto3OrgName'] ?? '',
-          'correctivePhoto4': assetFuncationJson['correctivePhoto4'] ?? '',
-          'correctivePhoto4OrgName':
-              assetFuncationJson['correctivePhoto4OrgName'] ?? '',
-          'correctivePhoto5': assetFuncationJson['correctivePhoto5'] ?? '',
-          'correctivePhoto5OrgName':
-              assetFuncationJson['correctivePhoto5OrgName'] ?? '',
-          'correctivePhoto6': assetFuncationJson['correctivePhoto6'] ?? '',
-          'correctivePhoto6OrgName':
-              assetFuncationJson['correctivePhoto6OrgName'] ?? '',
-          'primaryId': assetFuncationJson['_id'] ?? '',
-          'defectDefectCategory':
-              assetFuncationJson['defectDefectCategory'] ?? '',
-          'repairDuration': assetFuncationJson['repairDuration'] ?? '',
-          'repairTimeEstimate': assetFuncationJson['repairTimeEstimate'] ?? '',
-          'isDuplicate': false,
-          'areaStatus': assetFuncationJson['areaStatus'] ?? '',
-        },
+        'asset': fullAssetMap,
       }),
       'created_by': workOrder['created_by'],
       'updated_by': workOrder['updated_by'],
+      'updated_date': nowTimestamp,
     };
     final assetIdData = assetFuncationJson['_id'];
     final existingExRegister = await db.query(
@@ -834,6 +695,7 @@ class DBHelper {
         whereArgs: [recordId],
       );
     } else {
+      exRegisterData['created_date'] = nowTimestamp;
       recordId = await db.insert(
         'exregister_table',
         exRegisterData,
@@ -896,22 +758,63 @@ class DBHelper {
         updatedFunctionalArea['functional_area_json'] as String;
     final updatedFunctionalAreaData =
         jsonDecode(updatedFunctionalAreaJson) as Map<String, dynamic>;
-    final updatedLocationId =
-        updatedFunctionalAreaData['location']?['locationId'];
+    dynamic rawLocationId =
+        updatedFunctionalAreaData['location']?['locationId'] ??
+        updatedFunctionalAreaData['location']?['_id'] ??
+        updatedFunctionalAreaData['location']?['id'] ??
+        updatedFunctionalAreaData['locationId'] ??
+        updatedFunctionalAreaData['_id'] ??
+        updatedFunctionalAreaData['id'] ??
+        updatedFunctionalArea['locationId'] ??
+        updatedFunctionalArea['id'];
+    String? updatedLocationId = rawLocationId?.toString();
 
-    if (updatedLocationId == null) {
-      throw ArgumentError(
-        'Invalid functional_area_json: locationId is missing',
-      );
+    if (updatedLocationId == null || updatedLocationId.isEmpty) {
+      final locField = updatedFunctionalAreaData['location']?['location'] ??
+          updatedFunctionalAreaData['location'];
+      final areaField = updatedFunctionalAreaData['location']?['area'] ??
+          updatedFunctionalAreaData['area'];
+      if (locField != null && areaField != null) {
+        final existingRows = await _safeBatchQuery(
+          db,
+          'functional_area',
+          where: 'functional_area_json LIKE ? AND functional_area_json LIKE ?',
+          whereArgs: ['%"location":"$locField"%', '%"area":"$areaField"%'],
+        );
+        if (existingRows.isNotEmpty) {
+          updatedLocationId = existingRows.first['id'].toString();
+        }
+      }
     }
 
+    if (updatedLocationId == null || updatedLocationId.isEmpty) {
+      await saveFunctionalArea(updatedFunctionalArea);
+      return;
+    }
+
+    if (updatedFunctionalAreaData['location'] is Map<String, dynamic>) {
+      updatedFunctionalAreaData['location']['locationId'] = updatedLocationId;
+      updatedFunctionalArea['functional_area_json'] =
+          jsonEncode(updatedFunctionalAreaData);
+    }
+
+    final updatePayload = <String, dynamic>{
+      'functional_area_json': updatedFunctionalArea['functional_area_json'],
+      if (updatedFunctionalArea['updated_by'] != null)
+        'updated_by': updatedFunctionalArea['updated_by'],
+      if (updatedFunctionalArea['created_by'] != null)
+        'created_by': updatedFunctionalArea['created_by'],
+      'updated_date': DateTime.now().toIso8601String(),
+    };
+
+    final int? parsedId = int.tryParse(updatedLocationId);
     await db.update(
       'functional_area',
-      updatedFunctionalArea,
+      updatePayload,
       where: 'functional_area_json LIKE ? OR id = ?',
       whereArgs: [
         '%"locationId":"$updatedLocationId"%',
-        int.tryParse(updatedLocationId) ?? -1,
+        parsedId ?? -1,
       ],
     );
 
@@ -939,6 +842,9 @@ class DBHelper {
       'locationTClass',
       'locationIpRating',
       'deckLevel',
+      'tAmbient',
+      'locationTAmbient',
+      'areaStatus',
       'isActive',
     ];
 
@@ -947,28 +853,34 @@ class DBHelper {
       final exRegisterData =
           jsonDecode(exRegisterJsonString) as Map<String, dynamic>;
 
-      if (exRegisterData['asset']?['locationId'] == updatedLocationId) {
-        final updatedExRegisterData = Map<String, dynamic>.from(exRegisterData);
-        final asset = updatedExRegisterData['asset'] as Map<String, dynamic>;
+      final asset = (exRegisterData['asset'] is Map<String, dynamic>)
+          ? exRegisterData['asset'] as Map<String, dynamic>
+          : exRegisterData;
+
+      if (asset['locationId']?.toString() == updatedLocationId) {
+        final locMap = updatedFunctionalAreaData['location'] is Map<String, dynamic>
+            ? updatedFunctionalAreaData['location'] as Map<String, dynamic>
+            : updatedFunctionalAreaData;
 
         for (final field in fieldsToUpdate) {
-          if (updatedFunctionalAreaData['location'] != null &&
-              updatedFunctionalAreaData['location'].containsKey(field)) {
-            asset[field] = updatedFunctionalAreaData['location'][field];
-          } else if (updatedFunctionalAreaData.containsKey(field)) {
-            asset[field] = updatedFunctionalAreaData[field];
+          if (locMap.containsKey(field)) {
+            asset[field] = locMap[field];
           }
         }
+        if (locMap.containsKey('tAmbient') && !locMap.containsKey('locationTAmbient')) {
+          asset['locationTAmbient'] = locMap['tAmbient'];
+        }
 
-        updatedExRegisterData['exregister_json'] = jsonEncode(
-          updatedExRegisterData,
+        final updatedExRegisterJsonString = jsonEncode(
+          exRegisterData.containsKey('asset') ? exRegisterData : {'asset': asset},
         );
-
-        final updatedExRegisterJsonString = jsonEncode(updatedExRegisterData);
 
         await db.update(
           'exregister_table',
-          {'exregister_json': updatedExRegisterJsonString},
+          {
+            'exregister_json': updatedExRegisterJsonString,
+            'updated_date': DateTime.now().toIso8601String(),
+          },
           where: 'id = ?',
           whereArgs: [exRegister['id']],
         );
@@ -1016,11 +928,16 @@ class DBHelper {
 
   Future<Map<String, dynamic>?> getFunctionalAreaById(String locationId) async {
     final db = await workOrderDatabase;
+    final int? idVal = int.tryParse(locationId);
     final results = await _safeBatchQuery(
       db,
       'functional_area',
-      where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$locationId"%'],
+      where: idVal != null
+          ? 'id = ? OR functional_area_json LIKE ?'
+          : 'functional_area_json LIKE ?',
+      whereArgs: idVal != null
+          ? [idVal, '%"locationId":"$locationId"%']
+          : ['%"locationId":"$locationId"%'],
     );
     return results.isNotEmpty ? results.first : null;
   }
@@ -1048,6 +965,56 @@ class DBHelper {
       whereArgs: [newId],
     );
     return newId.toString();
+  }
+
+  Future<Set<String>> getLocalAssetIds({String? userType}) async {
+    final Set<String> assetIds = {};
+    try {
+      final bool isOnshore = userType?.toLowerCase() == 'onshore';
+      final db = isOnshore ? await onshoreDatabase : await workOrderDatabase;
+      final assetTable = isOnshore ? 'workOrder_assets_onshore' : 'workOrder_assets';
+      final exregisterTable = isOnshore ? 'exregister_table_onshore' : 'exregister_table';
+
+      try {
+        final rows = await db.query(assetTable, columns: ['id']);
+        for (final r in rows) {
+          final id = r['id']?.toString().trim();
+          if (id != null && id.isNotEmpty && id.toLowerCase() != 'null') {
+            assetIds.add(id);
+          }
+        }
+      } catch (_) {}
+
+      try {
+        final exRows = await db.query(exregisterTable, columns: ['asset_id', 'exregister_json']);
+        for (final r in exRows) {
+          final assetId = r['asset_id']?.toString().trim();
+          if (assetId != null && assetId.isNotEmpty && assetId.toLowerCase() != 'null') {
+            assetIds.add(assetId);
+          }
+          final jsonRaw = r['exregister_json'];
+          if (jsonRaw != null) {
+            try {
+              final jsonMap = jsonRaw is String ? jsonDecode(jsonRaw) : jsonRaw;
+              final dynamic assetMap = jsonMap is Map ? (jsonMap['asset'] ?? jsonMap) : null;
+              if (assetMap is Map) {
+                final id1 = assetMap['_id']?.toString().trim();
+                final id2 = assetMap['id']?.toString().trim();
+                if (id1 != null && id1.isNotEmpty && id1.toLowerCase() != 'null') {
+                  assetIds.add(id1);
+                }
+                if (id2 != null && id2.isNotEmpty && id2.toLowerCase() != 'null') {
+                  assetIds.add(id2);
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    } catch (e) {
+      // Safe fallback
+    }
+    return assetIds;
   }
 
   Future<List<Map<String, dynamic>>> getExRegister() async {
@@ -1188,12 +1155,64 @@ class DBHelper {
 
   Future<int> deleteExRegisterById(String assetId, String id) async {
     final db = await workOrderDatabase;
+    final candidates = <String>{};
+    if (assetId.trim().isNotEmpty && assetId.trim() != '0') {
+      candidates.add(assetId.trim());
+    }
+    if (id.trim().isNotEmpty && id.trim() != '0') {
+      candidates.add(id.trim());
+    }
+    if (candidates.isEmpty) return 0;
 
-    return await db.delete(
-      'exregister_table',
-      where: 'id = ?',
-      whereArgs: [id.isNotEmpty ? id : assetId],
-    );
+    int totalDeleted = 0;
+    for (final cand in candidates) {
+      final intVal = int.tryParse(cand);
+      if (intVal != null) {
+        final d = await db.delete(
+          'exregister_table',
+          where: 'id = ?',
+          whereArgs: [intVal],
+        );
+        totalDeleted += d;
+      }
+    }
+
+    final results = await _safeBatchQuery(db, 'exregister_table');
+    final idsToDelete = results
+        .where((row) {
+          final rowIdStr = row['id']?.toString();
+          if (rowIdStr != null && candidates.contains(rowIdStr)) return true;
+          final exRegisterJson = row['exregister_json'];
+          if (exRegisterJson == null) return false;
+          try {
+            final jsonMap = (exRegisterJson is String)
+                ? jsonDecode(exRegisterJson) as Map<String, dynamic>
+                : exRegisterJson as Map<String, dynamic>;
+            final dynamic rawAsset = jsonMap['asset'] ?? jsonMap;
+            if (rawAsset is Map) {
+              final id1 = rawAsset['_id']?.toString();
+              final id2 = rawAsset['primaryId']?.toString();
+              final id3 = rawAsset['id']?.toString();
+              return (id1 != null && candidates.contains(id1)) ||
+                  (id2 != null && candidates.contains(id2)) ||
+                  (id3 != null && candidates.contains(id3));
+            }
+          } catch (_) {}
+          return false;
+        })
+        .map((row) => row['id'])
+        .toList();
+
+    if (idsToDelete.isNotEmpty) {
+      final placeholders = List.filled(idsToDelete.length, '?').join(', ');
+      final d = await db.delete(
+        'exregister_table',
+        where: 'id IN ($placeholders)',
+        whereArgs: idsToDelete,
+      );
+      totalDeleted += d;
+    }
+    return totalDeleted;
   }
 
   Future<int> deleteExRegisterCollectionById(
@@ -1536,6 +1555,35 @@ class DBHelper {
   ) async {
     final db = await onshoreDatabase;
 
+    if (assetId > 0) {
+      final directRow = await db.query(
+        'exregister_table_onshore',
+        where: 'id = ?',
+        whereArgs: [assetId],
+      );
+      if (directRow.isNotEmpty) {
+        final row = directRow.first;
+        final String? jsonStr = row['exregister_json'] as String?;
+        if (jsonStr != null) {
+          final dynamic parsedJson = jsonDecode(jsonStr);
+          final asset = (parsedJson is Map && parsedJson['asset'] is Map)
+              ? parsedJson['asset']
+              : (parsedJson is Map ? parsedJson : null);
+          if (asset is Map<String, dynamic> || asset is Map) {
+            _updateAssetObject(
+                Map<String, dynamic>.from(asset), locationId, functionalAreaMap);
+            await db.update(
+              'exregister_table_onshore',
+              {'exregister_json': jsonEncode(parsedJson)},
+              where: 'id = ?',
+              whereArgs: [assetId],
+            );
+            return;
+          }
+        }
+      }
+    }
+
     final result = await _safeBatchQuery(
       db,
       'exregister_table_onshore',
@@ -1593,21 +1641,63 @@ class DBHelper {
         updatedFunctionalArea['functional_area_json'] as String;
     final updatedFunctionalAreaData =
         jsonDecode(updatedFunctionalAreaJson) as Map<String, dynamic>;
-    final updatedLocationId =
-        updatedFunctionalAreaData['location']?['locationId'];
-    if (updatedLocationId == null) {
-      throw ArgumentError(
-        'Invalid functional_area_json: locationId is missing',
-      );
+    dynamic rawLocationId =
+        updatedFunctionalAreaData['location']?['locationId'] ??
+        updatedFunctionalAreaData['location']?['_id'] ??
+        updatedFunctionalAreaData['location']?['id'] ??
+        updatedFunctionalAreaData['locationId'] ??
+        updatedFunctionalAreaData['_id'] ??
+        updatedFunctionalAreaData['id'] ??
+        updatedFunctionalArea['locationId'] ??
+        updatedFunctionalArea['id'];
+    String? updatedLocationId = rawLocationId?.toString();
+
+    if (updatedLocationId == null || updatedLocationId.isEmpty) {
+      final locField = updatedFunctionalAreaData['location']?['location'] ??
+          updatedFunctionalAreaData['location'];
+      final areaField = updatedFunctionalAreaData['location']?['area'] ??
+          updatedFunctionalAreaData['area'];
+      if (locField != null && areaField != null) {
+        final existingRows = await _safeBatchQuery(
+          db,
+          'functional_area_onshore',
+          where: 'functional_area_json LIKE ? AND functional_area_json LIKE ?',
+          whereArgs: ['%"location":"$locField"%', '%"area":"$areaField"%'],
+        );
+        if (existingRows.isNotEmpty) {
+          updatedLocationId = existingRows.first['id'].toString();
+        }
+      }
     }
 
+    if (updatedLocationId == null || updatedLocationId.isEmpty) {
+      await saveFunctionalAreaOnshore(updatedFunctionalArea);
+      return;
+    }
+
+    if (updatedFunctionalAreaData['location'] is Map<String, dynamic>) {
+      updatedFunctionalAreaData['location']['locationId'] = updatedLocationId;
+      updatedFunctionalArea['functional_area_json'] =
+          jsonEncode(updatedFunctionalAreaData);
+    }
+
+    final updatePayload = <String, dynamic>{
+      'functional_area_json': updatedFunctionalArea['functional_area_json'],
+      if (updatedFunctionalArea['updated_by'] != null)
+        'updated_by': updatedFunctionalArea['updated_by'],
+      if (updatedFunctionalArea['created_by'] != null)
+        'created_by': updatedFunctionalArea['created_by'],
+      'updated_date': DateTime.now().toIso8601String(),
+    };
+
+    final int? parsedId = int.tryParse(updatedLocationId);
     await db.update(
       'functional_area_onshore',
-      updatedFunctionalArea,
+      updatePayload,
       where: 'functional_area_json LIKE ? OR id = ?',
       whereArgs: [
         '%"locationId":"$updatedLocationId"%',
-        int.tryParse(updatedLocationId) ?? -1,
+        parsedId ?? -1,
       ],
     );
 
@@ -1635,6 +1725,9 @@ class DBHelper {
       'locationTClass',
       'locationIpRating',
       'deckLevel',
+      'tAmbient',
+      'locationTAmbient',
+      'areaStatus',
       'isActive',
     ];
 
@@ -1643,27 +1736,34 @@ class DBHelper {
       final exRegisterData =
           jsonDecode(exRegisterJsonString) as Map<String, dynamic>;
 
-      if (exRegisterData['asset']?['locationId'] == updatedLocationId) {
-        final updatedExRegisterData = Map<String, dynamic>.from(exRegisterData);
-        final asset = updatedExRegisterData['asset'] as Map<String, dynamic>;
+      final asset = (exRegisterData['asset'] is Map<String, dynamic>)
+          ? exRegisterData['asset'] as Map<String, dynamic>
+          : exRegisterData;
+
+      if (asset['locationId']?.toString() == updatedLocationId) {
+        final locMap = updatedFunctionalAreaData['location'] is Map<String, dynamic>
+            ? updatedFunctionalAreaData['location'] as Map<String, dynamic>
+            : updatedFunctionalAreaData;
 
         for (final field in fieldsToUpdate) {
-          if (updatedFunctionalAreaData['location'] != null &&
-              updatedFunctionalAreaData['location'].containsKey(field)) {
-            asset[field] = updatedFunctionalAreaData['location'][field];
-          } else if (updatedFunctionalAreaData.containsKey(field)) {
-            asset[field] = updatedFunctionalAreaData[field];
+          if (locMap.containsKey(field)) {
+            asset[field] = locMap[field];
           }
         }
+        if (locMap.containsKey('tAmbient') && !locMap.containsKey('locationTAmbient')) {
+          asset['locationTAmbient'] = locMap['tAmbient'];
+        }
 
-        updatedExRegisterData['exregister_json'] = jsonEncode(
-          updatedExRegisterData,
+        final updatedExRegisterJsonString = jsonEncode(
+          exRegisterData.containsKey('asset') ? exRegisterData : {'asset': asset},
         );
 
-        final updatedExRegisterJsonString = jsonEncode(updatedExRegisterData);
         await db.update(
           'exregister_table_onshore',
-          {'exregister_json': updatedExRegisterJsonString},
+          {
+            'exregister_json': updatedExRegisterJsonString,
+            'updated_date': DateTime.now().toIso8601String(),
+          },
           where: 'id = ?',
           whereArgs: [exRegister['id']],
         );
@@ -1713,11 +1813,16 @@ class DBHelper {
     String locationId,
   ) async {
     final db = await onshoreDatabase;
+    final int? idVal = int.tryParse(locationId);
     final results = await _safeBatchQuery(
       db,
       'functional_area_onshore',
-      where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$locationId"%'],
+      where: idVal != null
+          ? 'id = ? OR functional_area_json LIKE ?'
+          : 'functional_area_json LIKE ?',
+      whereArgs: idVal != null
+          ? [idVal, '%"locationId":"$locationId"%']
+          : ['%"locationId":"$locationId"%'],
     );
     return results.isNotEmpty ? results.first : null;
   }
@@ -1869,11 +1974,64 @@ class DBHelper {
 
   Future<int> deleteExRegisterByIdOnshore(String assetId, String id) async {
     final db = await onshoreDatabase;
-    return await db.delete(
-      'exregister_table_onshore',
-      where: 'id = ?',
-      whereArgs: [id.isNotEmpty ? id : assetId],
-    );
+    final candidates = <String>{};
+    if (assetId.trim().isNotEmpty && assetId.trim() != '0') {
+      candidates.add(assetId.trim());
+    }
+    if (id.trim().isNotEmpty && id.trim() != '0') {
+      candidates.add(id.trim());
+    }
+    if (candidates.isEmpty) return 0;
+
+    int totalDeleted = 0;
+    for (final cand in candidates) {
+      final intVal = int.tryParse(cand);
+      if (intVal != null) {
+        final d = await db.delete(
+          'exregister_table_onshore',
+          where: 'id = ?',
+          whereArgs: [intVal],
+        );
+        totalDeleted += d;
+      }
+    }
+
+    final results = await _safeBatchQuery(db, 'exregister_table_onshore');
+    final idsToDelete = results
+        .where((row) {
+          final rowIdStr = row['id']?.toString();
+          if (rowIdStr != null && candidates.contains(rowIdStr)) return true;
+          final exRegisterJson = row['exregister_json'];
+          if (exRegisterJson == null) return false;
+          try {
+            final jsonMap = (exRegisterJson is String)
+                ? jsonDecode(exRegisterJson) as Map<String, dynamic>
+                : exRegisterJson as Map<String, dynamic>;
+            final dynamic rawAsset = jsonMap['asset'] ?? jsonMap;
+            if (rawAsset is Map) {
+              final id1 = rawAsset['_id']?.toString();
+              final id2 = rawAsset['primaryId']?.toString();
+              final id3 = rawAsset['id']?.toString();
+              return (id1 != null && candidates.contains(id1)) ||
+                  (id2 != null && candidates.contains(id2)) ||
+                  (id3 != null && candidates.contains(id3));
+            }
+          } catch (_) {}
+          return false;
+        })
+        .map((row) => row['id'])
+        .toList();
+
+    if (idsToDelete.isNotEmpty) {
+      final placeholders = List.filled(idsToDelete.length, '?').join(', ');
+      final d = await db.delete(
+        'exregister_table_onshore',
+        where: 'id IN ($placeholders)',
+        whereArgs: idsToDelete,
+      );
+      totalDeleted += d;
+    }
+    return totalDeleted;
   }
 
   Future<int> deleteExRegisterCollectionByIdOnshore(
@@ -2246,161 +2404,24 @@ class DBHelper {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+    final Map<String, dynamic> fullAssetMap =
+        Map<String, dynamic>.from(assetFuncationJson);
+    fullAssetMap['_id'] = assetFuncationJson['_id'] ?? '';
+    fullAssetMap['locationId'] = assetFuncationJson['locationId'] ?? '';
+    fullAssetMap['location'] = assetFuncationJson['location'] ?? '';
+    fullAssetMap['area'] = assetFuncationJson['area'] ?? '';
+    fullAssetMap['zone'] = assetFuncationJson['zone'] ?? '';
+    fullAssetMap['isActive'] = assetFuncationJson['isActive'] ?? true;
+    fullAssetMap['isDuplicate'] = false;
+
+    final String nowTimestamp = DateTime.now().toIso8601String();
     final exRegisterData = {
       'exregister_json': jsonEncode({
-        'asset': {
-          '_id': assetFuncationJson['_id'] ?? '',
-          'locationId': assetFuncationJson['locationId'],
-          'location': assetFuncationJson['location'],
-          'area': assetFuncationJson['area'] ?? '',
-          'zone': assetFuncationJson['zone'] ?? '',
-          'locationGasGroup': assetFuncationJson['locationGasGroup'] ?? [],
-          'locationTClass': assetFuncationJson['locationTClass'] ?? [],
-          'locationIpRating': assetFuncationJson['locationIpRating'] ?? [],
-          'areaClassDrawAttach':
-              assetFuncationJson['areaClassDrawAttach'] ?? [],
-          'areaClassDrawNo': assetFuncationJson['areaClassDrawNo'] ?? [],
-          'areaClassDrawAttachOrgName':
-              assetFuncationJson['areaClassDrawAttachOrgName'] ?? [],
-          'eqpmtLytDrawAttachOrgName':
-              assetFuncationJson['eqpmtLytDrawAttachOrgName'] ?? [],
-          'eqpmtLytDrawAttach': assetFuncationJson['eqpmtLytDrawAttach'] ?? [],
-          'eqpmtLytDrawNo': assetFuncationJson['eqpmtLytDrawNo'] ?? [],
-          'deckLevel': assetFuncationJson['deckLevel'] ?? '',
-          'locationLongitude': assetFuncationJson['locationLongitude'] ?? '',
-          'locationLatitude': assetFuncationJson['locationLatitude'] ?? '',
-          'isActive': assetFuncationJson['isActive'] ?? '',
-          'areaStatus': assetFuncationJson['areaStatus'],
-          'eqpmtCatg': assetFuncationJson['eqpmtCatg'] ?? '',
-          'description': assetFuncationJson['description'] ?? '',
-          'atexCatg': assetFuncationJson['atexCatg'] ?? [],
-          'epl': assetFuncationJson['epl'] ?? [],
-          'protectionType': assetFuncationJson['protectionType'] ?? [],
-          'subArea': assetFuncationJson['subArea'] ?? '',
-          'rfidRef': assetFuncationJson['rfidRef'] ?? '',
-          'gpsCord': assetFuncationJson['gpsCord'] ?? '',
-          'eqpmtTag': assetFuncationJson['eqpmtTag'] ?? '',
-          'circuitId': assetFuncationJson['circuitId'] ?? '',
-          'cableId': assetFuncationJson['cableId'] ?? '',
-          'equipmentCategory': assetFuncationJson['equipmentCategory'] ?? '',
-          'manufacturer': assetFuncationJson['manufacturer'] ?? '',
-          'type': assetFuncationJson['type'] ?? '',
-          'serialNumber': assetFuncationJson['serialNumber'] ?? '',
-          'protectionStd': assetFuncationJson['protectionStd'] ?? '',
-          'equipmentGasGroup': assetFuncationJson['equipmentGasGroup'] ?? [],
-          'equipmentTClass': assetFuncationJson['equipmentTClass'] ?? [],
-          'equipmentIpRating': assetFuncationJson['equipmentIpRating'] ?? [],
-          'certfnBody': assetFuncationJson['certfnBody'] ?? '',
-          'locationTAmbient': assetFuncationJson['locationTAmbient'] ?? '',
-          'certfnNo': assetFuncationJson['certfnNo'] ?? '',
-          'tAmbient': assetFuncationJson['tAmbient'] ?? '',
-          'tAmbientEquip': assetFuncationJson['tAmbientEquip'] ?? '',
-          'inspectionSignOff': assetFuncationJson['inspectionSignOff'] ?? '',
-          'repairSignOff': assetFuncationJson['repairSignOff'] ?? '',
-          'specialCond': assetFuncationJson['specialCond'] ?? '',
-          'oracleId': assetFuncationJson['oracleId'] ?? '',
-          'yesNoSelection': assetFuncationJson['yesNoSelection'] ?? {},
-          'checkList': assetFuncationJson['checkList'] ?? [],
-          'inspectedBy': assetFuncationJson['inspectedBy'] ?? '',
-          'inspectedDate': assetFuncationJson['inspectedDate'] ?? '',
-          'repairedBy': assetFuncationJson['repairedBy'] ?? '',
-          'repairedDate': assetFuncationJson['repairedDate'] ?? '',
-          'faultyItems': assetFuncationJson['faultyItems'] ?? '',
-          'repairPriority': assetFuncationJson['repairPriority'] ?? '',
-          'inspectionStatus': assetFuncationJson['inspectionStatus'] ?? '',
-          'defectOverallCondition':
-              assetFuncationJson['defectOverallCondition'] ?? '',
-          'defectIsolation': assetFuncationJson['defectIsolation'] ?? '',
-          'defectOtherRequirements':
-              assetFuncationJson['defectOtherRequirements'] ?? [],
-          'remarks': assetFuncationJson['remarks'] ?? '',
-          'dataSheet': assetFuncationJson['dataSheet'] ?? '',
-          'dataSheetNo': assetFuncationJson['dataSheetNo'] ?? '',
-          'dataSheetOrgName': assetFuncationJson['dataSheetOrgName'] ?? '',
-          'defectivePhoto1': assetFuncationJson['defectivePhoto1'] ?? '',
-          'defectivePhoto1OrgName':
-              assetFuncationJson['defectivePhoto1OrgName'] ?? '',
-          'defectivePhoto2': assetFuncationJson['defectivePhoto2'] ?? '',
-          'defectivePhoto2OrgName':
-              assetFuncationJson['defectivePhoto2OrgName'] ?? '',
-          'defectivePhoto3': assetFuncationJson['defectivePhoto3'] ?? '',
-          'defectivePhoto3OrgName':
-              assetFuncationJson['defectivePhoto3OrgName'] ?? '',
-          'defectivePhoto4': assetFuncationJson['defectivePhoto4'] ?? '',
-          'defectivePhoto4OrgName':
-              assetFuncationJson['defectivePhoto4OrgName'] ?? '',
-          'defectivePhoto5': assetFuncationJson['defectivePhoto5'] ?? '',
-          'defectivePhoto5OrgName':
-              assetFuncationJson['defectivePhoto5OrgName'] ?? '',
-          'defectivePhoto6': assetFuncationJson['defectivePhoto6'] ?? '',
-          'defectivePhoto6OrgName':
-              assetFuncationJson['defectivePhoto6OrgName'] ?? '',
-          'materials': assetFuncationJson['materials'] ?? [],
-          'existingFaults': assetFuncationJson['existingFaults'] ?? '',
-          'correctiveDefectCategory':
-              assetFuncationJson['correctiveDefectCategory'] ?? '',
-          'currentStatus': assetFuncationJson['currentStatus'] ?? '',
-          'correctiveOverallCondition':
-              assetFuncationJson['correctiveOverallCondition'] ?? '',
-          'correctiveisolation':
-              assetFuncationJson['correctiveisolation'] ?? '',
-          'correctiveOtherRequirements':
-              assetFuncationJson['correctiveOtherRequirements'] ?? '',
-          'repairsDone': assetFuncationJson['repairsDone'] ?? '',
-          'rbiStrategy':
-              (assetFuncationJson['rbiStrategy'] as Map<String, dynamic>?) ??
-                  {},
-          'additionalInfoForRepairs':
-              assetFuncationJson['additionalInfoForRepairs'] ?? '',
-          'remarksIfAny': assetFuncationJson['remarksIfAny'] ?? '',
-          'supplementaryMaterialReq':
-              assetFuncationJson['supplementaryMaterialReq'] ?? [],
-          'defectCertificationOrgName':
-              assetFuncationJson['defectCertificationOrgName'] ?? '',
-          'defectCertificationNo':
-              assetFuncationJson['defectCertificationNo'] ?? '',
-          'defectCertificationAttach':
-              assetFuncationJson['defectCertificationAttach'] ?? '',
-          'correctiveCertificationNo':
-              assetFuncationJson['correctiveCertificationNo'] ?? '',
-          'correctiveCertificationOrgName':
-              assetFuncationJson['correctiveCertificationOrgName'] ?? '',
-          'correctiveCertificationAttach':
-              assetFuncationJson['correctiveCertificationAttach'] ?? '',
-          'inspectionChecklistType':
-              assetFuncationJson['inspectionChecklistType'] ?? [],
-          'inspectionType': assetFuncationJson['inspectionType'] ?? '',
-          'inspectionGrade': assetFuncationJson['inspectionGrade'] ?? '',
-          'equipmentEquipmentType':
-              assetFuncationJson['equipmentEquipmentType'] ?? '',
-          'correctivePhoto1': assetFuncationJson['correctivePhoto1'] ?? '',
-          'correctivePhoto1OrgName':
-              assetFuncationJson['correctivePhoto1OrgName'] ?? '',
-          'correctivePhoto2': assetFuncationJson['correctivePhoto2'] ?? '',
-          'correctivePhoto2OrgName':
-              assetFuncationJson['correctivePhoto2OrgName'] ?? '',
-          'correctivePhoto3': assetFuncationJson['correctivePhoto3'] ?? '',
-          'correctivePhoto3OrgName':
-              assetFuncationJson['correctivePhoto3OrgName'] ?? '',
-          'correctivePhoto4': assetFuncationJson['correctivePhoto4'] ?? '',
-          'correctivePhoto4OrgName':
-              assetFuncationJson['correctivePhoto4OrgName'] ?? '',
-          'correctivePhoto5': assetFuncationJson['correctivePhoto5'] ?? '',
-          'correctivePhoto5OrgName':
-              assetFuncationJson['correctivePhoto5OrgName'] ?? '',
-          'correctivePhoto6': assetFuncationJson['correctivePhoto6'] ?? '',
-          'correctivePhoto6OrgName':
-              assetFuncationJson['correctivePhoto6OrgName'] ?? '',
-          'primaryId': assetFuncationJson['_id'] ?? '',
-          'defectDefectCategory':
-              assetFuncationJson['defectDefectCategory'] ?? '',
-          'repairDuration': assetFuncationJson['repairDuration'] ?? '',
-          'repairTimeEstimate': assetFuncationJson['repairTimeEstimate'] ?? '',
-          'isDuplicate': false,
-        },
+        'asset': fullAssetMap,
       }),
       'created_by': workOrder['created_by'],
       'updated_by': workOrder['updated_by'],
+      'updated_date': nowTimestamp,
     };
     final assetIdData = assetFuncationJson['_id'];
     final existingExRegister = await db.query(
@@ -2409,12 +2430,6 @@ class DBHelper {
       where: 'exregister_json LIKE ? AND exregister_json LIKE ?',
       whereArgs: ['%"locationId":"$locationId"%', '%"_id":"$assetIdData"%'],
     );
-    // final existingExRegister = await db.query(
-    //   'exregister_table_onshore',
-    //   columns: ['id'],
-    //   where: 'exregister_json LIKE ?',
-    //   whereArgs: ['%"locationId":"$locationId"%'],
-    // );
 
     int recordId;
     if (existingExRegister.isNotEmpty) {
@@ -2429,6 +2444,7 @@ class DBHelper {
         whereArgs: [recordId],
       );
     } else {
+      exRegisterData['created_date'] = nowTimestamp;
       recordId = await db.insert(
         'exregister_table_onshore',
         exRegisterData,
@@ -2494,6 +2510,36 @@ class DBHelper {
     Map<String, dynamic> functionalAreaMap,
   ) async {
     final db = await initWorkOrderDB();
+
+    if (assetId > 0) {
+      final directRow = await db.query(
+        'exregister_table',
+        where: 'id = ?',
+        whereArgs: [assetId],
+      );
+      if (directRow.isNotEmpty) {
+        final row = directRow.first;
+        final String? jsonStr = row['exregister_json'] as String?;
+        if (jsonStr != null) {
+          final dynamic parsedJson = jsonDecode(jsonStr);
+          final asset = (parsedJson is Map && parsedJson['asset'] is Map)
+              ? parsedJson['asset']
+              : (parsedJson is Map ? parsedJson : null);
+          if (asset is Map<String, dynamic> || asset is Map) {
+            _updateAssetObject(
+                Map<String, dynamic>.from(asset), locationId, functionalAreaMap);
+            await db.update(
+              'exregister_table',
+              {'exregister_json': jsonEncode(parsedJson)},
+              where: 'id = ?',
+              whereArgs: [assetId],
+            );
+            return;
+          }
+        }
+      }
+    }
+
     final result = await _safeBatchQuery(
       db,
       'exregister_table',
@@ -2670,17 +2716,7 @@ class DBHelper {
   }
 
   Future<void> deleteExRegister(String assetId) async {
-    final db = await workOrderDatabase;
-
-    final record = await getExRegisterById(assetId);
-    if (record != null) {
-      final id = record['id'] as int;
-      await db.delete(
-        'exregister_table',
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-    }
+    await deleteExRegisterById(assetId, '');
   }
 
   // Delete a single work order row by id
@@ -2695,27 +2731,28 @@ class DBHelper {
 
   // Delete a single functional area row by id
   Future<void> deleteFunctionalArea(dynamic id) async {
+    if (id == null || id.toString().trim().isEmpty) return;
     final db = await workOrderDatabase;
+    final idStr = id.toString().trim();
+    final int? idVal = int.tryParse(idStr);
+
+    if (idVal != null) {
+      await db.delete(
+        'functional_area',
+        where: 'id = ?',
+        whereArgs: [idVal],
+      );
+    }
     await db.delete(
       'functional_area',
       where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$id"%'],
+      whereArgs: ['%"locationId":"$idStr"%'],
     );
   }
 
   // Onshore DB versions
   Future<void> deleteExRegisterOnshore(String assetId) async {
-    final db = await onshoreDatabase;
-
-    final record = await getExRegisterByIdOnshore(assetId);
-    if (record != null) {
-      final id = record['id'] as int;
-      await db.delete(
-        'exregister_table_onshore',
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-    }
+    await deleteExRegisterByIdOnshore(assetId, '');
   }
 
   Future<void> deleteWorkOrderTableOnshore(int id) async {
@@ -2728,11 +2765,22 @@ class DBHelper {
   }
 
   Future<void> deleteFunctionalAreaOnshore(dynamic id) async {
+    if (id == null || id.toString().trim().isEmpty) return;
     final db = await onshoreDatabase;
+    final idStr = id.toString().trim();
+    final int? idVal = int.tryParse(idStr);
+
+    if (idVal != null) {
+      await db.delete(
+        'functional_area_onshore',
+        where: 'id = ?',
+        whereArgs: [idVal],
+      );
+    }
     await db.delete(
       'functional_area_onshore',
       where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$id"%'],
+      whereArgs: ['%"locationId":"$idStr"%'],
     );
   }
 

@@ -323,7 +323,6 @@ class HomeScreenState extends State<HomeScreen> {
     final ToDatefilter = (getArgs?['ToDatefilter'] ?? modalArgs?['ToDatefilter']) as DateTime?;
     // final isSelectedScreen = Get.arguments?['isSelectedScreen'] as String?;
     final isSelectedScreen = (getArgs?['isSelectedScreenFlag'] ?? modalArgs?['isSelectedScreenFlag']) as bool?;
-    final fetchApiOnce = (getArgs?['fetchApiOnce'] ?? modalArgs?['fetchApiOnce']) as bool?;
 
     final effectiveMenu =
         (_selectedMenu == 'To Device' || _selectedMenu == 'To Server')
@@ -355,7 +354,6 @@ class HomeScreenState extends State<HomeScreen> {
               : ToDatefilter,
           isSelectedScreen: "home",
           isSelectedScreenFlag: isSelectedScreen ?? isSelectedScreenFlag,
-          fetchApiOnce: fetchApiOnce,
         );
       case 'Locator':
       case 'Equipment Locator':

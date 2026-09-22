@@ -328,7 +328,7 @@ class EquipmentTagRequest {
     if (oracleId != null) {
       data['oracleId'] = oracleId;
     }
-    if (assetId != null) {
+    if (assetId != null && assetId.toString().isNotEmpty) {
       data['_id'] = assetId;
     }
     if (checkList != null) {
@@ -540,12 +540,20 @@ class EquipmentTagRequest {
   factory EquipmentTagRequest.fromJson(Map<String, dynamic> json) {
     return EquipmentTagRequest(
       assetId: json['_id'] ?? "",
+      primaryId: json['primaryId'] != null
+          ? (json['primaryId'] is int
+              ? json['primaryId']
+              : int.tryParse(json['primaryId'].toString()))
+          : null,
       rfidRef: json['rfidRef'] ?? "",
       location: json['location'] ?? "",
       area: json['area'] ?? "",
       deckLevel: json['deckLevel'] ?? "",
       zone: json['zone'] ?? "",
-      isActive: json['isActive'] ?? "",
+      isActive: json['isActive'] == true ||
+          json['isActive'] == 1 ||
+          json['isActive'] == 'true' ||
+          json['isActive'] == '1',
       eqpmtTag: json['eqpmtTag'] ?? "",
       description: json['description'] ?? "",
       manufacturer: json['manufacturer'] ?? "",
@@ -675,11 +683,11 @@ class EquipmentTagRequest {
         json['eqpmtLytDrawAttachOrgName'] ?? [],
       ),
       eqpmtLytDrawAttach: List<String>.from(json['eqpmtLytDrawAttach'] ?? []),
-      locationId: json['locationId'] ?? "",
-      locationLatitude: json['locationLatitude'] ?? "",
-      locationLongitude: json['locationLongitude'] ?? "",
-      eqpmtLatitude: json['eqpmtLatitude'] ?? "",
-      eqpmtLongitude: json['eqpmtLongitude'] ?? "",
+      locationId: json['locationId']?.toString() ?? "",
+      locationLatitude: json['locationLatitude']?.toString() ?? "",
+      locationLongitude: json['locationLongitude']?.toString() ?? "",
+      eqpmtLatitude: json['eqpmtLatitude']?.toString() ?? "",
+      eqpmtLongitude: json['eqpmtLongitude']?.toString() ?? "",
       circuitId: json['circuitId'] ?? "",
       cableId: json['cableId'] ?? "",
       type: json['type'] ?? "",
@@ -736,7 +744,15 @@ class CheckList {
     return {
       'defectCategoryCode': defectCategory,
       'count': count,
-      'defectCodes': defectCodes.map((item) => item.toJson()).toList(),
+      'defectCodes': defectCodes.map((dynamic item) {
+        if (item is DefectCode) return item.toJson();
+        if (item is Map) return Map<String, dynamic>.from(item);
+        try {
+          return item.toJson();
+        } catch (_) {
+          return item;
+        }
+      }).toList(),
     };
   }
 }
@@ -792,8 +808,15 @@ class DefectCode {
       'inspectionGrade': inspectionGrade,
       'inspectionType': inspectionType,
       'defectCode': defectCode,
-      'findingsAndActions':
-          findingsAndActions.map((item) => item.toJson()).toList(),
+      'findingsAndActions': findingsAndActions.map((dynamic item) {
+        if (item is FindingAndAction) return item.toJson();
+        if (item is Map) return Map<String, dynamic>.from(item);
+        try {
+          return item.toJson();
+        } catch (_) {
+          return item;
+        }
+      }).toList(),
       'defectPriority': defectPriority.map(
         (key, value) => MapEntry(key, value),
       ),

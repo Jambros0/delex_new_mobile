@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/data/services/device_sync_services.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_event.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_state.dart';
@@ -37,7 +36,6 @@ class ExRegisterScreen extends StatefulWidget {
   final DateTime? ToDatefilter;
   final String? isSelectedScreen;
   final bool? isSelectedScreenFlag;
-  final bool? fetchApiOnce;
   const ExRegisterScreen({
     super.key,
     this.equipmentId,
@@ -47,7 +45,6 @@ class ExRegisterScreen extends StatefulWidget {
     this.ToDatefilter,
     this.isSelectedScreen,
     this.isSelectedScreenFlag,
-    this.fetchApiOnce,
   });
 
   @override
@@ -150,36 +147,6 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
         ? DateTime.tryParse(widget.ToDatefilter!.toIso8601String())
         : toDate;
     _initSearch();
-
-    if (widget.fetchApiOnce == true) {
-      try {
-        final networkUtils = NetworkUtils();
-        if (networkUtils.isNetworkAvailable) {
-          final deviceSyncService = DeviceSyncServices();
-          final data = await deviceSyncService.fetchWorkOrderAssets(
-            limit: 100,
-            offset: 0,
-          );
-          final fetchedAssets = data['assets'] as List<ExRegister>?;
-          if (fetchedAssets != null && fetchedAssets.isNotEmpty) {
-            final dbHelper = DBHelper();
-            for (var asset in fetchedAssets) {
-              final assetMap = asset.toJson();
-              final exRegisterJson = {
-                'exregister_json': jsonEncode({'asset': assetMap})
-              };
-              if (userType == 'onshore') {
-                await dbHelper.saveExRegisterOnshore(exRegisterJson);
-              } else {
-                await dbHelper.saveExRegister(exRegisterJson);
-              }
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint("Error fetching API data once on ExRegister: $e");
-      }
-    }
 
     _bloc.add(ExRegisterInitEvent());
     if (widget.isSelectedScreenFlag == true) {
@@ -865,11 +832,13 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                           }
                         },
                         buildWhen: (previous, current) =>
+                            current is ExRegisterInitial ||
                             current is ExRegisterLoading ||
                             current is ExRegisterLoaded ||
                             current is ExRegisterError,
                         builder: (context, state) {
-                          if (state is ExRegisterLoading) {
+                          if (state is ExRegisterLoading ||
+                              state is ExRegisterInitial) {
                             return const Center(
                               child: CircularProgressIndicator(),
                             );
@@ -1003,10 +972,13 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                                 ],
                               ),
                             );
+                          } else if (state is ExRegisterError) {
+                            return Center(
+                              child: Text(state.error),
+                            );
                           } else {
-                            
                             return const Center(
-                              child: Text('Failed to load data.'),
+                              child: CircularProgressIndicator(),
                             );
                           }
                         },

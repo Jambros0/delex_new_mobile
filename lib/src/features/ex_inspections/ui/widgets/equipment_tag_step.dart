@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:deex_bloc_mobile_app_dev/src/custom_widgets/ambient_temperature_formatter.dart';
 import 'package:deex_bloc_mobile_app_dev/src/custom_widgets/multi_select_dropdown.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/bloc/ex_inspection_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/bloc/ex_inspection_event.dart';
@@ -115,7 +116,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       _equipmentDescription.clear();
       _selectedAtexCategory = '';
       _selectedEpl = '';
-      _selectedProtectionStandard = '';
+      _selectedProtectionStandard = null;
       _selectedProtectionType = '';
       _selectedGasGroup = null;
       _selectedTClass = null;
@@ -170,10 +171,10 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     _typeController.text = request?.type ?? '';
     _serialNumberController.text = request?.serialNumber?.toString() ?? '';
     final loadedStd = request?.protectionStd?.toString();
-    if (loadedStd != null && loadedStd.isNotEmpty) {
-      _selectedProtectionStandard = loadedStd;
+    if (loadedStd != null && loadedStd.trim().isNotEmpty) {
+      _selectedProtectionStandard = loadedStd.trim();
     } else {
-      _selectedProtectionStandard = 'IEC';
+      _selectedProtectionStandard = null;
     }
     //
     // _selectedAtexCategory = request?.atexCatg ?? '';
@@ -183,16 +184,23 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     // _selectedTClass = request?.equipmentTClass;
     // _selectedIpRating = request?.equipmentIpRating;
 
-    selectedAtexItems = (request!.atexCatg.isEmpty ? [] : request.atexCatg);
-    selectedEPLItems = (request.epl.isEmpty ? [] : request.epl);
+    selectedAtexItems = (request!.atexCatg.isEmpty ? [] : List<String>.from(request.atexCatg));
+    selectedEPLItems = (request.epl.isEmpty ? [] : List<String>.from(request.epl));
     selectedProtectionTypeItems =
-        (request.protectionType.isEmpty ? [] : request.protectionType);
+        (request.protectionType.isEmpty ? [] : List<String>.from(request.protectionType));
     selectedGasItems =
-        (request.equipmentGasGroup.isEmpty ? [] : request.equipmentGasGroup);
+        (request.equipmentGasGroup.isEmpty ? [] : List<String>.from(request.equipmentGasGroup));
     selectedTClassItems =
-        (request.equipmentTClass.isEmpty ? [] : request.equipmentTClass);
+        (request.equipmentTClass.isEmpty ? [] : List<String>.from(request.equipmentTClass));
     selectedIpRatingItems =
-        (request.equipmentIpRating.isEmpty ? [] : request.equipmentIpRating);
+        (request.equipmentIpRating.isEmpty ? [] : List<String>.from(request.equipmentIpRating));
+
+    _selectedAtexCategory = selectedAtexItems.join(', ');
+    _selectedEpl = selectedEPLItems.join(', ');
+    _selectedProtectionType = selectedProtectionTypeItems.join(', ');
+    _selectedGasGroup = selectedGasItems.isEmpty ? null : selectedGasItems.join(', ');
+    _selectedTClass = selectedTClassItems.isEmpty ? null : selectedTClassItems.join(', ');
+    _selectedIpRating = selectedIpRatingItems.isEmpty ? null : selectedIpRatingItems.join(', ');
     //
     _certificationBodyController.text = request.certfnBody ?? '';
     _selectedCertificationBody = request.certfnBody;
@@ -228,36 +236,59 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         request.oracleId == "null" ? "" : request.oracleId ?? '';
   }
 
-  Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return;
-    }
+  bool _isLoadingGps = false;
 
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+  Future<void> _getCurrentLocation() async {
+    if (_isLoadingGps) return;
+    setState(() {
+      _isLoadingGps = true;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        Fluttertoast.showToast(msg: "Location services are disabled.");
         return;
       }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          Fluttertoast.showToast(msg: "Location permission denied.");
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        Fluttertoast.showToast(
+          msg: "Location permissions are permanently denied.",
+        );
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      if (mounted) {
+        setState(() {
+          _locationLatitude.text = position.latitude.toString();
+          _locationLongtitude.text = position.longitude.toString();
+          _gpsCoordinatesController.text =
+              '${position.latitude}, ${position.longitude}';
+        });
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Error fetching GPS coordinates: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingGps = false;
+        });
+      }
     }
-
-    if (permission == LocationPermission.deniedForever) {
-      return;
-    }
-
-    Position position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
-
-    setState(() {
-      _locationLatitude.text = position.latitude.toString();
-      _locationLongtitude.text = position.longitude.toString();
-      _gpsCoordinatesController.text =
-          '${position.latitude}, ${position.longitude}';
-    });
   }
 
   Future<void> updateAmbientTemperature({bool? clearCollection}) async {
@@ -367,19 +398,18 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       availableStandards.addAll(['IEC', 'NEC', 'ATEX', 'Not Applicable']);
     }
 
-    if (_selectedProtectionStandard == null ||
-        _selectedProtectionStandard!.isEmpty) {
-      _selectedProtectionStandard =
-          availableStandards.contains('IEC') ? 'IEC' : availableStandards.first;
-    } else if (!availableStandards.contains(_selectedProtectionStandard)) {
-      final match = availableStandards.firstWhere(
-        (s) => s.toLowerCase() == _selectedProtectionStandard!.toLowerCase(),
-        orElse: () => '',
-      );
-      if (match.isNotEmpty) {
-        _selectedProtectionStandard = match;
-      } else {
-        availableStandards.add(_selectedProtectionStandard!);
+    if (_selectedProtectionStandard != null &&
+        _selectedProtectionStandard!.trim().isNotEmpty) {
+      if (!availableStandards.contains(_selectedProtectionStandard)) {
+        final match = availableStandards.firstWhere(
+          (s) => s.toLowerCase() == _selectedProtectionStandard!.toLowerCase(),
+          orElse: () => '',
+        );
+        if (match.isNotEmpty) {
+          _selectedProtectionStandard = match;
+        } else {
+          availableStandards.add(_selectedProtectionStandard!);
+        }
       }
     }
 
@@ -403,6 +433,27 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
       _selectedProtectionStandard,
       exRegisterDropDown,
     );
+
+    for (final item in selectedAtexItems) {
+      if (!_filteredAtexCategoey.contains(item)) {
+        _filteredAtexCategoey.add(item);
+      }
+    }
+    for (final item in selectedEPLItems) {
+      if (!_filteredEPL.contains(item)) {
+        _filteredEPL.add(item);
+      }
+    }
+    for (final item in selectedProtectionTypeItems) {
+      if (!_filteredProtectionType.contains(item)) {
+        _filteredProtectionType.add(item);
+      }
+    }
+    for (final item in selectedGasItems) {
+      if (!_filteredGasGroup.contains(item)) {
+        _filteredGasGroup.add(item);
+      }
+    }
     final ipRating = (exRegisterDropDown['ipRating'] as List<dynamic>?)
             ?.map((item) => item.toString())
             .toList() ??
@@ -706,8 +757,12 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
 
               _buildLabeledDropdownField(
                 label: 'Protection Standard',
-                value: _selectedProtectionStandard,
+                value: (_selectedProtectionStandard != null &&
+                        _selectedProtectionStandard!.trim().isNotEmpty)
+                    ? _selectedProtectionStandard
+                    : null,
                 items: availableStandards,
+                hintText: 'Select item',
                 onChanged: (value) {
                   setState(() {
                     if (value != _selectedProtectionStandard) {
@@ -725,7 +780,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                       _selectedTClass = null;
                       _selectedIpRating = null;
                     }
-                    _selectedProtectionStandard = value!;
+                    _selectedProtectionStandard = value;
                     _filteredProtectionType =
                         _getProtectionTypeForProtectionStandard(
                       protectionStandardMap,
@@ -987,6 +1042,128 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     );
   }
 
+  static const List<String> _allAtexCategories = [
+    '1G',
+    '2G',
+    '3G',
+    '1D',
+    '2D',
+    '3D',
+    'M1',
+    'M2',
+    'Not Available',
+    'Not Applicable',
+  ];
+
+  static const List<String> _allEPLs = [
+    'Ga',
+    'Gb',
+    'Gc',
+    'Da',
+    'Db',
+    'Dc',
+    'Ma',
+    'Mb',
+    'Class I, Div 1',
+    'Class I, Div 2',
+    'Class II, Div 1',
+    'Class II, Div 2',
+    'Class III, Div 1',
+    'Class III, Div 2',
+    'Zone 0',
+    'Zone 1',
+    'Zone 2',
+    'Zone 20',
+    'Zone 21',
+    'Zone 22',
+    'Not Available',
+    'Not Applicable',
+  ];
+
+  static const List<String> _allProtectionTypes = [
+    'Ex d',
+    'Ex db',
+    'Ex e',
+    'Ex eb',
+    'Ex ec',
+    'Ex ia',
+    'Ex ib',
+    'Ex ic',
+    'Ex m',
+    'Ex ma',
+    'Ex mb',
+    'Ex mc',
+    'Ex nA',
+    'Ex nC',
+    'Ex nR',
+    'Ex o',
+    'Ex ob',
+    'Ex oc',
+    'Ex p',
+    'Ex px',
+    'Ex py',
+    'Ex pz',
+    'Ex pxb',
+    'Ex pyb',
+    'Ex pzc',
+    'Ex q',
+    'Ex qb',
+    'Ex s',
+    'Ex op is',
+    'Ex op pr',
+    'Ex op sh',
+    'Ex ta',
+    'Ex tb',
+    'Ex tc',
+    'Ex ia D',
+    'Ex ib D',
+    'Ex ma D',
+    'Ex mb D',
+    'Ex pD',
+    'Ex tD',
+    'Explosionproof (XP)',
+    'Dust-Ignitionproof (DIP)',
+    'Intrinsically Safe (IS)',
+    'Non-Incendive (NI)',
+    'Purged/Pressurized (Type X)',
+    'Purged/Pressurized (Type Y)',
+    'Purged/Pressurized (Type Z)',
+    'Purged/Pressurized (Type X, Y, Z)',
+    'Oil-Immersed',
+    'Hermetically Sealed',
+    'Encapsulated',
+    'Class I, Div 1',
+    'Class I, Div 2',
+    'Class II, Div 1',
+    'Class II, Div 2',
+    'Class III',
+    'Not Available',
+    'Not Applicable',
+    'Others',
+  ];
+
+  static const List<String> _allGasGroups = [
+    'I',
+    'IIA',
+    'IIB',
+    'IIC',
+    'IIIA',
+    'IIIB',
+    'IIIC',
+    'Group A',
+    'Group B',
+    'Group C',
+    'Group D',
+    'Group E',
+    'Group F',
+    'Group G',
+    'Class I (A, B, C, D)',
+    'Class II (E, F, G)',
+    'Class III',
+    'Not Available',
+    'Not Applicable',
+  ];
+
   static const Map<String, Map<String, List<String>>>
       _defaultProtectionStandardMap = {
     'IEC': {
@@ -999,9 +1176,21 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         '3D',
         'M1',
         'M2',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ],
-      'epl': ['Ga', 'Gb', 'Gc', 'Da', 'Db', 'Dc', 'Ma', 'Mb', 'Not Applicable'],
+      'epl': [
+        'Ga',
+        'Gb',
+        'Gc',
+        'Da',
+        'Db',
+        'Dc',
+        'Ma',
+        'Mb',
+        'Not Available',
+        'Not Applicable',
+      ],
       'protectionType': [
         'Ex d',
         'Ex db',
@@ -1043,8 +1232,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'Ex mb D',
         'Ex pD',
         'Ex tD',
+        'Not Available',
         'Not Applicable',
-        'Others'
+        'Others',
       ],
       'gasGroup': [
         'I',
@@ -1054,9 +1244,19 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'IIIA',
         'IIIB',
         'IIIC',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ],
-      'temperatureClass': ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'Not Applicable']
+      'temperatureClass': [
+        'T1',
+        'T2',
+        'T3',
+        'T4',
+        'T5',
+        'T6',
+        'Not Available',
+        'Not Applicable',
+      ]
     },
     'ATEX': {
       'atexCategory': [
@@ -1068,9 +1268,21 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         '3D',
         'M1',
         'M2',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ],
-      'epl': ['Ga', 'Gb', 'Gc', 'Da', 'Db', 'Dc', 'Ma', 'Mb', 'Not Applicable'],
+      'epl': [
+        'Ga',
+        'Gb',
+        'Gc',
+        'Da',
+        'Db',
+        'Dc',
+        'Ma',
+        'Mb',
+        'Not Available',
+        'Not Applicable',
+      ],
       'protectionType': [
         'Ex d',
         'Ex db',
@@ -1112,8 +1324,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'Ex mb D',
         'Ex pD',
         'Ex tD',
+        'Not Available',
         'Not Applicable',
-        'Others'
+        'Others',
       ],
       'gasGroup': [
         'I',
@@ -1123,12 +1336,33 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'IIIA',
         'IIIB',
         'IIIC',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ],
-      'temperatureClass': ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'Not Applicable']
+      'temperatureClass': [
+        'T1',
+        'T2',
+        'T3',
+        'T4',
+        'T5',
+        'T6',
+        'Not Available',
+        'Not Applicable',
+      ]
     },
     'NEC': {
-      'atexCategory': ['Not Applicable'],
+      'atexCategory': [
+        '1G',
+        '2G',
+        '3G',
+        '1D',
+        '2D',
+        '3D',
+        'M1',
+        'M2',
+        'Not Available',
+        'Not Applicable',
+      ],
       'epl': [
         'Class I, Div 1',
         'Class I, Div 2',
@@ -1148,7 +1382,8 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'Da',
         'Db',
         'Dc',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ],
       'protectionType': [
         'Explosionproof (XP)',
@@ -1158,6 +1393,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'Purged/Pressurized (Type X)',
         'Purged/Pressurized (Type Y)',
         'Purged/Pressurized (Type Z)',
+        'Purged/Pressurized (Type X, Y, Z)',
         'Oil-Immersed',
         'Hermetically Sealed',
         'Encapsulated',
@@ -1166,8 +1402,9 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'Class II, Div 1',
         'Class II, Div 2',
         'Class III',
+        'Not Available',
         'Not Applicable',
-        'Others'
+        'Others',
       ],
       'gasGroup': [
         'Group A',
@@ -1180,7 +1417,8 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'Class I (A, B, C, D)',
         'Class II (E, F, G)',
         'Class III',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ],
       'temperatureClass': [
         'T1',
@@ -1197,22 +1435,41 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
         'T4A',
         'T5',
         'T6',
-        'Not Applicable'
+        'Not Available',
+        'Not Applicable',
       ]
     },
     'Not Applicable': {
-      'atexCategory': ['Not Applicable'],
-      'epl': ['Not Applicable'],
-      'protectionType': ['Not Applicable'],
-      'gasGroup': ['Not Applicable'],
-      'temperatureClass': ['Not Applicable']
+      'atexCategory': _allAtexCategories,
+      'epl': _allEPLs,
+      'protectionType': _allProtectionTypes,
+      'gasGroup': _allGasGroups,
+      'temperatureClass': [
+        'T1',
+        'T2',
+        'T3',
+        'T4',
+        'T5',
+        'T6',
+        'Not Available',
+        'Not Applicable',
+      ]
     },
     'Not Available': {
-      'atexCategory': ['Not Available', 'Not Applicable'],
-      'epl': ['Not Available', 'Not Applicable'],
-      'protectionType': ['Not Available', 'Not Applicable'],
-      'gasGroup': ['Not Available', 'Not Applicable'],
-      'temperatureClass': ['Not Available', 'Not Applicable']
+      'atexCategory': _allAtexCategories,
+      'epl': _allEPLs,
+      'protectionType': _allProtectionTypes,
+      'gasGroup': _allGasGroups,
+      'temperatureClass': [
+        'T1',
+        'T2',
+        'T3',
+        'T4',
+        'T5',
+        'T6',
+        'Not Available',
+        'Not Applicable',
+      ]
     }
   };
 
@@ -1257,21 +1514,37 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     String? standardKey, [
     Map<String, dynamic>? exRegisterDropDown,
   ]) {
+    if (standardKey == null ||
+        standardKey.trim().isEmpty ||
+        standardKey.trim() == 'Not Available' ||
+        standardKey.trim() == 'Not Applicable') {
+      return List<String>.from(_allProtectionTypes);
+    }
     final standard = _getStandardData(protectionStandardMap, standardKey);
     if (standard != null && standard['protectionType'] != null) {
       final list = (standard['protectionType'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
     if (exRegisterDropDown != null &&
         exRegisterDropDown['protectionType'] != null) {
       final list = (exRegisterDropDown['protectionType'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
-    return _defaultProtectionStandardMap['IEC']!['protectionType']!;
+    return List<String>.from(_allProtectionTypes);
   }
 
   List<String> _getGasGroupForProtectionStandard(
@@ -1279,20 +1552,36 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     String? standardKey, [
     Map<String, dynamic>? exRegisterDropDown,
   ]) {
+    if (standardKey == null ||
+        standardKey.trim().isEmpty ||
+        standardKey.trim() == 'Not Available' ||
+        standardKey.trim() == 'Not Applicable') {
+      return List<String>.from(_allGasGroups);
+    }
     final standard = _getStandardData(protectionStandardMap, standardKey);
     if (standard != null && standard['gasGroup'] != null) {
       final list = (standard['gasGroup'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
     if (exRegisterDropDown != null && exRegisterDropDown['gasGroup'] != null) {
       final list = (exRegisterDropDown['gasGroup'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
-    return _defaultProtectionStandardMap['IEC']!['gasGroup']!;
+    return List<String>.from(_allGasGroups);
   }
 
   List<String> _getAtexCategoryProtectionStandard(
@@ -1300,21 +1589,37 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     String? standardKey, [
     Map<String, dynamic>? exRegisterDropDown,
   ]) {
+    if (standardKey == null ||
+        standardKey.trim().isEmpty ||
+        standardKey.trim() == 'Not Available' ||
+        standardKey.trim() == 'Not Applicable') {
+      return List<String>.from(_allAtexCategories);
+    }
     final standard = _getStandardData(protectionStandardMap, standardKey);
     if (standard != null && standard['atexCategory'] != null) {
       final list = (standard['atexCategory'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
     if (exRegisterDropDown != null &&
         exRegisterDropDown['atexCategory'] != null) {
       final list = (exRegisterDropDown['atexCategory'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
-    return _defaultProtectionStandardMap['IEC']!['atexCategory']!;
+    return List<String>.from(_allAtexCategories);
   }
 
   List<String> _getEPLProtectionStandard(
@@ -1322,20 +1627,36 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     String? standardKey, [
     Map<String, dynamic>? exRegisterDropDown,
   ]) {
+    if (standardKey == null ||
+        standardKey.trim().isEmpty ||
+        standardKey.trim() == 'Not Available' ||
+        standardKey.trim() == 'Not Applicable') {
+      return List<String>.from(_allEPLs);
+    }
     final standard = _getStandardData(protectionStandardMap, standardKey);
     if (standard != null && standard['epl'] != null) {
       final list = (standard['epl'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
     if (exRegisterDropDown != null && exRegisterDropDown['epl'] != null) {
       final list = (exRegisterDropDown['epl'] as List<dynamic>)
           .map((item) => item.toString())
           .toList();
-      if (list.isNotEmpty) return list;
+      if (list.length > 2) {
+        final result = List<String>.from(list);
+        if (!result.contains('Not Available')) result.add('Not Available');
+        if (!result.contains('Not Applicable')) result.add('Not Applicable');
+        return result;
+      }
     }
-    return _defaultProtectionStandardMap['IEC']!['epl']!;
+    return List<String>.from(_allEPLs);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1565,17 +1886,18 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                           ),
                           child: TextFormField(
                             keyboardType: label == "Ambient Temperature"
-                                ? const TextInputType.numberWithOptions()
+                                ? TextInputType.text
                                 : TextInputType.text,
-                            // keyboardType: TextInputType.text, // use text keyboard
-                            inputFormatters: label == 'Equipment Tag Number' ||
-                                    label == 'Cable Tag Number'
-                                ? [
-                                    FilteringTextInputFormatter.allow(
-                                      RegExp(r'[a-zA-Z0-9 \-]'),
-                                    ),
-                                  ]
-                                : null,
+                            inputFormatters: label == "Ambient Temperature"
+                                ? [AmbientTemperatureInputFormatter()]
+                                : (label == 'Equipment Tag Number' ||
+                                        label == 'Cable Tag Number'
+                                    ? [
+                                        FilteringTextInputFormatter.allow(
+                                          RegExp(r'[a-zA-Z0-9 \-]'),
+                                        ),
+                                      ]
+                                    : null),
                             style: GoogleFonts.inter(
                               fontSize: 17,
                               fontWeight: FontWeight.w400,
@@ -1672,66 +1994,74 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                     )
                                   : (label == 'GPS Coordinates' ||
                                           label == 'RFID Reference')
-                                      ? GestureDetector(
-                                          behavior: HitTestBehavior.translucent,
-                                          onTap: !isEditMode
-                                              ? null
-                                              : label == 'GPS Coordinates'
-                                                  ? _getCurrentLocation
-                                                  : () async {
-                                                      getRFIDTag(controller);
-                                                      // bool isAvailable =
-                                                      //     await NFCUtility(context)
-                                                      //         .isNfcAvailable();
-                                                      // if (!isAvailable) {
-                                                      //   ScaffoldMessenger.of(context)
-                                                      //       .showSnackBar(
-                                                      //     const SnackBar(
-                                                      //         content: Text(
-                                                      //             "NFC is not available.")),
-                                                      //   );
-                                                      //   return;
-                                                      // }
-                                                      // await NFCUtility(context)
-                                                      //     .startNfcSession(controller);
-                                                      // setState(() {
-                                                      //   nfcUsed = true;
-                                                      // });
-                                                    },
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(10.0),
-                                            child: SvgPicture.asset(
-                                              label == 'GPS Coordinates'
-                                                  ? 'lib/src/features/ex_inspections/assets/R-Icon1.svg'
-                                                  : 'lib/src/features/ex_register/assets/rfid-icon.svg',
-                                              height: MediaQuery.of(
-                                                    context,
-                                                  ).size.height *
-                                                  0.03,
-                                              width: MediaQuery.of(
-                                                    context,
-                                                  ).size.width *
-                                                  0.06,
-                                              color: !isEditMode
-                                                  ? const Color(0xFFBABABA)
-                                                  : const Color(0xFF3B475B),
-                                            ),
-                                          ),
-                                        )
+                                      ? (label == 'GPS Coordinates' &&
+                                              _isLoadingGps
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: Center(
+                                                child: SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2.0,
+                                                    color: Color(0xFF002B5C),
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : GestureDetector(
+                                              behavior:
+                                                  HitTestBehavior.translucent,
+                                              onTap: !isEditMode
+                                                  ? null
+                                                  : label == 'GPS Coordinates'
+                                                      ? _getCurrentLocation
+                                                      : () async {
+                                                          getRFIDTag(
+                                                            controller,
+                                                          );
+                                                        },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(10.0),
+                                                child: SvgPicture.asset(
+                                                  label == 'GPS Coordinates'
+                                                      ? 'lib/src/features/ex_inspections/assets/R-Icon1.svg'
+                                                      : 'lib/src/features/ex_register/assets/rfid-icon.svg',
+                                                  height: MediaQuery.of(
+                                                        context,
+                                                      ).size.height *
+                                                      0.03,
+                                                  width: MediaQuery.of(
+                                                        context,
+                                                      ).size.width *
+                                                      0.06,
+                                                  color: !isEditMode
+                                                      ? const Color(0xFFBABABA)
+                                                      : const Color(
+                                                          0xFF3B475B,
+                                                        ),
+                                                ),
+                                              ),
+                                            ))
                                       : null,
                             ),
-                            // || label=='RFID Reference'
                             readOnly: !isEditMode || label == 'GPS Coordinates',
                             validator: (value) {
                               if (_isSubmitting &&
                                   isMandatory &&
-                                  (value == null || value.isEmpty)) {
+                                  (value == null || value.trim().isEmpty)) {
                                 return '';
                               }
                               if (label == 'Ambient Temperature' &&
                                   value != null &&
-                                  value.isNotEmpty) {
-                                if (value == 'Not Available') {
+                                  value.trim().isNotEmpty) {
+                                final v = value.trim();
+                                if (v == 'Not Available' ||
+                                    v == 'N/A' ||
+                                    v == 'NA') {
                                   return null;
                                 }
                                 final tempSingleValueRegex = RegExp(
@@ -1740,9 +2070,13 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                 final tempRangeRegex = RegExp(
                                   r'^([-+]?\d{1,3})°C to ([-+]?\d{1,3})°C$',
                                 );
+                                final tempSlashRegex = RegExp(
+                                  r'^([-+]?\d{1,3})°C\/([-+]?\d{1,3})°C$',
+                                );
 
-                                if (!tempSingleValueRegex.hasMatch(value) &&
-                                    !tempRangeRegex.hasMatch(value)) {
+                                if (!tempSingleValueRegex.hasMatch(v) &&
+                                    !tempRangeRegex.hasMatch(v) &&
+                                    !tempSlashRegex.hasMatch(v)) {
                                   return 'Format: -40°C to +55°C or +55°C/-40°C';
                                 }
                               }
@@ -1753,110 +2087,6 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                 : (value) {
                                     updateError();
                                     onChanged?.call(value);
-                                    if (label == 'Ambient Temperature') {
-                                      String formattedValue = value;
-                                      final tempInputPattern = RegExp(
-                                        r'^([-+]?\d{1,3})$',
-                                      );
-
-                                      if (formattedValue.endsWith(' to ')) {
-                                        formattedValue = formattedValue
-                                            .substring(
-                                              0,
-                                              formattedValue.length - 4,
-                                            )
-                                            .trim();
-                                      } else if (formattedValue.endsWith(
-                                        '°C to',
-                                      )) {
-                                        formattedValue =
-                                            '${formattedValue.substring(0, formattedValue.length - 5).trim()}°C';
-                                      }
-
-                                      if (formattedValue.endsWith(' ')) {
-                                        formattedValue =
-                                            formattedValue.trimRight();
-                                        if (formattedValue.contains('to')) {
-                                          final parts = formattedValue.split(
-                                            'to',
-                                          );
-                                          if (parts.length == 2) {
-                                            var firstPart = parts[0].trim();
-                                            var secondPart = parts[1].trim();
-                                            if (!firstPart.endsWith('°C')) {
-                                              firstPart += '°C';
-                                            }
-                                            if (!secondPart.endsWith('°C')) {
-                                              secondPart += '°C';
-                                            }
-                                            formattedValue =
-                                                '$firstPart to $secondPart';
-                                          }
-                                        } else {
-                                          if (formattedValue.startsWith('-')) {
-                                            if (tempInputPattern.hasMatch(
-                                              formattedValue.substring(1),
-                                            )) {
-                                              formattedValue += '°C to ';
-                                            } else if (formattedValue.endsWith(
-                                              '°C',
-                                            )) {
-                                              formattedValue += ' to ';
-                                            }
-                                          } else if (formattedValue.startsWith(
-                                            '+',
-                                          )) {
-                                            if (tempInputPattern.hasMatch(
-                                              formattedValue.substring(1),
-                                            )) {
-                                              formattedValue += '°C to ';
-                                            }
-                                          } else {
-                                            if (tempInputPattern.hasMatch(
-                                              formattedValue,
-                                            )) {
-                                              formattedValue += '°C';
-                                            }
-                                          }
-                                        }
-                                      } else if (formattedValue.endsWith(
-                                        '  ',
-                                      )) {
-                                        formattedValue =
-                                            formattedValue.trimRight();
-                                        if (formattedValue.contains('to')) {
-                                          final parts = formattedValue.split(
-                                            'to',
-                                          );
-                                          if (parts.length == 2) {
-                                            var firstPart = parts[0].trim();
-                                            var secondPart = parts[1].trim();
-                                            if (!firstPart.endsWith('°C')) {
-                                              firstPart += '°C';
-                                            }
-                                            if (!secondPart.endsWith('°C')) {
-                                              secondPart += '°C';
-                                            }
-                                            formattedValue =
-                                                '$firstPart to $secondPart';
-                                          }
-                                        } else {
-                                          if (tempInputPattern.hasMatch(
-                                            formattedValue,
-                                          )) {
-                                            formattedValue += '°C';
-                                          }
-                                        }
-                                      }
-                                      controller.value = TextEditingValue(
-                                        text: formattedValue,
-                                        selection: TextSelection.fromPosition(
-                                          TextPosition(
-                                            offset: formattedValue.length,
-                                          ),
-                                        ),
-                                      );
-                                    }
                                   },
                             onFieldSubmitted: (value) async {
                               if (label == 'RFID Reference' && !nfcUsed) {
@@ -1935,30 +2165,22 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                         return Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8.0),
-                            boxShadow: label != "Ambient Temperature"
-                                ? isFocused && isEditMode
-                                    ? showErrorColor == false
-                                        ? [
-                                            const BoxShadow(
-                                              color: Color(0xA3002B5C),
-                                              blurRadius: 4,
-                                              offset: Offset(0, 0),
-                                            ),
-                                          ]
-                                        : null
+                            boxShadow: isFocused && isEditMode
+                                ? showErrorColor == false
+                                    ? [
+                                        const BoxShadow(
+                                          color: Color(0xA3002B5C),
+                                          blurRadius: 4,
+                                          offset: Offset(0, 0),
+                                        ),
+                                      ]
                                     : null
                                 : null,
                           ),
                           child: TextFormField(
-                            // keyboardType: label == "Ambient Temperature"
-                            //     ? const TextInputType.numberWithOptions()
-                            //     : TextInputType.text,
-                            keyboardType:
-                                TextInputType.text, // use text keyboard
+                            keyboardType: TextInputType.text,
                             inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'[0-9+\-°C to]+'),
-                              ),
+                              AmbientTemperatureInputFormatter(),
                             ],
                             style: GoogleFonts.inter(
                               fontSize: 17,
@@ -2030,79 +2252,24 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                   width: 1.0,
                                 ),
                               ),
-                              errorStyle: label == 'Ambient Temperature'
-                                  ? GoogleFonts.inter(
-                                      color: const Color(0xFFF44336),
-                                      fontSize: 12.0,
-                                      height: 10 / 12,
-                                    )
-                                  : GoogleFonts.inter(
-                                      color: const Color(0xFFF44336),
-                                      fontSize: 12.0,
-                                      height: 0.1,
-                                    ),
-                              suffixIcon: (label == 'GPS Coordinates' ||
-                                      label == 'RFID Reference')
-                                  ? GestureDetector(
-                                      behavior: HitTestBehavior.translucent,
-                                      onTap: !isEditMode
-                                          ? null
-                                          : label == 'GPS Coordinates'
-                                              ? _getCurrentLocation
-                                              : () async {
-                                                  getRFIDTag(controller);
-                                                  // bool isAvailable =
-                                                  //     await NFCUtility(context)
-                                                  //         .isNfcAvailable();
-                                                  // if (!isAvailable) {
-                                                  //   ScaffoldMessenger.of(context)
-                                                  //       .showSnackBar(
-                                                  //     const SnackBar(
-                                                  //         content: Text(
-                                                  //             "NFC is not available.")),
-                                                  //   );
-                                                  //   return;
-                                                  // }
-                                                  // await NFCUtility(context)
-                                                  //     .startNfcSession(controller);
-                                                  // setState(() {
-                                                  //   nfcUsed = true;
-                                                  // });
-                                                },
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(10.0),
-                                        child: SvgPicture.asset(
-                                          label == 'GPS Coordinates'
-                                              ? 'lib/src/features/ex_inspections/assets/R-Icon1.svg'
-                                              : 'lib/src/features/ex_register/assets/rfid-icon.svg',
-                                          height: MediaQuery.of(
-                                                context,
-                                              ).size.height *
-                                              0.03,
-                                          width: MediaQuery.of(
-                                                context,
-                                              ).size.width *
-                                              0.06,
-                                          color: !isEditMode
-                                              ? const Color(0xFFBABABA)
-                                              : const Color(0xFF3B475B),
-                                        ),
-                                      ),
-                                    )
-                                  : null,
+                              errorStyle: GoogleFonts.inter(
+                                color: const Color(0xFFF44336),
+                                fontSize: 12.0,
+                                height: 10 / 12,
+                              ),
                             ),
-                            // || label=='RFID Reference'
-                            readOnly: !isEditMode || label == 'GPS Coordinates',
+                            readOnly: !isEditMode,
                             validator: (value) {
                               if (_isSubmitting &&
                                   isMandatory &&
-                                  (value == null || value.isEmpty)) {
+                                  (value == null || value.trim().isEmpty)) {
                                 return '';
                               }
-                              if (label == 'Ambient Temperature' &&
-                                  value != null &&
-                                  value.isNotEmpty) {
-                                if (value == 'Not Available') {
+                              if (value != null && value.trim().isNotEmpty) {
+                                final v = value.trim();
+                                if (v == 'Not Available' ||
+                                    v == 'N/A' ||
+                                    v == 'NA') {
                                   return null;
                                 }
                                 final tempSingleValueRegex = RegExp(
@@ -2111,9 +2278,13 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                 final tempRangeRegex = RegExp(
                                   r'^([-+]?\d{1,3})°C to ([-+]?\d{1,3})°C$',
                                 );
+                                final tempSlashRegex = RegExp(
+                                  r'^([-+]?\d{1,3})°C\/([-+]?\d{1,3})°C$',
+                                );
 
-                                if (!tempSingleValueRegex.hasMatch(value) &&
-                                    !tempRangeRegex.hasMatch(value)) {
+                                if (!tempSingleValueRegex.hasMatch(v) &&
+                                    !tempRangeRegex.hasMatch(v) &&
+                                    !tempSlashRegex.hasMatch(v)) {
                                   return 'Format: -40°C to +55°C or +55°C/-40°C';
                                 }
                               }
@@ -2123,123 +2294,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
                                 ? null
                                 : (value) {
                                     updateError();
-                                    if (label == 'Ambient Temperature') {
-                                      String formattedValue = value;
-                                      final tempInputPattern = RegExp(
-                                        r'^([-+]?\d{1,3})$',
-                                      );
-
-                                      if (formattedValue.endsWith(' to ')) {
-                                        formattedValue = formattedValue
-                                            .substring(
-                                              0,
-                                              formattedValue.length - 4,
-                                            )
-                                            .trim();
-                                      } else if (formattedValue.endsWith(
-                                        '°C to',
-                                      )) {
-                                        formattedValue =
-                                            '${formattedValue.substring(0, formattedValue.length - 5).trim()}°C';
-                                      }
-
-                                      if (formattedValue.endsWith(' ')) {
-                                        formattedValue =
-                                            formattedValue.trimRight();
-                                        if (formattedValue.contains('to')) {
-                                          final parts = formattedValue.split(
-                                            'to',
-                                          );
-                                          if (parts.length == 2) {
-                                            var firstPart = parts[0].trim();
-                                            var secondPart = parts[1].trim();
-                                            if (!firstPart.endsWith('°C')) {
-                                              firstPart += '°C';
-                                            }
-                                            if (!secondPart.endsWith('°C')) {
-                                              secondPart += '°C';
-                                            }
-                                            formattedValue =
-                                                '$firstPart to $secondPart';
-                                          }
-                                        } else {
-                                          if (formattedValue.startsWith('-')) {
-                                            if (tempInputPattern.hasMatch(
-                                              formattedValue.substring(1),
-                                            )) {
-                                              formattedValue += '°C to ';
-                                            } else if (formattedValue.endsWith(
-                                              '°C',
-                                            )) {
-                                              formattedValue += ' to ';
-                                            }
-                                          } else if (formattedValue.startsWith(
-                                            '+',
-                                          )) {
-                                            if (tempInputPattern.hasMatch(
-                                              formattedValue.substring(1),
-                                            )) {
-                                              formattedValue += '°C to ';
-                                            }
-                                          } else {
-                                            if (tempInputPattern.hasMatch(
-                                              formattedValue,
-                                            )) {
-                                              formattedValue += '°C';
-                                            }
-                                          }
-                                        }
-                                      } else if (formattedValue.endsWith(
-                                        '  ',
-                                      )) {
-                                        formattedValue =
-                                            formattedValue.trimRight();
-                                        if (formattedValue.contains('to')) {
-                                          final parts = formattedValue.split(
-                                            'to',
-                                          );
-                                          if (parts.length == 2) {
-                                            var firstPart = parts[0].trim();
-                                            var secondPart = parts[1].trim();
-                                            if (!firstPart.endsWith('°C')) {
-                                              firstPart += '°C';
-                                            }
-                                            if (!secondPart.endsWith('°C')) {
-                                              secondPart += '°C';
-                                            }
-                                            formattedValue =
-                                                '$firstPart to $secondPart';
-                                          }
-                                        } else {
-                                          if (tempInputPattern.hasMatch(
-                                            formattedValue,
-                                          )) {
-                                            formattedValue += '°C';
-                                          }
-                                        }
-                                      }
-                                      controller.value = TextEditingValue(
-                                        text: formattedValue,
-                                        selection: TextSelection.fromPosition(
-                                          TextPosition(
-                                            offset: formattedValue.length,
-                                          ),
-                                        ),
-                                      );
-                                    }
                                   },
-                            onFieldSubmitted: (value) async {
-                              if (label == 'RFID Reference' && !nfcUsed) {
-                                CommonFunctions commonFunctions =
-                                    CommonFunctions();
-                                String rfidValue = await commonFunctions
-                                    .reversedRFIDString(value);
-                                controller.text = rfidValue;
-                                controller.selection = TextSelection.collapsed(
-                                  offset: rfidValue.length,
-                                );
-                              }
-                            },
                           ),
                         );
                       },
@@ -2958,6 +3013,7 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     required ValueChanged<String?>? onChanged,
     bool isMandatory = false,
     bool disabled = false,
+    String? hintText,
   }) {
     final bool showErrorColor =
         _isSubmitting && isMandatory && (value == null || value.isEmpty);
@@ -2984,11 +3040,17 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
             valueListenable: widget.isEditModeNotifier,
             builder: (context, isEditMode, _) {
               return FormField<String>(
+                key: ValueKey(value),
                 initialValue: value,
                 builder: (FormFieldState<String> state) {
+                  String? selectedVal = value;
+                  if (selectedVal != null && selectedVal.trim().isEmpty) {
+                    selectedVal = null;
+                  }
                   return SearchableDropdown(
-                    value: value,
+                    value: selectedVal,
                     items: items,
+                    hint: hintText ?? 'Select item',
                     onChanged: (newValue) {
                       state.didChange(newValue);
                       onChanged?.call(newValue);

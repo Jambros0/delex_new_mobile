@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:deex_bloc_mobile_app_dev/src/custom_widgets/ambient_temperature_formatter.dart';
 import 'package:deex_bloc_mobile_app_dev/src/custom_widgets/multi_select_dropdown.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/bloc/ex_inspection_bloc.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/bloc/ex_inspection_event.dart';
@@ -94,6 +95,7 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
   // String? _eqpmtLytDrawNo;
   // String? _eqpmtLytDrawAttach;
   // String? _eqpmntLytDrawAttachOrgName;
+  bool _isLoadingGps = false;
   bool _isSubmitting = false;
   bool isFieldNameSelected = false;
   bool isShowError = false;
@@ -158,9 +160,7 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     if (widget.exInspectionRequest.functionalAreaRequest != null) {
       _initializeValues();
     }
-    if (widget.isUpdate == false) {
-      _addInitialControllers();
-    }
+    _addInitialControllers();
     controllerCheck = false;
 
     context.read<ExInspectionsBloc>().add(FetchAllDropDwn());
@@ -218,9 +218,16 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       _areaClassificationDrawingController.add(TextEditingController());
       _areaFilePaths.add(null);
     }
+    while (_areaFilePaths.length < _areaClassificationDrawingController.length) {
+      _areaFilePaths.add(null);
+    }
 
     if (_equipmentLayoutDrawingController.isEmpty) {
       _equipmentLayoutDrawingController.add(TextEditingController());
+      _equipmentFilePaths.add(null);
+    }
+    while (_equipmentFilePaths.length <
+        _equipmentLayoutDrawingController.length) {
       _equipmentFilePaths.add(null);
     }
   }
@@ -235,29 +242,45 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
   @override
   void didUpdateWidget(covariant FunctionalAreaStep oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldRequest = oldWidget.exInspectionRequest;
-    final newRequest = widget.exInspectionRequest;
-    if (oldRequest != newRequest && newRequest.functionalAreaRequest != null) {
+    final oldFa = oldWidget.exInspectionRequest.functionalAreaRequest;
+    final newFa = widget.exInspectionRequest.functionalAreaRequest;
+    if (newFa != null &&
+        (oldWidget.exInspectionRequest != widget.exInspectionRequest ||
+            oldFa != newFa ||
+            oldFa?.location != newFa.location ||
+            oldFa?.area != newFa.area ||
+            oldFa?.deckLevel != newFa.deckLevel ||
+            oldFa?.zone != newFa.zone ||
+            oldFa?.locationId != newFa.locationId ||
+            (_selectedFieldName.isEmpty &&
+                (newFa.location.isNotEmpty ||
+                    (newFa.locationId != null &&
+                        newFa.locationId!.isNotEmpty))))) {
       controllerCheck = true;
       _initializeValues();
+      _addInitialControllers();
     }
   }
 
   void _initializeValues() {
     final request = widget.exInspectionRequest.functionalAreaRequest;
-    _selectedFieldName = request!.location;
+    if (request == null) return;
+    _selectedFieldName = request.location;
     _selectedPlatform = request.area;
     _selectedDeckLevel = request.deckLevel;
     _selectedZone = request.zone;
 
     if (request.locationGasGroup.isNotEmpty) {
-      selectedGasItems = request.locationGasGroup;
+      selectedGasItems = List.from(request.locationGasGroup);
+      _selectedGasGroup = selectedGasItems.join(',');
     }
     if (request.locationTClass.isNotEmpty) {
-      selectedTemperatureItems = request.locationTClass;
+      selectedTemperatureItems = List.from(request.locationTClass);
+      _selectedTemperatureClass = selectedTemperatureItems.join(',');
     }
     if (request.locationIpRating.isNotEmpty) {
-      selectedIPRatingItems = request.locationIpRating;
+      selectedIPRatingItems = List.from(request.locationIpRating);
+      _selectedIpRating = selectedIPRatingItems.join(',');
     }
     _subAreaController.text = request.subArea ?? '';
     _ambientTemperatureController.text = request.tAmbient;
@@ -267,6 +290,8 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       request.areaClassDrawAttachOrgName,
     );
 
+    _areaClassificationDrawingController.clear();
+    _areaFilePaths.clear();
     for (int i = 0; i < _areaClassDrawAttachOrgName.length; i++) {
       _areaClassificationDrawingController.add(
         TextEditingController(text: _areaClassDrawAttachOrgName[i] ?? ''),
@@ -276,6 +301,10 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
           : '';
       _areaFilePaths.add(path);
     }
+    if (_areaClassificationDrawingController.isEmpty) {
+      _areaClassificationDrawingController.add(TextEditingController());
+      _areaFilePaths.add(null);
+    }
 
     _eqpmtLytDrawNo = List<String?>.from(request.eqpmtLytDrawNo);
     _eqpmtLytDrawAttach = List<String?>.from(request.eqpmtLytDrawAttach);
@@ -283,6 +312,8 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       request.eqpmtLytDrawAttachOrgName,
     );
 
+    _equipmentLayoutDrawingController.clear();
+    _equipmentFilePaths.clear();
     for (int i = 0; i < _eqpmntLytDrawAttachOrgName.length; i++) {
       _equipmentLayoutDrawingController.add(
         TextEditingController(text: _eqpmntLytDrawAttachOrgName[i] ?? ''),
@@ -292,11 +323,16 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
           : '';
       _equipmentFilePaths.add(path);
     }
+    if (_equipmentLayoutDrawingController.isEmpty) {
+      _equipmentLayoutDrawingController.add(TextEditingController());
+      _equipmentFilePaths.add(null);
+    }
 
     _locationId = (request.locationId != null && request.locationId!.isNotEmpty)
         ? request.locationId
         : ((widget.exInspectionRequest.equipmentTagRequest?.locationId != null &&
-            widget.exInspectionRequest.equipmentTagRequest!.locationId.isNotEmpty)
+                widget.exInspectionRequest.equipmentTagRequest!.locationId
+                    .isNotEmpty)
             ? widget.exInspectionRequest.equipmentTagRequest!.locationId
             : '');
     _locationLatitude.text = request.locationLatitude ?? '';
@@ -310,15 +346,10 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       _gpsCoordinatesController.text =
           '${_locationLatitude.text}, ${_locationLongtitude.text}';
     }
-    if (controllerCheck == true) {
-      if (_areaClassificationDrawingController.isEmpty) {
-        _addInitialControllers();
-      }
-      if (_equipmentLayoutDrawingController.isEmpty) {
-        _addInitialControllers();
-      }
-    }
+
+    _addInitialControllers();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final blocState = context.read<ExInspectionsBloc>().state;
       final dropdownData =
           blocState is ExInspectionLoaded ? blocState.allDropDowns : null;
@@ -332,20 +363,23 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
           _selectedFieldName,
         );
 
-        if (allPlatforms.isNotEmpty) {
-          setState(() {
-            _filteredPlatforms = allPlatforms;
-            if (!_filteredPlatforms.contains(_selectedPlatform)) {
-              _selectedPlatform = '';
-            }
-          });
-        }
+        setState(() {
+          _filteredPlatforms = allPlatforms;
+          if (_selectedPlatform.isNotEmpty &&
+              !_filteredPlatforms.contains(_selectedPlatform)) {
+            _filteredPlatforms.add(_selectedPlatform);
+          }
 
-        _filteredAreas = _getAreasForFieldName(
-          locationDropDown,
-          _selectedFieldName,
-          platformName: _selectedPlatform,
-        );
+          _filteredAreas = _getAreasForFieldName(
+            locationDropDown,
+            _selectedFieldName,
+            platformName: _selectedPlatform,
+          );
+          if (_selectedDeckLevel.isNotEmpty &&
+              !_filteredAreas.contains(_selectedDeckLevel)) {
+            _filteredAreas.add(_selectedDeckLevel);
+          }
+        });
       }
     });
   }
@@ -587,35 +621,56 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
   }
 
   Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return;
-    }
+    if (_isLoadingGps) return;
+    setState(() {
+      _isLoadingGps = true;
+    });
 
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        Fluttertoast.showToast(msg: "Location services are disabled.");
         return;
       }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          Fluttertoast.showToast(msg: "Location permission denied.");
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        Fluttertoast.showToast(
+          msg: "Location permissions are permanently denied.",
+        );
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      if (mounted) {
+        setState(() {
+          _locationLatitude.text = position.latitude.toString();
+          _locationLongtitude.text = position.longitude.toString();
+          _gpsCoordinatesController.text =
+              '${position.latitude}, ${position.longitude}';
+        });
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Error fetching GPS coordinates: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingGps = false;
+        });
+      }
     }
-
-    if (permission == LocationPermission.deniedForever) {
-      return;
-    }
-
-    Position position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
-
-    setState(() {
-      _locationLatitude.text = position.latitude.toString();
-      _locationLongtitude.text = position.longitude.toString();
-      _gpsCoordinatesController.text =
-          '${position.latitude}, ${position.longitude}';
-    });
   }
 
   @override
@@ -967,19 +1022,37 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     final zone = (exRegisterDropDown['zone'] as List<dynamic>)
         .map((item) => item.toString())
         .toList();
+    if (_selectedZone.isNotEmpty && !zone.contains(_selectedZone)) {
+      zone.add(_selectedZone);
+    }
 
     final gasGroup = (exRegisterDropDown['gasGroup'] as List<dynamic>)
         .map((item) => item.toString())
         .toList();
+    for (final gas in selectedGasItems) {
+      if (gas.isNotEmpty && !gasGroup.contains(gas)) {
+        gasGroup.add(gas);
+      }
+    }
 
     final temperatureClass =
         (exRegisterDropDown['temperatureClass'] as List<dynamic>)
             .map((item) => item.toString())
             .toList();
+    for (final temp in selectedTemperatureItems) {
+      if (temp.isNotEmpty && !temperatureClass.contains(temp)) {
+        temperatureClass.add(temp);
+      }
+    }
 
     final ipRating = (exRegisterDropDown['ipRating'] as List<dynamic>)
         .map((item) => item.toString())
         .toList();
+    for (final ip in selectedIPRatingItems) {
+      if (ip.isNotEmpty && !ipRating.contains(ip)) {
+        ipRating.add(ip);
+      }
+    }
     return Form(
       key: formKey,
       child: SingleChildScrollView(
@@ -1279,6 +1352,12 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     required ValueNotifier<bool> isEditModeNotifier,
     required ValueNotifier<bool> isEditAreaModeNotifier,
   }) {
+    if (controllers.isEmpty) {
+      controllers.add(TextEditingController());
+    }
+    while (filePaths.length < controllers.length) {
+      filePaths.add(null);
+    }
     bool isLastFieldFilled =
         controllers.isEmpty ? false : controllers.last.text.trim().isNotEmpty;
     bool canAddMore = controllers.length < 3 && isLastFieldFilled;
@@ -1595,9 +1674,10 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                             : null,
                       ),
                       child: TextFormField(
-                        keyboardType: label == "Ambient Temperature"
-                            ? const TextInputType.numberWithOptions()
-                            : TextInputType.text,
+                        keyboardType: TextInputType.text,
+                        inputFormatters: [
+                          AmbientTemperatureInputFormatter(),
+                        ],
                         style: GoogleFonts.inter(
                           fontSize: 17,
                           fontWeight: FontWeight.w400,
@@ -1669,37 +1749,68 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                             height: 10 / 12,
                           ),
                           suffixIcon: label == 'GPS Coordinates'
-                              ? GestureDetector(
-                                  onTap: _getCurrentLocation,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(10.0),
-                                    child: SvgPicture.asset(
-                                      'lib/src/features/ex_inspections/assets/R-Icon1.svg',
-                                      height:
-                                          MediaQuery.of(context).size.height *
-                                              0.03,
-                                      width: MediaQuery.of(context).size.width *
-                                          0.06,
-                                    ),
-                                  ),
-                                )
+                              ? (_isLoadingGps
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.0,
+                                            color: Color(0xFF002B5C),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onTap: _getCurrentLocation,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(10.0),
+                                        child: SvgPicture.asset(
+                                          'lib/src/features/ex_inspections/assets/R-Icon1.svg',
+                                          height:
+                                              MediaQuery.of(context).size.height *
+                                                  0.03,
+                                          width: MediaQuery.of(context).size.width *
+                                              0.06,
+                                        ),
+                                      ),
+                                    ))
                               : null,
                         ),
                         readOnly: label == 'GPS Coordinates',
                         validator: (value) {
                           if (_isSubmitting &&
                               isMandatory &&
-                              (value == null || value.isEmpty)) {
+                              (value == null || value.trim().isEmpty)) {
                             return '';
                           }
                           if (label == 'Ambient Temperature' &&
                               value != null &&
-                              value.isNotEmpty) {
-                            final regExp = RegExp(
+                              value.trim().isNotEmpty) {
+                            final v = value.trim();
+                            if (v == 'Not Available' ||
+                                v == 'N/A' ||
+                                v == 'NA') {
+                              return null;
+                            }
+                            final tempSingleValueRegex = RegExp(
+                              r'^([-+]?\d{1,3})°C$',
+                            );
+                            final tempRangeRegex = RegExp(
                               r'^([-+]?\d{1,3})°C to ([-+]?\d{1,3})°C$',
                             );
-                            if (!regExp.hasMatch(value)) {
-                              return 'Format: -40°C to +55°C';
+                            final tempSlashRegex = RegExp(
+                              r'^([-+]?\d{1,3})°C\/([-+]?\d{1,3})°C$',
+                            );
+
+                            if (!tempSingleValueRegex.hasMatch(v) &&
+                                !tempRangeRegex.hasMatch(v) &&
+                                !tempSlashRegex.hasMatch(v)) {
+                              return 'Format: -40°C to +55°C or +55°C/-40°C';
                             }
                           }
                           return null;
@@ -1711,40 +1822,6 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                           _isFieldValid = controller.text.isNotEmpty;
                           if (_isFieldValid) {
                             showErrorColor = true;
-                          }
-                          if (label == 'Ambient Temperature') {
-                            String formattedValue = value;
-                            if (formattedValue.endsWith(' ')) {
-                              formattedValue = formattedValue.trimRight();
-                              final tempInputPattern = RegExp(
-                                r'^([-+]?\d{1,3})$',
-                              );
-                              isShowError = value.isEmpty ||
-                                  !tempInputPattern.hasMatch(value);
-                              if (formattedValue.contains('to')) {
-                                final parts = formattedValue.split('to');
-                                if (parts.length == 2) {
-                                  final firstPart = parts[0].trim();
-                                  var secondPart = parts[1].trim();
-                                  if (tempInputPattern.hasMatch(secondPart) &&
-                                      !secondPart.contains('°C')) {
-                                    secondPart += '°C';
-                                  }
-                                  formattedValue = '$firstPart to $secondPart';
-                                }
-                              } else if (tempInputPattern.hasMatch(
-                                    formattedValue,
-                                  ) &&
-                                  !formattedValue.contains('°C')) {
-                                formattedValue += '°C to ';
-                              }
-                              controller.value = TextEditingValue(
-                                text: formattedValue,
-                                selection: TextSelection.fromPosition(
-                                  TextPosition(offset: formattedValue.length),
-                                ),
-                              );
-                            }
                           }
                         },
                       ),
@@ -2055,6 +2132,11 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
   }) {
     final bool showErrorColor =
         _isSubmitting && isMandatory && (value == null || value.isEmpty);
+    final List<String> effectiveItems = (value != null &&
+            value.trim().isNotEmpty &&
+            !items.contains(value))
+        ? [...items, value]
+        : items;
     return SizedBox(
       width: MediaQuery.of(context).size.width * 0.276,
       child: Column(
@@ -2090,7 +2172,7 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                       }
                       return SearchableDropdown(
                         value: selectedVal,
-                        items: items,
+                        items: effectiveItems,
                         onChanged: (newValue) {
                           state.didChange(newValue);
                           onChanged?.call(newValue);
@@ -2190,9 +2272,10 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                                 readOnly: !isEditAreaMode ||
                                     !isEditMode ||
                                     label == 'GPS Coordinates',
-                                keyboardType: label == "Ambient Temperature"
-                                    ? const TextInputType.numberWithOptions()
-                                    : TextInputType.text,
+                                keyboardType: TextInputType.text,
+                                inputFormatters: label == "Ambient Temperature"
+                                    ? [AmbientTemperatureInputFormatter()]
+                                    : null,
                                 style: GoogleFonts.inter(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w400,
@@ -2272,49 +2355,86 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                                     fontSize: 12.0,
                                   ),
                                   suffixIcon: label == 'GPS Coordinates'
-                                      ? GestureDetector(
-                                          behavior: HitTestBehavior.translucent,
-                                          onTap: isEditAreaMode
-                                              ? _getCurrentLocation
-                                              : isEditMode
+                                      ? (_isLoadingGps
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: Center(
+                                                child: SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2.0,
+                                                    color: Color(0xFF002B5C),
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : GestureDetector(
+                                              behavior:
+                                                  HitTestBehavior.translucent,
+                                              onTap: isEditAreaMode
                                                   ? _getCurrentLocation
-                                                  : null,
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(10.0),
-                                            child: SvgPicture.asset(
-                                              'lib/src/features/ex_inspections/assets/R-Icon1.svg',
-                                              height: MediaQuery.of(
-                                                    context,
-                                                  ).size.height *
-                                                  0.03,
-                                              width: MediaQuery.of(
-                                                    context,
-                                                  ).size.width *
-                                                  0.06,
-                                              color: !isEditAreaMode
-                                                  ? const Color(0xFFBABABA)
-                                                  : !isEditMode
+                                                  : isEditMode
+                                                      ? _getCurrentLocation
+                                                      : null,
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(10.0),
+                                                child: SvgPicture.asset(
+                                                  'lib/src/features/ex_inspections/assets/R-Icon1.svg',
+                                                  height: MediaQuery.of(
+                                                        context,
+                                                      ).size.height *
+                                                      0.03,
+                                                  width: MediaQuery.of(
+                                                        context,
+                                                      ).size.width *
+                                                      0.06,
+                                                  color: !isEditAreaMode
                                                       ? const Color(0xFFBABABA)
-                                                      : const Color(0xFF3B475B),
-                                            ),
-                                          ),
-                                        )
+                                                      : !isEditMode
+                                                          ? const Color(
+                                                              0xFFBABABA,
+                                                            )
+                                                          : const Color(
+                                                              0xFF3B475B,
+                                                            ),
+                                                ),
+                                              ),
+                                            ))
                                       : null,
                                 ),
                                 validator: (value) {
                                   if (_isSubmitting &&
                                       isMandatory &&
-                                      (value == null || value.isEmpty)) {
+                                      (value == null || value.trim().isEmpty)) {
                                     return '';
                                   }
                                   if (label == 'Ambient Temperature' &&
                                       value != null &&
-                                      value.isNotEmpty) {
-                                    final regExp = RegExp(
+                                      value.trim().isNotEmpty) {
+                                    final v = value.trim();
+                                    if (v == 'Not Available' ||
+                                        v == 'N/A' ||
+                                        v == 'NA') {
+                                      return null;
+                                    }
+                                    final tempSingleValueRegex = RegExp(
+                                      r'^([-+]?\d{1,3})°C$',
+                                    );
+                                    final tempRangeRegex = RegExp(
                                       r'^([-+]?\d{1,3})°C to ([-+]?\d{1,3})°C$',
                                     );
-                                    if (!regExp.hasMatch(value)) {
-                                      return 'Format: -40°C to +55°C';
+                                    final tempSlashRegex = RegExp(
+                                      r'^([-+]?\d{1,3})°C\/([-+]?\d{1,3})°C$',
+                                    );
+
+                                    if (!tempSingleValueRegex.hasMatch(v) &&
+                                        !tempRangeRegex.hasMatch(v) &&
+                                        !tempSlashRegex.hasMatch(v)) {
+                                      return 'Format: -40°C to +55°C or +55°C/-40°C';
                                     }
                                   }
                                   return null;
@@ -2330,59 +2450,6 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                                                 controller.text.isNotEmpty;
                                             if (_isFieldValid) {
                                               showErrorColor = true;
-                                            }
-
-                                            if (label ==
-                                                'Ambient Temperature') {
-                                              String formattedValue = value;
-                                              if (formattedValue
-                                                  .endsWith(' ')) {
-                                                formattedValue =
-                                                    formattedValue.trimRight();
-                                                final tempInputPattern = RegExp(
-                                                  r'^([-+]?\d{1,3})$',
-                                                );
-                                                if (formattedValue
-                                                    .contains('to')) {
-                                                  final parts = formattedValue
-                                                      .split('to');
-                                                  if (parts.length == 2) {
-                                                    final firstPart =
-                                                        parts[0].trim();
-                                                    var secondPart =
-                                                        parts[1].trim();
-                                                    if (tempInputPattern
-                                                            .hasMatch(
-                                                          secondPart,
-                                                        ) &&
-                                                        !secondPart.contains(
-                                                          '°C',
-                                                        )) {
-                                                      secondPart += '°C';
-                                                    }
-                                                    formattedValue =
-                                                        '$firstPart to $secondPart';
-                                                  }
-                                                } else if (tempInputPattern
-                                                        .hasMatch(
-                                                            formattedValue) &&
-                                                    !formattedValue.contains(
-                                                      '°C',
-                                                    )) {
-                                                  formattedValue += '°C to ';
-                                                }
-                                                controller.value =
-                                                    TextEditingValue(
-                                                  text: formattedValue,
-                                                  selection: TextSelection
-                                                      .fromPosition(
-                                                    TextPosition(
-                                                      offset:
-                                                          formattedValue.length,
-                                                    ),
-                                                  ),
-                                                );
-                                              }
                                             }
                                           },
                               ),
@@ -2980,6 +3047,11 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       areaStatus: _selectedAreaStatus ?? (_isActive ? 'Active' : 'In Active'),
     );
 
+    if (widget.exInspectionRequest.equipmentTagRequest != null) {
+      widget.exInspectionRequest.equipmentTagRequest!.locationId =
+          _locationId ?? '';
+    }
+
     if (!mounted) return true;
 
     final bloc = context.read<ExInspectionsBloc>();
@@ -3002,8 +3074,10 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
           _locationId = locId;
           widget.exInspectionRequest.functionalAreaRequest?.locationId =
               locId;
-          widget.exInspectionRequest.equipmentTagRequest?.locationId =
-              locId;
+          if (widget.exInspectionRequest.equipmentTagRequest != null) {
+            widget.exInspectionRequest.equipmentTagRequest!.locationId =
+                locId;
+          }
         }
         return true;
       } else if (state is ExInspectionError) {

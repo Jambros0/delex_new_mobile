@@ -172,13 +172,19 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
       final request = event.request.functionalAreaRequest;
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('userId');
+
+      String? locationId = request?.locationId;
+      if (locationId == null || locationId.isEmpty) {
+        locationId = event.request.equipmentTagRequest?.locationId;
+      }
+
       Map<String, dynamic> functionalAreaData = {
         'functional_area_json': jsonEncode(request!.toJson()),
         'created_by': userId,
         'updated_by': userId,
+        if (locationId != null && locationId.isNotEmpty) 'locationId': locationId,
+        if (locationId != null && locationId.isNotEmpty) 'id': locationId,
       };
-
-      String? locationId = request.locationId;
 
       if (request == null ||
           (request.location.isEmpty) &&
@@ -189,7 +195,7 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
         emit(
           ExInspectionSuccess(
             "Area Detail Clear Successfully",
-            request.locationId ?? "",
+            request?.locationId ?? "",
             false,
           ),
         );
@@ -215,14 +221,18 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
           emit(ExInspectionError(result['msg'] ?? 'Unknown error occurred'));
         }
       } else {
+        functionalAreaData['locationId'] = locationId;
+        functionalAreaData['id'] = locationId;
         print("functionalAreaData => ${jsonEncode(functionalAreaData)}");
         await functionalAreaRepo.updateFunctionalArea(functionalAreaData);
         event.request.functionalAreaRequest!.locationId = locationId;
-        event.request.equipmentTagRequest?.locationId = locationId;
+        if (event.request.equipmentTagRequest != null) {
+          event.request.equipmentTagRequest!.locationId = locationId;
+        }
         emit(
           ExInspectionSuccess(
             "Area Detail Updated Successfully",
-            request.locationId!,
+            locationId,
             false,
           ),
         );
@@ -300,6 +310,14 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('userId');
+
+      if ((event.request.equipmentTagRequest?.locationId == null ||
+              event.request.equipmentTagRequest!.locationId.isEmpty) &&
+          event.request.functionalAreaRequest?.locationId != null &&
+          event.request.functionalAreaRequest!.locationId!.isNotEmpty) {
+        event.request.equipmentTagRequest?.locationId =
+            event.request.functionalAreaRequest!.locationId!;
+      }
 
       if (event.request.equipmentTagRequest?.assetId == null ||
           event.request.equipmentTagRequest!.assetId!.isEmpty ||

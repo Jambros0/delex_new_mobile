@@ -345,12 +345,39 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
       }
       setState(() {
         _isUpdate = true;
+        final faReq = locationId.isNotEmpty
+            ? _mapLocationToFunctionalAreaRequest(locationData)
+            : null;
+        if (faReq != null) {
+          faReq.locationId = locationId;
+        }
+
+        if (_exInspectionRequest.equipmentTagRequest == null) {
+          _initializeExInspectionRequest();
+        }
+
         _exInspectionRequest = ExInspectionRequest(
-          functionalAreaRequest: locationId.isNotEmpty
-              ? _mapLocationToFunctionalAreaRequest(locationData)
-              : null,
+          functionalAreaRequest: faReq,
+          equipmentTagRequest: _exInspectionRequest.equipmentTagRequest,
+          inspectionChecklistRequest:
+              _exInspectionRequest.inspectionChecklistRequest,
         );
+        if (_exInspectionRequest.equipmentTagRequest != null) {
+          _exInspectionRequest.equipmentTagRequest!.locationId = locationId;
+        }
+
         _isDataFetched = true;
+        if (widget.locationId != null && widget.locationId!.isNotEmpty) {
+          for (int i = 0; i < _stepTitles.length; i++) {
+            if (i == 0 &&
+                _exInspectionRequest.functionalAreaRequest != null &&
+                _exInspectionRequest.functionalAreaRequest!.location.isNotEmpty) {
+              _stepCompleted[i] = true;
+            } else {
+              _stepCompleted[i] = false;
+            }
+          }
+        }
       });
     } catch (e) {
       throw Exception('Error fetching asset data: $e');
@@ -359,38 +386,67 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
 
   Future<void> _fetchLocationDataFromOffline(String locationId) async {
     if (_isDataFetched) return;
-    // try {
     final String? userType = await authUtils.getUserType();
 
     List<Map<String, dynamic>> results = (userType == 'onshore')
         ? await _dbHelper.getFunctionalAreaOnshore()
         : await _dbHelper.getFunctionalArea();
     Map<String, dynamic> locationData = {};
+    String matchedLocationId = locationId;
+
     for (var record in results) {
       dynamic functionalAreaJson = record['functional_area_json'];
       Map<String, dynamic> jsonMap = CommonFunctions().decodeJson(
         functionalAreaJson,
       );
-      if (jsonMap['location']['locationId'] == locationId) {
-        locationData = jsonMap['location'];
+      final loc = (jsonMap['location'] is Map)
+          ? Map<String, dynamic>.from(jsonMap['location'])
+          : Map<String, dynamic>.from(jsonMap);
+      final String? locId = loc['locationId']?.toString() ??
+          loc['_id']?.toString() ??
+          jsonMap['locationId']?.toString() ??
+          jsonMap['_id']?.toString() ??
+          record['id']?.toString();
+      final String? rowId = record['id']?.toString();
+      final String? locName = loc['location']?.toString();
+
+      if (locId == locationId || rowId == locationId || locName == locationId) {
+        locationData = loc;
+        matchedLocationId = locId ?? rowId ?? locationId;
+        locationData['locationId'] = matchedLocationId;
         break;
       }
     }
+
     setState(() {
       _isUpdate = true;
+      final faReq = locationData.isNotEmpty
+          ? _mapLocationToFunctionalAreaRequest(locationData)
+          : null;
+      if (faReq != null) {
+        faReq.locationId = matchedLocationId;
+      }
+
+      if (_exInspectionRequest.equipmentTagRequest == null) {
+        _initializeExInspectionRequest();
+      }
+
       _exInspectionRequest = ExInspectionRequest(
-        functionalAreaRequest: locationData.isNotEmpty
-            ? _mapLocationToFunctionalAreaRequest(locationData)
-            : null,
+        functionalAreaRequest: faReq,
+        equipmentTagRequest: _exInspectionRequest.equipmentTagRequest,
+        inspectionChecklistRequest:
+            _exInspectionRequest.inspectionChecklistRequest,
       );
+      if (_exInspectionRequest.equipmentTagRequest != null) {
+        _exInspectionRequest.equipmentTagRequest!.locationId = matchedLocationId;
+      }
+
       _isDataFetched = true;
       if (widget.locationId != null && widget.locationId!.isNotEmpty) {
-        _isUpdate = true;
         for (int i = 0; i < _stepTitles.length; i++) {
           if (i == 0 &&
               _exInspectionRequest.functionalAreaRequest != null &&
               _exInspectionRequest.functionalAreaRequest!.location.isNotEmpty) {
-            // _exInspectionRequest.functionalAreaRequest!.tAmbient.isNotEmpty
             _stepCompleted[i] = true;
           } else {
             _stepCompleted[i] = false;
@@ -398,9 +454,6 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
         }
       }
     });
-    // } catch (e) {
-    //   throw Exception('Error fetching location data from offline: $e');
-    // }
   }
 
   Future<void> _fetchAssetDataFromOffline(String assetId) async {
@@ -426,7 +479,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
         assetDetails['_id'] = rowId.toString();
       }
 
-      String locationId = assetDetails['locationId'] ?? '';
+      String locationId = assetDetails['locationId']?.toString() ?? '';
       Map<String, dynamic> locationData = {};
       if (locationId.isNotEmpty) {
         List<Map<String, dynamic>> functionalAreas = (userType == 'onshore')
@@ -437,19 +490,40 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
           Map<String, dynamic> functionalAreaMap = CommonFunctions().decodeJson(
             functionalAreaJson,
           );
-          if (functionalAreaMap['location']['locationId'] == locationId) {
-            locationData = functionalAreaMap['location'];
+          final loc = (functionalAreaMap['location'] is Map)
+              ? Map<String, dynamic>.from(functionalAreaMap['location'])
+              : Map<String, dynamic>.from(functionalAreaMap);
+          final String? locId = loc['locationId']?.toString() ??
+              loc['_id']?.toString() ??
+              functionalAreaMap['locationId']?.toString() ??
+              functionalAreaMap['_id']?.toString() ??
+              record['id']?.toString();
+          final String? rowId = record['id']?.toString();
+
+          if (locId == locationId || rowId == locationId) {
+            locationData = loc;
+            locationData['locationId'] = locId ?? rowId ?? locationId;
             break;
           }
         }
       }
+
+      final mappedFa = locationData.isNotEmpty
+          ? _mapLocationToFunctionalAreaRequest(locationData)
+          : null;
+      if (mappedFa != null && locationId.isNotEmpty) {
+        mappedFa.locationId = locationId;
+      }
+      final mappedEq = _mapEquipmentTagRequest(assetDetails);
+      if (locationId.isNotEmpty) {
+        mappedEq.locationId = locationId;
+      }
+
       setState(() {
         _isUpdate = true;
         _exInspectionRequest = ExInspectionRequest(
-          functionalAreaRequest: locationId.isNotEmpty
-              ? _mapLocationToFunctionalAreaRequest(locationData)
-              : null,
-          equipmentTagRequest: _mapEquipmentTagRequest(assetDetails),
+          functionalAreaRequest: mappedFa,
+          equipmentTagRequest: mappedEq,
         );
         _isDataFetched = true;
 
@@ -541,12 +615,23 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
   FunctionalAreaRequest _mapLocationToFunctionalAreaRequest(
     Map<String, dynamic> locationData,
   ) {
+    String latitude = locationData['locationLatitude']?.toString() ?? '';
+    String longitude = locationData['locationLongitude']?.toString() ?? '';
+    if ((latitude.isEmpty || longitude.isEmpty) &&
+        locationData['gpsCoordinates'] != null) {
+      final gps = locationData['gpsCoordinates'].toString();
+      if (gps.contains(',')) {
+        final parts = gps.split(',');
+        latitude = parts[0].trim();
+        longitude = parts[1].trim();
+      }
+    }
     return FunctionalAreaRequest(
-      location: locationData['location'] ?? '',
-      area: locationData['area'] ?? '',
-      deckLevel: locationData['deckLevel'],
-      subArea: locationData['subArea'] ?? '',
-      zone: locationData['zone'] ?? '',
+      location: locationData['location']?.toString() ?? '',
+      area: locationData['area']?.toString() ?? '',
+      deckLevel: locationData['deckLevel']?.toString() ?? '',
+      subArea: locationData['subArea']?.toString() ?? '',
+      zone: locationData['zone']?.toString() ?? '',
       locationGasGroup: List<String>.from(
         locationData['locationGasGroup'] ?? [],
       ),
@@ -554,7 +639,11 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
       locationIpRating: List<String>.from(
         locationData['locationIpRating'] ?? [],
       ),
-      tAmbient: locationData['tAmbient'] ?? '',
+      tAmbient: (locationData['tAmbient'] ??
+              locationData['locationTAmbient'] ??
+              '')
+          ?.toString() ??
+          '',
       areaClassDrawAttach: List<String>.from(
         locationData['areaClassDrawAttach'] ?? [],
       ),
@@ -569,10 +658,15 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
       eqpmtLytDrawAttachOrgName: List<String>.from(
         locationData['eqpmtLytDrawAttachOrgName'] ?? [],
       ),
-      locationId: locationData['_id'] ?? locationData['locationId'] ?? '',
-      locationLatitude: locationData['locationLatitude'] ?? '',
-      locationLongitude: locationData['locationLongitude'] ?? '',
+      locationId: locationData['locationId']?.toString() ??
+          locationData['_id']?.toString() ??
+          locationData['id']?.toString() ??
+          '',
+      locationLatitude: latitude,
+      locationLongitude: longitude,
       isActive: locationData['isActive'] ?? true,
+      areaStatus: locationData['areaStatus'] ??
+          (locationData['isActive'] == false ? 'In Active' : 'Active'),
     );
   }
 
@@ -607,7 +701,7 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
         assetDetails['eqpmtLytDrawAttach'] ?? [],
       ),
       eqpmtLytDrawNo: List<String>.from(assetDetails['eqpmtLytDrawNo'] ?? []),
-      locationId: assetDetails['locationId'] ?? assetDetails['_id'],
+      locationId: assetDetails['locationId']?.toString() ?? '',
       deckLevel: assetDetails['deckLevel'] ?? '',
       locationLatitude: assetDetails['locationLatitude'] ?? '',
       locationLongitude: assetDetails['locationLongitude'] ?? '',
@@ -938,7 +1032,6 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
             'isSelectedScreenFlag': true,
             'filter': 'Show All',
             'fltertype': 'Year to Date',
-            'fetchApiOnce': true,
           },
         );
       }

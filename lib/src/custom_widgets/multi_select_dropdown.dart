@@ -66,6 +66,7 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
 
   @override
   void dispose() {
+    _removeDropdown();
     _focusNode.dispose();
     // _controller.dispose();
     super.dispose();
@@ -85,7 +86,7 @@ class _MultiSelectDropdownState extends State<MultiSelectDropdown> {
   void _startOverlayPositionListener(
       FormFieldState<List<String>> field, List<String> items) {
     WidgetsBinding.instance.addPersistentFrameCallback((_) {
-      if (_dropdownOverlayEntry == null) return;
+      if (!mounted || _dropdownOverlayEntry == null) return;
 
       final renderBox = context.findRenderObject() as RenderBox?;
       final overlay =

@@ -1,17 +1,17 @@
-import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/assets_duplicate.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/equipment_tag_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex_register_model.dart';
+import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_state.dart';
 
 void main() {
   group('Ex-Register Duplication & Modification Isolation Tests', () {
-    test('Duplicating a record creates an isolated asset with stripped original IDs', () {
-      final originalAssetJson = {
-        '_id': '45',
-        'primaryId': 45,
-        'id': '45',
-        'location': 'Platform A',
+    test('Duplicating Data 0 produces isolated Data 1 with distinct locationId and primaryId', () {
+      final data0Json = {
+        '_id': '10',
+        'primaryId': 10,
+        'id': '10',
+        'location': 'Platform Alpha',
         'area': 'Deck 1',
         'zone': 'Zone 1',
         'locationGasGroup': ['IIA'],
@@ -23,11 +23,11 @@ void main() {
         'eqpmtLytDrawAttachOrgName': <String>[],
         'eqpmtLytDrawAttach': <String>[],
         'eqpmtLytDrawNo': <String>[],
-        'locationId': 'loc_101',
-        'deckLevel': 'Level 2',
+        'locationId': 'loc_original_10',
+        'deckLevel': 'Level 1',
         'eqpmtCatg': 'Electrical',
-        'description': 'Original Motor 45',
-        'eqpmtTag': 'TAG-45',
+        'description': 'Original Equipment 10',
+        'eqpmtTag': 'TAG-0010',
         'atexCatg': <String>[],
         'epl': <String>[],
         'protectionType': <String>[],
@@ -35,56 +35,65 @@ void main() {
         'isActive': true,
       };
 
-      // 1. Create DuplicateAsset model from original asset
-      final duplicateModel = DuplicateAsset.fromJson(originalAssetJson);
-      expect(duplicateModel.description, equals('Original Motor 45'));
-      expect(duplicateModel.eqpmtTag, equals('TAG-45'));
+      // Step 1: Duplicate Data 0 to DuplicateAsset model
+      final duplicateAsset = DuplicateAsset.fromJson(data0Json);
+      expect(duplicateAsset.description, equals('Original Equipment 10'));
+      expect(duplicateAsset.eqpmtTag, equals('TAG-0010'));
 
-      // 2. PostAsset logic: Decouple IDs
-      final Map<String, dynamic> duplicateAssetMap = duplicateModel.toJson();
-      duplicateAssetMap.remove('_id');
-      duplicateAssetMap.remove('primaryId');
-      duplicateAssetMap.remove('id');
-      duplicateAssetMap['isDuplicate'] = true;
+      // Step 2: In postAsset, cloned functional area generates new unique locationId
+      final String clonedLocationId = 'loc_duplicate_20';
+      duplicateAsset.locationId = clonedLocationId;
+      duplicateAsset.isDuplicate = true;
 
-      // 3. Emulate SQLite insert generating new unique row ID (e.g. 46)
-      const int newDuplicateRowId = 46;
-      duplicateAssetMap['_id'] = newDuplicateRowId.toString();
-      duplicateAssetMap['primaryId'] = newDuplicateRowId;
-      duplicateAssetMap['id'] = newDuplicateRowId.toString();
+      final Map<String, dynamic> data1AssetMap = duplicateAsset.toJson();
+      data1AssetMap.remove('_id');
+      data1AssetMap.remove('primaryId');
+      data1AssetMap.remove('id');
+      data1AssetMap['locationId'] = clonedLocationId;
+      data1AssetMap['isDuplicate'] = true;
 
-      final recordAJson = {'asset': originalAssetJson};
-      final recordBJson = {'asset': duplicateAssetMap};
+      // Step 3: SQLite assigns new unique primary key (e.g. 20)
+      const int data1RowId = 20;
+      data1AssetMap['_id'] = data1RowId.toString();
+      data1AssetMap['primaryId'] = data1RowId;
+      data1AssetMap['id'] = data1RowId.toString();
 
-      // 4. Verify Record A vs Record B identity
-      expect(recordAJson['asset']!['_id'], equals('45'));
-      expect(recordAJson['asset']!['primaryId'], equals(45));
-      expect(recordBJson['asset']!['_id'], equals('46'));
-      expect(recordBJson['asset']!['primaryId'], equals(46));
-      expect(recordAJson['asset']!['primaryId'], isNot(equals(recordBJson['asset']!['primaryId'])));
+      final Map<String, dynamic> recordData0 = {'id': 10, 'asset': Map<String, dynamic>.from(data0Json)};
+      final Map<String, dynamic> recordData1 = {'id': 20, 'asset': Map<String, dynamic>.from(data1AssetMap)};
+      final asset0 = recordData0['asset'] as Map<String, dynamic>;
+      final asset1 = recordData1['asset'] as Map<String, dynamic>;
 
-      // 5. Modifying Record A does not modify Record B
-      final modifiedRecordAMap = Map<String, dynamic>.from(recordAJson['asset']!);
-      modifiedRecordAMap['eqpmtTag'] = 'TAG-45-MODIFIED';
-      modifiedRecordAMap['description'] = 'Updated Motor 45';
+      // Verify identities are distinct
+      expect(recordData0['id'], equals(10));
+      expect(asset0['primaryId'], equals(10));
+      expect(asset0['locationId'], equals('loc_original_10'));
 
-      expect(modifiedRecordAMap['eqpmtTag'], equals('TAG-45-MODIFIED'));
-      expect(recordBJson['asset']!['eqpmtTag'], equals('TAG-45'));
-      expect(recordBJson['asset']!['description'], equals('Original Motor 45'));
+      expect(recordData1['id'], equals(20));
+      expect(asset1['primaryId'], equals(20));
+      expect(asset1['locationId'], equals('loc_duplicate_20'));
 
-      // 6. Modifying Record B does not modify Record A
-      final modifiedRecordBMap = Map<String, dynamic>.from(recordBJson['asset']!);
-      modifiedRecordBMap['eqpmtTag'] = 'TAG-46-DUPLICATE-EDIT';
-      modifiedRecordBMap['description'] = 'Duplicate Specific Desc';
+      // Step 4: Edit Data 1 (Functional Area & Equipment Tag)
+      asset1['location'] = 'New Location B';
+      asset1['description'] = 'Modified Duplicated Equipment 20';
+      asset1['eqpmtTag'] = 'TAG-0020-NEW';
 
-      expect(modifiedRecordBMap['eqpmtTag'], equals('TAG-46-DUPLICATE-EDIT'));
-      expect(modifiedRecordAMap['eqpmtTag'], equals('TAG-45-MODIFIED'));
+      // Assert Data 0 is COMPLETELY unaffected
+      expect(asset0['location'], equals('Platform Alpha'));
+      expect(asset0['description'], equals('Original Equipment 10'));
+      expect(asset0['eqpmtTag'], equals('TAG-0010'));
+      expect(asset0['locationId'], equals('loc_original_10'));
+
+      // Assert Data 1 contains the updated values
+      expect(asset1['location'], equals('New Location B'));
+      expect(asset1['description'], equals('Modified Duplicated Equipment 20'));
+      expect(asset1['eqpmtTag'], equals('TAG-0020-NEW'));
+      expect(asset1['locationId'], equals('loc_duplicate_20'));
     });
 
-    test('EquipmentTagRequest mapping correctly sets assetId and primaryId', () {
+    test('EquipmentTagRequest mapping correctly preserves assetId and primaryId', () {
       final assetDetails = {
-        '_id': '99',
-        'primaryId': 99,
+        '_id': '55',
+        'primaryId': 55,
         'location': 'Platform Alpha',
         'area': 'Deck 2',
         'zone': 'Zone 2',
@@ -97,11 +106,11 @@ void main() {
         'eqpmtLytDrawAttachOrgName': <String>[],
         'eqpmtLytDrawAttach': <String>[],
         'eqpmtLytDrawNo': <String>[],
-        'locationId': 'loc_99',
+        'locationId': 'loc_55',
         'deckLevel': 'Deck 2',
         'eqpmtCatg': 'Instrumentation',
-        'description': 'Sensor Unit',
-        'eqpmtTag': 'SEN-99',
+        'description': 'Pressure Transmitter',
+        'eqpmtTag': 'PT-55',
         'atexCatg': <String>[],
         'epl': <String>[],
         'protectionType': <String>[],
@@ -110,13 +119,63 @@ void main() {
       };
 
       final req = EquipmentTagRequest.fromJson(assetDetails);
-      expect(req.assetId, equals('99'));
+      expect(req.assetId, equals('55'));
+      expect(req.primaryId, equals(55));
 
       final jsonResult = req.toJson();
       expect(jsonResult.containsKey('asset'), isTrue);
       final assetMap = jsonResult['asset'] as Map<String, dynamic>;
-      expect(assetMap['_id'], equals('99'));
-      expect(assetMap['eqpmtTag'], equals('SEN-99'));
+      expect(assetMap['_id'], equals('55'));
+      expect(assetMap['primaryId'], equals(55));
+      expect(assetMap['eqpmtTag'], equals('PT-55'));
+    });
+
+    test('ExRegister model parse sets correct ID and location mapping', () {
+      final jsonMap = {
+        '_id': '101',
+        'primaryId': 101,
+        'eqpmtTag': 'TAG-101',
+        'description': 'Pump Motor',
+        'location': 'Subsea Module',
+        'locationId': 'loc_101',
+        'rfidRef': 'RFID-101',
+        'isActive': true,
+        'area': 'Area X',
+        'zone': 'Zone 0',
+      };
+
+      final exRegister = ExRegister.fromJson(jsonMap);
+      expect(exRegister.id, equals('101'));
+      expect(exRegister.primaryId, equals(101));
+      expect(exRegister.eqpmtTag, equals('TAG-101'));
+      expect(exRegister.location, equals('Subsea Module'));
+      expect(exRegister.rfidRef, equals('RFID-101'));
+    });
+
+    test('ExRegisterInitial and ExRegisterLoading states are handled cleanly without error states', () {
+      final initialState = ExRegisterInitial();
+      final loadingState = ExRegisterLoading();
+      final errorState = ExRegisterError('Custom error message');
+      final loadedState = ExRegisterLoaded(
+        tableHeaders: ['Tag', 'Desc'],
+        assets: [
+          ExRegister.fromJson({'id': '1', 'primaryId': 1, 'eqpmtTag': 'TAG-1'}),
+          ExRegister.fromJson({'id': '2', 'primaryId': 2, 'eqpmtTag': 'TAG-2'}),
+        ],
+        totalRecords: 2,
+        sortOrder: 'asc',
+        skip: 0,
+        isDuplicate: false,
+      );
+
+      // Verify states distinguish properly
+      expect(initialState, isA<ExRegisterState>());
+      expect(loadingState, isA<ExRegisterState>());
+      expect(errorState, isA<ExRegisterState>());
+      expect(loadedState, isA<ExRegisterState>());
+      expect(loadedState.assets.length, equals(2));
+      expect(loadedState.totalRecords, equals(2));
     });
   });
 }
+

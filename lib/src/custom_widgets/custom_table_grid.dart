@@ -110,7 +110,7 @@ class CustomTableGridState extends State<CustomTableGrid>
       begin: const Offset(1.0, 0.0), // Start completely offscreen on the right
       end: const Offset(0.0, 0.0), // End at the middle (right side)
     ).animate(_controller);
-    iconKeys = List.generate(widget.columnKeys.length, (_) => GlobalKey());
+    iconKeys = List.generate(widget.headers.length, (_) => GlobalKey());
     super.initState();
     // _controllers = LinkedScrollControllerGroup();
     // _headerController = _controllers.addAndGet();
@@ -127,6 +127,9 @@ class CustomTableGridState extends State<CustomTableGrid>
 
     if (widget.rows.length != _selectionStates.length) {
       _updateSelectionStates();
+    }
+    if (widget.headers.length != iconKeys.length) {
+      iconKeys = List.generate(widget.headers.length, (_) => GlobalKey());
     }
   }
 
@@ -202,32 +205,26 @@ class CustomTableGridState extends State<CustomTableGrid>
                   : screenHeight * 0.52,
               child: SingleChildScrollView(
                 scrollDirection: Axis.vertical,
-                child: Scrollbar(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    controller: _bodyController,
-                    child: Column(
-                      children: widget.rows.asMap().entries.map((entry) {
-                        int index = entry.key;
-                        List<String> row = entry.value;
+                child: Column(
+                  children: widget.rows.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    List<String> row = entry.value;
 
-                        return Container(
-                          height: 56,
-                          color: index % 2 == 0
-                              ? Colors.white
-                              : const Color(0xFFEDF3F8),
-                          child: _buildRowCells(
-                            index,
-                            row,
-                            columnWidth,
-                            checkboxWidth,
-                            leftPadding,
-                            widget.tableType,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                    return Container(
+                      height: 56,
+                      color: index % 2 == 0
+                          ? Colors.white
+                          : const Color(0xFFEDF3F8),
+                      child: _buildRowCells(
+                        index,
+                        row,
+                        columnWidth,
+                        checkboxWidth,
+                        leftPadding,
+                        widget.tableType,
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
             ),
@@ -510,16 +507,18 @@ class CustomTableGridState extends State<CustomTableGrid>
                             ? SvgPicture.asset(assetPath, width: 20, height: 20)
                             : const SizedBox(width: 20, height: 20),
                         const SizedBox(width: 16),
-                        Text(
-                          cell,
-                          textAlign: TextAlign.left,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF3B475B),
-                            height: 20 / 14,
+                        Flexible(
+                          child: Text(
+                            cell,
+                            textAlign: TextAlign.left,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF3B475B),
+                              height: 20 / 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -528,11 +527,9 @@ class CustomTableGridState extends State<CustomTableGrid>
               } else if (isHasViewMore) {
                 cellContent = Container(
                   padding: EdgeInsets.only(
-                    right: cell == "0"
-                        ? 90
-                        : ColumnStyleHelper.getExRegisterCellRightPadding(
-                            entry.key,
-                          ),
+                    right: ColumnStyleHelper.getExRegisterCellRightPadding(
+                      entry.key,
+                    ),
                   ),
                   width: ColumnStyleHelper.getExRegisterCellCustomWidth(
                     entry.key,
@@ -541,21 +538,24 @@ class CustomTableGridState extends State<CustomTableGrid>
                   child: Row(
                     mainAxisAlignment: cell == "0"
                         ? MainAxisAlignment.center
-                        : MainAxisAlignment.spaceEvenly,
+                        : MainAxisAlignment.start,
                     children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () {
-                          _navigateToInspectionScreen(row[0]);
-                        },
-                        child: Text(
-                          cell,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF3B475B),
-                            height: 20 / 14,
+                      Flexible(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () {
+                            _navigateToInspectionScreen(row[0]);
+                          },
+                          child: Text(
+                            cell,
+                            textAlign: cell == "0" ? TextAlign.center : TextAlign.left,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF3B475B),
+                              height: 20 / 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -571,15 +571,10 @@ class CustomTableGridState extends State<CustomTableGrid>
                               row,
                             );
                           },
-                          child: Row(
-                            children: [
-                              const SizedBox(width: 3),
-                              SvgPicture.asset(
-                                'lib/src/features/ex_register/assets/external_link.svg',
-                                width: 20,
-                                height: 20,
-                              ),
-                            ],
+                          child: SvgPicture.asset(
+                            'lib/src/features/ex_register/assets/external_link.svg',
+                            width: 20,
+                            height: 20,
                           ),
                         ),
                       ],
@@ -631,12 +626,16 @@ class CustomTableGridState extends State<CustomTableGrid>
       );
     } else if (widget.tableType == 'Server To Device' ||
         widget.tableType == 'Device To Server') {
-      return Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 10),
-            child: CustomRoundCheckbox(
-              value: _selectionStates[rowIndex],
+      return Padding(
+        padding: EdgeInsets.only(
+          left: widget.headers.isNotEmpty && widget.headers.first == "RFID Reference"
+              ? 10
+              : 0,
+        ),
+        child: Row(
+          children: [
+            CustomRoundCheckbox(
+              value: rowIndex < _selectionStates.length ? _selectionStates[rowIndex] : false,
               onChanged: (bool? value) {
                 setState(() {
                   if (rowIndex < _selectionStates.length) {
@@ -655,147 +654,139 @@ class CustomTableGridState extends State<CustomTableGrid>
               },
               isHeader: false,
               checkboxWidth: checkboxWidth,
-              leftPadding: 0,
+              leftPadding: leftPadding,
             ),
-          ),
-          ...row.asMap().entries.skip(1).map((entry) {
-            int columnIndex = entry.key - 1;
-            String cell = entry.value;
-            bool isSpecialColumn =
-                widget.headers[columnIndex] == "Inspection Status" ||
-                widget.headers[columnIndex] == "Current Status";
-            bool isHasViewMore =
-                widget.headers[columnIndex] == "Inspection Faults" ||
-                widget.headers[columnIndex] == "Completed Repairs" ||
-                widget.headers[columnIndex] == "Existing Faults";
-            Widget cellContent;
-            double leftPadding =
-                (widget.headers[columnIndex] == "RFID Reference") ? 17 : 0;
-            final String assetPath = _getFlagAssetPath(cell);
-            if (isSpecialColumn) {
-              cellContent = Container(
-                padding: EdgeInsets.only(
-                  left: leftPadding,
-                  right: ColumnStyleHelper.getExRegisterCellRightPadding(
-                    entry.key,
-                  ),
-                ),
-                width: ColumnStyleHelper.getExRegisterCellCustomWidth(
-                  entry.key,
-                  columnWidth,
-                ),
-                child: Row(
-                  children: [
-                    assetPath.isNotEmpty
-                        ? SvgPicture.asset(assetPath, width: 20, height: 20)
-                        : const SizedBox(width: 20, height: 20),
-                    const SizedBox(width: 16),
-                    Text(
-                      cell,
-                      textAlign: TextAlign.left,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: const Color(0xFF3B475B),
-                        height: 20 / 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+            const SizedBox(width: 16),
+            ...row.asMap().entries.skip(1).map((entry) {
+              int columnIndex = entry.key - 1;
+              String header = columnIndex < widget.headers.length
+                  ? widget.headers[columnIndex]
+                  : '';
+              String cell = entry.value;
+              bool isSpecialColumn = columnIndex < widget.headers.length &&
+                  (header == "Inspection Status" ||
+                      header == "Current Status");
+              bool isHasViewMore = columnIndex < widget.headers.length &&
+                  (header == "Inspection Faults" ||
+                      header == "Completed Repairs" ||
+                      header == "Existing Faults");
+              Widget cellContent;
+              double cellWidth = ColumnStyleHelper.getExRegisterHeaderCustomWidth(
+                header,
+                columnWidth,
               );
-            } else if (isHasViewMore) {
-              cellContent = Container(
-                padding: EdgeInsets.only(
-                  right: cell == "0"
-                      ? 90
-                      : ColumnStyleHelper.getExRegisterCellRightPadding(
-                          entry.key,
-                        ),
-                ),
-                width: ColumnStyleHelper.getExRegisterCellCustomWidth(
-                  entry.key,
-                  columnWidth,
-                ),
-                child: Row(
-                  mainAxisAlignment: cell == "0"
-                      ? MainAxisAlignment.center
-                      : MainAxisAlignment.spaceEvenly,
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () {
-                        _navigateToInspectionScreen(row[0]);
-                      },
-                      child: Text(
-                        cell,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF3B475B),
-                          height: 20 / 14,
-                        ),
-                      ),
-                    ),
-                    if (cell != "0" && cell.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () {
-                          // _showRightModal(widget.headers[columnIndex],
-                          //     widget.actions, row[1], row);
-                        },
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 3),
-                            SvgPicture.asset(
-                              'lib/src/features/ex_register/assets/external_link.svg',
-                              width: 20,
-                              height: 20,
-                            ),
-                          ],
+              double cellRightPadding =
+                  ColumnStyleHelper.getExRegisterHeaderRightPadding(header);
+              final String assetPath = _getFlagAssetPath(cell);
+              if (isSpecialColumn) {
+                cellContent = Container(
+                  padding: EdgeInsets.only(
+                    right: cellRightPadding,
+                  ),
+                  width: cellWidth,
+                  child: Row(
+                    children: [
+                      assetPath.isNotEmpty
+                          ? SvgPicture.asset(assetPath, width: 20, height: 20)
+                          : const SizedBox(width: 20, height: 20),
+                      const SizedBox(width: 16),
+                      Flexible(
+                        child: Text(
+                          cell,
+                          textAlign: TextAlign.left,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF3B475B),
+                            height: 20 / 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
-                  ],
-                ),
-              );
-            } else {
-              cellContent = Container(
-                padding: EdgeInsets.only(
-                  left: leftPadding,
-                  right: ColumnStyleHelper.getExRegisterCellRightPadding(
-                    entry.key,
                   ),
-                ),
-                width: ColumnStyleHelper.getExRegisterCellCustomWidth(
-                  entry.key,
-                  columnWidth,
-                ),
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        cell,
-                        textAlign: TextAlign.left,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF3B475B),
-                          height: 20 / 14,
+                );
+              } else if (isHasViewMore) {
+                cellContent = Container(
+                  padding: EdgeInsets.only(
+                    right: cellRightPadding,
+                  ),
+                  width: cellWidth,
+                  child: Row(
+                    mainAxisAlignment: cell == "0"
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    children: [
+                      Flexible(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () {
+                            _navigateToInspectionScreen(row[0]);
+                          },
+                          child: Text(
+                            cell,
+                            textAlign: cell == "0" ? TextAlign.center : TextAlign.left,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF3B475B),
+                              height: 20 / 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return cellContent;
-          }),
-        ],
+                      if (cell != "0" && cell.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () {
+                            _showRightModal(
+                              widget.headers[columnIndex],
+                              widget.actions,
+                              row[1],
+                              row,
+                            );
+                          },
+                          child: SvgPicture.asset(
+                            'lib/src/features/ex_register/assets/external_link.svg',
+                            width: 20,
+                            height: 20,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              } else {
+                cellContent = Container(
+                  padding: EdgeInsets.only(
+                    right: cellRightPadding,
+                  ),
+                  width: cellWidth,
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          cell,
+                          textAlign: TextAlign.left,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF3B475B),
+                            height: 20 / 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return cellContent;
+            }),
+          ],
+        ),
       );
     } else {
       return Padding(
@@ -823,7 +814,8 @@ class CustomTableGridState extends State<CustomTableGrid>
                   );
                   final String currentLocId =
                       (widget.locations.length > rowIndex &&
-                              widget.locations[rowIndex].id != null)
+                              widget.locations[rowIndex].id != null &&
+                              widget.locations[rowIndex].id!.isNotEmpty)
                           ? widget.locations[rowIndex].id!
                           : (row.length > 7 ? row[7] : row[0]);
                   if (!selectedAssetIds.contains(currentLocId) && value!) {
@@ -849,65 +841,32 @@ class CustomTableGridState extends State<CustomTableGrid>
               leftPadding: leftPadding,
             ),
             const SizedBox(width: 16),
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () {
-                final String targetId =
-                    (widget.locations.length > rowIndex &&
-                            widget.locations[rowIndex].id != null)
-                        ? widget.locations[rowIndex].id!
-                        : (row.length > 7 ? row[7] : row[0]);
-                _navigateToInspectionScreen(targetId);
-              },
-              child: Container(
-                padding: EdgeInsets.only(
-                  right: ColumnStyleHelper.getFunctionalCellRightPadding(0),
-                ),
-                width: ColumnStyleHelper.getFunctionalCellCustomWidth(
-                  0,
-                  columnWidth,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        row[0],
-                        style: GoogleFonts.nunitoSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF3B475B),
-                          height: 20 / 14,
-                        ),
-                        overflow: TextOverflow.clip,
-                        textAlign: TextAlign.left,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            ...row.asMap().entries.skip(1).map(
+            ...row.asMap().entries.map(
               (entry) {
+                int columnIndex = entry.key;
+                String header = columnIndex < widget.headers.length
+                    ? widget.headers[columnIndex]
+                    : '';
                 String cell = entry.value;
                 return GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onTap: () {
                     final String targetId =
                         (widget.locations.length > rowIndex &&
-                                widget.locations[rowIndex].id != null)
+                                widget.locations[rowIndex].id != null &&
+                                widget.locations[rowIndex].id!.isNotEmpty)
                             ? widget.locations[rowIndex].id!
                             : (row.length > 7 ? row[7] : row[0]);
                     _navigateToInspectionScreen(targetId);
                   },
                   child: Container(
                     padding: EdgeInsets.only(
-                      right: ColumnStyleHelper.getFunctionalCellRightPadding(
-                        entry.key,
+                      right: ColumnStyleHelper.getFunctionalHeaderRightPadding(
+                        header,
                       ),
                     ),
-                    width: ColumnStyleHelper.getFunctionalCellCustomWidth(
-                      entry.key,
+                    width: ColumnStyleHelper.getFunctionalHeaderCustomWidth(
+                      header,
                       columnWidth,
                     ),
                     child: Row(

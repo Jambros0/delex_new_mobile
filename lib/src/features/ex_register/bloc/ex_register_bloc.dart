@@ -940,9 +940,23 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       hasMoreData = true;
 
       final results = await _fetchExRegisterData(userType: userType);
-      final assets = _parseExRegisterTableModels(results)
-          .map((e) => e.exregisterJson)
-          .toList();
+      final models = _parseExRegisterTableModels(results);
+      models.sort((a, b) {
+        final createdDateA =
+            DateTime.tryParse(a.createdDate ?? '') ?? DateTime(0);
+        final createdDateB =
+            DateTime.tryParse(b.createdDate ?? '') ?? DateTime(0);
+        final updatedDateA =
+            DateTime.tryParse(a.updatedDate ?? '') ?? DateTime(0);
+        final updatedDateB =
+            DateTime.tryParse(b.updatedDate ?? '') ?? DateTime(0);
+
+        final updatedDateComparison = updatedDateB.compareTo(updatedDateA);
+        return updatedDateComparison != 0
+            ? updatedDateComparison
+            : createdDateB.compareTo(createdDateA);
+      });
+      final assets = models.map((e) => e.exregisterJson).toList();
 
       emit(
         ExRegisterLoaded(

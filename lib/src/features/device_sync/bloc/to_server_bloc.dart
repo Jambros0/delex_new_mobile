@@ -124,15 +124,67 @@ class ToServerBloc extends Bloc<ToServerEvent, ToServerState> {
         } else if (rawAsset is Map) {
           assetMap = Map<String, dynamic>.from(rawAsset);
         }
-        if ((assetMap['_id'] == null || assetMap['_id'].toString().isEmpty) &&
-            map['asset_id'] != null &&
-            map['asset_id'].toString().isNotEmpty) {
-          assetMap['_id'] = map['asset_id'];
+        if ((assetMap['_id'] == null || assetMap['_id'].toString().isEmpty)) {
+          if (map['asset_id'] != null && map['asset_id'].toString().isNotEmpty) {
+            assetMap['_id'] = map['asset_id'];
+          } else if (map['id'] != null) {
+            assetMap['_id'] = map['id'].toString();
+          }
         }
         if (assetMap['primaryId'] == null && map['id'] != null) {
           assetMap['primaryId'] = map['id'] is int
               ? map['id']
               : int.tryParse(map['id'].toString());
+        }
+
+        final locationId = assetMap['locationId']?.toString() ?? '';
+        final locationEmpty = (assetMap['location'] == null || assetMap['location'].toString().trim().isEmpty) &&
+            (assetMap['fieldName'] == null || assetMap['fieldName'].toString().trim().isEmpty);
+        final areaEmpty = (assetMap['area'] == null || assetMap['area'].toString().trim().isEmpty) &&
+            (assetMap['platform'] == null || assetMap['platform'].toString().trim().isEmpty);
+
+        if (locationId.isNotEmpty && (locationEmpty || areaEmpty)) {
+          try {
+            final locRow = (userType == 'onshore')
+                ? await _dbHelper.getFunctionalAreaByIdOnshore(locationId)
+                : await _dbHelper.getFunctionalAreaById(locationId);
+            if (locRow != null && locRow['functional_area_json'] != null) {
+              final locJsonRaw = locRow['functional_area_json'];
+              final locJsonMap = (locJsonRaw is String)
+                  ? jsonDecode(locJsonRaw)
+                  : locJsonRaw as Map<String, dynamic>?;
+              final locData = locJsonMap?['location'] ?? locJsonMap;
+              if (locData is Map) {
+                if (locationEmpty && locData['location'] != null) {
+                  assetMap['location'] = locData['location'];
+                }
+                if (areaEmpty && locData['area'] != null) {
+                  assetMap['area'] = locData['area'];
+                }
+                if ((assetMap['subArea'] == null || assetMap['subArea'].toString().isEmpty) && locData['subArea'] != null) {
+                  assetMap['subArea'] = locData['subArea'];
+                }
+                if ((assetMap['deckLevel'] == null || assetMap['deckLevel'].toString().isEmpty) && locData['deckLevel'] != null) {
+                  assetMap['deckLevel'] = locData['deckLevel'];
+                }
+                if ((assetMap['zone'] == null || assetMap['zone'].toString().isEmpty) && locData['zone'] != null) {
+                  assetMap['zone'] = locData['zone'];
+                }
+                if ((assetMap['locationGasGroup'] == null || (assetMap['locationGasGroup'] is List && (assetMap['locationGasGroup'] as List).isEmpty)) && locData['locationGasGroup'] != null) {
+                  assetMap['locationGasGroup'] = locData['locationGasGroup'];
+                }
+                if ((assetMap['locationTClass'] == null || (assetMap['locationTClass'] is List && (assetMap['locationTClass'] as List).isEmpty)) && locData['locationTClass'] != null) {
+                  assetMap['locationTClass'] = locData['locationTClass'];
+                }
+                if ((assetMap['locationIpRating'] == null || (assetMap['locationIpRating'] is List && (assetMap['locationIpRating'] as List).isEmpty)) && locData['locationIpRating'] != null) {
+                  assetMap['locationIpRating'] = locData['locationIpRating'];
+                }
+                if ((assetMap['locationTAmbient'] == null || assetMap['locationTAmbient'].toString().isEmpty) && (locData['locationTAmbient'] != null || locData['tAmbient'] != null)) {
+                  assetMap['locationTAmbient'] = locData['locationTAmbient'] ?? locData['tAmbient'];
+                }
+              }
+            }
+          } catch (_) {}
         }
 
         list.add(ExRegisterTableModel(

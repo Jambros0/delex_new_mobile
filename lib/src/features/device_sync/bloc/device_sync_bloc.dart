@@ -7,13 +7,14 @@ import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_regist
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex_register_model.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/work_order_table_model.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
+import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
   final DeviceSyncServices deviceSyncServices;
-  // final DBHelper _dbHelper = DBHelper();
+  final DBHelper _dbHelper;
   final AuthUtils authUtils;
 
   int skip = 0;
@@ -25,71 +26,129 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
   DateTime? fromDate;
   DateTime? toDate;
 
-  DeviceSyncBloc({required this.deviceSyncServices, required this.authUtils})
-      : super(WorkOrderInitial()) {
+  DeviceSyncBloc({
+    required this.deviceSyncServices,
+    required this.authUtils,
+    DBHelper? dbHelper,
+  })  : _dbHelper = dbHelper ?? DBHelper(),
+        super(WorkOrderInitial()) {
     on<LoadWorkOrder>(_onLoadWorkOrder);
     on<LoadNewWorkOrder>(_onLoadNewWorkOrder);
     on<SortLoadMoreWorkOrder>(sortLoadMoreWorkOrder);
     on<ResetLoadMoreWorkOrder>(resetLoadMoreWorkOrderFromOffline);
+    on<RemoveTransferredAssetsFromDeviceSync>(_onRemoveTransferredAssets);
   }
+
+  FutureOr<void> _onRemoveTransferredAssets(
+    RemoveTransferredAssetsFromDeviceSync event,
+    Emitter<DeviceSyncState> emit,
+  ) async {
+    if (state is WorkOrderLoaded) {
+      final current = state as WorkOrderLoaded;
+      final transferredSet =
+          event.transferredAssetIds.map((e) => e.trim()).toSet();
+
+      final updatedAssets = current.assets
+          .where((asset) => !transferredSet.contains(asset.id.trim()))
+          .toList();
+
+      final updatedWorkOrders = current.workOrderCollection.map((wo) {
+        final filteredAssets = wo.assets
+            .where((asset) => !transferredSet.contains(asset.id.trim()))
+            .toList();
+        wo.assets = filteredAssets;
+        return wo;
+      }).where((wo) => wo.assets.isNotEmpty).toList();
+
+      final prefs = await SharedPreferences.getInstance();
+      final untransferredIds = updatedAssets
+          .map((e) => e.id.trim())
+          .where((id) => id.isNotEmpty)
+          .toList();
+      await prefs.setStringList('asset_ids', untransferredIds);
+
+      emit(
+        WorkOrderLoaded(
+          tableHeaders: current.tableHeaders,
+          assets: updatedAssets,
+          totalRecords: updatedAssets.length,
+          skip: updatedAssets.length,
+          sortOrder: current.sortOrder,
+          filterIndex: current.filterIndex,
+          workOrderCollection: updatedWorkOrders,
+          isupdateAsset: true,
+        ),
+      );
+    }
+  }
+
   FutureOr<void> _onLoadNewWorkOrder(
     LoadNewWorkOrder event,
     Emitter<DeviceSyncState> emit,
   ) async {
     emit(WorkOrderLoading());
     try {
-      final response = await deviceSyncServices.fetchWorkOrderAssets();
-      final String? userType = await authUtils.getUserType();
+      final String? userId = await authUtils.getUserId();
+      dynamic userDetails;
+      try {
+        userDetails = await _dbHelper.getLoggedInUser();
+      } catch (_) {}
+      final String? userName =
+          userDetails?.userName ?? await authUtils.getUsername();
+      final String? email = userDetails?.email;
+      final String? firstName = userDetails?.firstName;
+      final String? lastName = userDetails?.lastName;
 
-      List<String> tableHeaders = (userType == 'onshore')
-          ? [
-              "RFID Reference",
-              "Location",
-              "Sub Location",
-              "Area",
-              "Zone",
-              "Discipline",
-              "Equipment Tag Number",
-              "Equipment Description",
-              "Equipment Manufacturer",
-              "Equipment Protection",
-              "Inspection Faults",
-              "Inspection Status",
-              "Completed Repairs",
-              "Existing Faults",
-              "Current Status",
-            ]
-          : [
-              "RFID Reference",
-              "Field Name",
-              "Platform",
-              "Deck Level",
-              "Zone",
-              "Discipline",
-              "Equipment Tag Number",
-              "Equipment Description",
-              "Equipment Manufacturer",
-              "Equipment Protection",
-              "Inspection Faults",
-              "Inspection Status",
-              "Completed Repairs",
-              "Existing Faults",
-              "Current Status",
-            ];
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int fetchedTotalRecords = response['totalRecords'] as int;
-      final List<WorkOrderTableJson> workOrderCollection =
+      final response =
+          await deviceSyncServices.fetchWorkOrderAssets(userId: userId);
+      final String? userType = await authUtils.getUserType();
+      final List<String> tableHeaders = _getTableHeaders(userType);
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final List<WorkOrderTableJson> rawWorkOrderCollection =
           response['work_order'] as List<WorkOrderTableJson>;
+
+      final userFilteredData = _filterDataForUser(
+        assets: rawAssets,
+        workOrders: rawWorkOrderCollection,
+        userId: userId ?? '',
+        userName: userName,
+        email: email,
+        firstName: firstName,
+        lastName: lastName,
+      );
+
+      final List<ExRegister> userAssets = userFilteredData.assets;
+      final List<WorkOrderTableJson> userWorkOrders =
+          userFilteredData.workOrders;
+
+      Set<String> localAssetIds = {};
+      try {
+        localAssetIds = await _dbHelper.getLocalAssetIds(userType: userType);
+      } catch (_) {}
+
+      final untransferredAssets = userAssets.where((asset) {
+        final id = asset.id.trim();
+        return id.isNotEmpty && !localAssetIds.contains(id);
+      }).toList();
+
+      final untransferredWorkOrders = userWorkOrders.map((wo) {
+        final filteredAssets = wo.assets.where((asset) {
+          final id = asset.id.trim();
+          return id.isNotEmpty && !localAssetIds.contains(id);
+        }).toList();
+        wo.assets = filteredAssets;
+        return wo;
+      }).where((wo) => wo.assets.isNotEmpty).toList();
 
       emit(
         WorkOrderNewLoaded(
           tableHeaders: tableHeaders,
-          assets: assets,
-          totalRecords: fetchedTotalRecords,
-          skip: assets.length,
+          assets: untransferredAssets,
+          totalRecords: untransferredAssets.length,
+          skip: untransferredAssets.length,
           sortOrder: sortOrder,
           filterIndex: filterIndex,
-          workOrderCollection: workOrderCollection,
+          workOrderCollection: untransferredWorkOrders,
         ),
       );
     } catch (e) {
@@ -103,77 +162,252 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
   ) async {
     emit(WorkOrderLoading());
     try {
-      final response = await deviceSyncServices.fetchWorkOrderAssets();
-      final String? userType = await authUtils.getUserType();
+      final String? userId = await authUtils.getUserId();
+      dynamic userDetails;
+      try {
+        userDetails = await _dbHelper.getLoggedInUser();
+      } catch (_) {}
+      final String? userName =
+          userDetails?.userName ?? await authUtils.getUsername();
+      final String? email = userDetails?.email;
+      final String? firstName = userDetails?.firstName;
+      final String? lastName = userDetails?.lastName;
 
-      List<String> tableHeaders = (userType == 'onshore')
-          ? [
-              "RFID Reference",
-              "Location",
-              "Sub Location",
-              "Area",
-              "Zone",
-              "Discipline",
-              "Equipment Tag Number",
-              "Equipment Description",
-              "Equipment Manufacturer",
-              "Equipment Protection",
-              "Inspection Faults",
-              "Inspection Status",
-              "Completed Repairs",
-              "Existing Faults",
-              "Current Status",
-            ]
-          : [
-              "RFID Reference",
-              "Field Name",
-              "Platform",
-              "Deck Level",
-              "Zone",
-              "Discipline",
-              "Equipment Tag Number",
-              "Equipment Description",
-              "Equipment Manufacturer",
-              "Equipment Protection",
-              "Inspection Faults",
-              "Inspection Status",
-              "Completed Repairs",
-              "Existing Faults",
-              "Current Status",
-            ];
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int fetchedTotalRecords = response['totalRecords'] as int;
-      final List<WorkOrderTableJson> workOrderCollection =
+      final response =
+          await deviceSyncServices.fetchWorkOrderAssets(userId: userId);
+      final String? userType = await authUtils.getUserType();
+      final List<String> tableHeaders = _getTableHeaders(userType);
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final List<WorkOrderTableJson> rawWorkOrderCollection =
           response['work_order'] as List<WorkOrderTableJson>;
 
-      final prefs = await SharedPreferences.getInstance();
-      final existingIds = prefs.getStringList('asset_ids') ?? [];
-      // const encoder = JsonEncoder.withIndent('  ');
-      final newIds = assets
-          .map((e) => e.id.trim())
-          // ignore: unnecessary_null_comparison
-          .where((id) => id != null && id.isNotEmpty)
-          .cast<String>()
-          .toList();
-      final mergedSet = {...existingIds, ...newIds};
-      final mergedList = mergedSet.toList();
+      final userFilteredData = _filterDataForUser(
+        assets: rawAssets,
+        workOrders: rawWorkOrderCollection,
+        userId: userId ?? '',
+        userName: userName,
+        email: email,
+        firstName: firstName,
+        lastName: lastName,
+      );
 
-      await prefs.setStringList('asset_ids', mergedList);
+      final List<ExRegister> userAssets = userFilteredData.assets;
+      final List<WorkOrderTableJson> userWorkOrders =
+          userFilteredData.workOrders;
+
+      Set<String> localAssetIds = {};
+      try {
+        localAssetIds = await _dbHelper.getLocalAssetIds(userType: userType);
+      } catch (_) {}
+
+      final untransferredAssets = userAssets.where((asset) {
+        final id = asset.id.trim();
+        return id.isNotEmpty && !localAssetIds.contains(id);
+      }).toList();
+
+
+      final untransferredWorkOrders = userWorkOrders.map((wo) {
+        final filteredAssets = wo.assets.where((asset) {
+          final id = asset.id.trim();
+          return id.isNotEmpty && !localAssetIds.contains(id);
+        }).toList();
+        wo.assets = filteredAssets;
+        return wo;
+      }).where((wo) => wo.assets.isNotEmpty).toList();
+
+      final prefs = await SharedPreferences.getInstance();
+      final untransferredIds = untransferredAssets
+          .map((e) => e.id.trim())
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      await prefs.setStringList('asset_ids', untransferredIds);
       emit(
         WorkOrderLoaded(
           tableHeaders: tableHeaders,
-          assets: assets,
-          totalRecords: fetchedTotalRecords,
-          skip: assets.length,
+          assets: untransferredAssets,
+          totalRecords: untransferredAssets.length,
+          skip: untransferredAssets.length,
           sortOrder: sortOrder,
           filterIndex: filterIndex,
-          workOrderCollection: workOrderCollection,
+          workOrderCollection: untransferredWorkOrders,
           isupdateAsset: true,
         ),
       );
     } catch (e) {
       emit(WorkOrderError("Error => ${e.toString()}"));
     }
+  }
+
+  _UserFilteredResult _filterDataForUser({
+    required List<ExRegister> assets,
+    required List<WorkOrderTableJson> workOrders,
+    required String userId,
+    String? userName,
+    String? email,
+    String? firstName,
+    String? lastName,
+  }) {
+    if (userId.trim().isEmpty) {
+      return _UserFilteredResult(assets: assets, workOrders: workOrders);
+    }
+
+    final Set<String> targetIds = {
+      userId.trim().toLowerCase(),
+      if (userName != null && userName.trim().isNotEmpty)
+        userName.trim().toLowerCase(),
+      if (email != null && email.trim().isNotEmpty)
+        email.trim().toLowerCase(),
+      if (firstName != null &&
+          firstName.trim().isNotEmpty &&
+          lastName != null &&
+          lastName.trim().isNotEmpty)
+        '$firstName $lastName'.trim().toLowerCase(),
+      if (firstName != null && firstName.trim().isNotEmpty)
+        firstName.trim().toLowerCase(),
+    };
+
+    bool isTargetUser(dynamic value) {
+      if (value == null) return false;
+      if (value is String) {
+        final v = value.trim().toLowerCase();
+        if (v.isEmpty || v == 'null') return false;
+        if (targetIds.contains(v)) return true;
+        if (v.contains(',')) {
+          final parts =
+              v.split(',').map((e) => e.trim().toLowerCase()).toSet();
+          if (parts.any((p) => targetIds.contains(p))) return true;
+        }
+      } else if (value is num) {
+        if (targetIds.contains(value.toString())) return true;
+      } else if (value is List) {
+        for (var item in value) {
+          if (isTargetUser(item)) return true;
+        }
+      } else if (value is Map) {
+        final idCandidate = value['_id'] ??
+            value['userId'] ??
+            value['id'] ??
+            value['user_id'] ??
+            value['userName'] ??
+            value['username'] ??
+            value['email'] ??
+            value['name'];
+        if (isTargetUser(idCandidate)) return true;
+      }
+      return false;
+    }
+
+    bool isWorkOrderAssigned(WorkOrderTableJson wo) {
+      return isTargetUser(wo.assigendTeam) ||
+          isTargetUser(wo.assignedTo) ||
+          isTargetUser(wo.userId) ||
+          isTargetUser(wo.assignedUserId) ||
+          isTargetUser(wo.inspectorId) ||
+          isTargetUser(wo.custodian) ||
+          isTargetUser(wo.createdBy) ||
+          isTargetUser(wo.issuedBy) ||
+          isTargetUser(wo.uploadedBy);
+    }
+
+    bool isAssetAssigned(ExRegister asset) {
+      return isTargetUser(asset.assignedTo) ||
+          isTargetUser(asset.assignedUserId) ||
+          isTargetUser(asset.userId) ||
+          isTargetUser(asset.inspectedId) ||
+          isTargetUser(asset.inspectedBy) ||
+          isTargetUser(asset.inspectorId) ||
+          isTargetUser(asset.assignedTeam) ||
+          isTargetUser(asset.createdBy);
+    }
+
+    final hasAnyAssignment = workOrders.any((wo) =>
+        (wo.assigendTeam != null &&
+            wo.assigendTeam.toString().isNotEmpty &&
+            wo.assigendTeam.toString() != 'null') ||
+        (wo.assignedTo != null &&
+            wo.assignedTo.toString().isNotEmpty &&
+            wo.assignedTo.toString() != 'null') ||
+        (wo.userId != null &&
+            wo.userId.toString().isNotEmpty &&
+            wo.userId.toString() != 'null') ||
+        (wo.assignedUserId != null &&
+            wo.assignedUserId.toString().isNotEmpty &&
+            wo.assignedUserId.toString() != 'null') ||
+        (wo.inspectorId != null &&
+            wo.inspectorId.toString().isNotEmpty &&
+            wo.inspectorId.toString() != 'null') ||
+        (wo.custodian != null &&
+            wo.custodian.toString().isNotEmpty &&
+            wo.custodian.toString() != 'null')
+    ) || assets.any((a) =>
+        (a.assignedTo != null &&
+            a.assignedTo.toString().isNotEmpty &&
+            a.assignedTo.toString() != 'null') ||
+        (a.assignedUserId != null &&
+            a.assignedUserId.toString().isNotEmpty &&
+            a.assignedUserId.toString() != 'null') ||
+        (a.userId != null &&
+            a.userId.toString().isNotEmpty &&
+            a.userId.toString() != 'null') ||
+        (a.inspectedId != null &&
+            a.inspectedId.toString().isNotEmpty &&
+            a.inspectedId.toString() != 'null') ||
+        (a.assignedTeam != null &&
+            a.assignedTeam.toString().isNotEmpty &&
+            a.assignedTeam.toString() != 'null')
+    );
+
+    if (!hasAnyAssignment) {
+      return _UserFilteredResult(assets: assets, workOrders: workOrders);
+    }
+
+    final List<WorkOrderTableJson> filteredWorkOrders = [];
+    final Set<String> assignedAssetIds = {};
+    final List<ExRegister> filteredAssets = [];
+
+    for (final wo in workOrders) {
+      final woMatches = isWorkOrderAssigned(wo);
+      if (woMatches) {
+        filteredWorkOrders.add(wo);
+        for (final asset in wo.assets) {
+          assignedAssetIds.add(asset.id);
+          filteredAssets.add(asset);
+        }
+      } else {
+        final matchingWoAssets =
+            wo.assets.where((asset) => isAssetAssigned(asset)).toList();
+        if (matchingWoAssets.isNotEmpty) {
+          wo.assets = matchingWoAssets;
+          filteredWorkOrders.add(wo);
+          for (final asset in matchingWoAssets) {
+            assignedAssetIds.add(asset.id);
+            filteredAssets.add(asset);
+          }
+        }
+      }
+    }
+
+    for (final asset in assets) {
+      if (!assignedAssetIds.contains(asset.id)) {
+        if (isAssetAssigned(asset)) {
+          assignedAssetIds.add(asset.id);
+          filteredAssets.add(asset);
+        }
+      }
+    }
+
+    if (filteredAssets.isEmpty && assets.isNotEmpty) {
+      return _UserFilteredResult(
+        assets: assets,
+        workOrders: workOrders,
+      );
+    }
+
+    return _UserFilteredResult(
+      assets: filteredAssets,
+      workOrders: filteredWorkOrders,
+    );
   }
 
   FutureOr<void> sortLoadMoreWorkOrder(
@@ -405,7 +639,8 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
   }
 
   List<String> _getTableHeaders(String? userType) {
-    return (userType == 'onshore')
+    final bool isOnshore = (userType?.toLowerCase() == 'onshore');
+    return isOnshore
         ? [
             "RFID Reference",
             "Location",
@@ -429,10 +664,10 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
             "Platform",
             "Deck Level",
             "Zone",
-            "Discpline",
+            "Discipline",
             "Equipment Tag Number",
             "Equipment Description",
-            "Manufacutrer",
+            "Equipment Manufacturer",
             "Equipment Protection",
             "Inspection Faults",
             "Inspection Status",
@@ -441,4 +676,14 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
             "Current Status",
           ];
   }
+}
+
+class _UserFilteredResult {
+  final List<ExRegister> assets;
+  final List<WorkOrderTableJson> workOrders;
+
+  _UserFilteredResult({
+    required this.assets,
+    required this.workOrders,
+  });
 }
