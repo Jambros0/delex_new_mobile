@@ -42,7 +42,7 @@ class ExRegisterTableState extends State<ServerToDeviceTable> {
   @override
   void initState() {
     super.initState();
-    rowSelection = List<bool>.filled(widget.assets.length, false);
+    rowSelection = List<bool>.filled(widget.assets.length, false, growable: true);
     _chunkSize = widget.assets.length;
     rows = [];
 
@@ -93,7 +93,7 @@ class ExRegisterTableState extends State<ServerToDeviceTable> {
     if (oldWidget.assets != widget.assets) {
       _loadedCount = 0;
       rows.clear();
-      rowSelection = List<bool>.filled(widget.assets.length, false);
+      rowSelection = List<bool>.filled(widget.assets.length, false, growable: true);
       _loadNextChunkSync();
     }
   }

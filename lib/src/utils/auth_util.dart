@@ -17,15 +17,16 @@ class AuthUtils {
   final DBHelper dbHelper = DBHelper();
 
   Future<void> saveSessionTokens(
-      String accessToken, String refreshToken, String userId) async {
+      String accessToken, String refreshToken, String userId,
+      {String? userType}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('accessToken', accessToken);
     await prefs.setString('refreshToken', refreshToken);
     await prefs.setString('userId', userId);
 
-    final userType = extractUserType(accessToken);
-    if (userType != null) {
-      await prefs.setString('userType', userType);
+    final resolvedUserType = userType ?? extractUserType(accessToken);
+    if (resolvedUserType != null && resolvedUserType.isNotEmpty) {
+      await prefs.setString('userType', resolvedUserType.toLowerCase());
     }
   }
 
@@ -95,6 +96,19 @@ class AuthUtils {
         return type.toLowerCase();
       }
     }
+    try {
+      final loggedInUser = await dbHelper.getLoggedInUser();
+      if (loggedInUser != null && loggedInUser.userRole.isNotEmpty) {
+        final role = loggedInUser.userRole.toLowerCase();
+        if (role.contains('onshore')) {
+          await prefs.setString('userType', 'onshore');
+          return 'onshore';
+        } else if (role.contains('offshore')) {
+          await prefs.setString('userType', 'offshore');
+          return 'offshore';
+        }
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -123,7 +137,7 @@ class AuthUtils {
       logger.e('Error getting user for logout: $e');
     } finally {
       await AuthUtils().clearSessionTokens();
-      await AuthUtils().clearUsername();
+      // Keep username and credentials so user id and password are prefilled after logout
       if (context != null && context.mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else {
@@ -134,6 +148,41 @@ class AuthUtils {
         }
       }
     }
+  }
+
+  Future<void> saveCredentials(String username, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('saved_username', username);
+    await prefs.setString('saved_password', password);
+    await prefs.setString('username', username);
+  }
+
+  Future<Map<String, String>> getSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? username = prefs.getString('saved_username');
+    if (username == null || username.isEmpty) {
+      username = prefs.getString('username');
+    }
+    String? password = prefs.getString('saved_password');
+
+    if ((username == null || username.isEmpty) || (password == null || password.isEmpty)) {
+      try {
+        final lastUser = await dbHelper.getLoggedInUser();
+        if (lastUser != null) {
+          if (username == null || username.isEmpty) {
+            username = lastUser.userName.isNotEmpty ? lastUser.userName : lastUser.userId;
+          }
+          if (password == null || password.isEmpty) {
+            password = lastUser.password;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return {
+      'username': username ?? '',
+      'password': password ?? '',
+    };
   }
 
   Future<void> saveUsername(String username) async {

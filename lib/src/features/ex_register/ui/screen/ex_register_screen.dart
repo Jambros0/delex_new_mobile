@@ -193,7 +193,7 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
 
   @override
   void dispose() {
-    selectedAssets.clear();
+    selectedAssets = [];
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -784,7 +784,7 @@ class ExRegisterScreenState extends State<ExRegisterScreen> {
                                     current is HideExRegisterMoreOption,
                                 builder: (context, state) {
                                   if (state is ShowExRegisterMoreOption) {
-                                    selectedAssets = state.selectedAssets;
+                                    selectedAssets = List<String>.from(state.selectedAssets);
                                     if (state.showIcon) {
                                       return MoreVertDialog(
                                         selectedAssetIds: state.selectedAssets,

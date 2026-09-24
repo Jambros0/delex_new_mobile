@@ -285,8 +285,23 @@ class ExRegister {
       primaryId: parsedPrimaryId,
       rfidRef: json['rfidRef']?.toString() ?? json['rfidReference']?.toString() ?? json['rfid']?.toString() ?? '',
       location: json['location']?.toString() ?? json['fieldName']?.toString() ?? json['locationName']?.toString() ?? '',
-      area: json['area']?.toString() ?? json['platform']?.toString() ?? json['platformName']?.toString() ?? json['subLocation']?.toString() ?? json['sublocationName']?.toString() ?? json['areaName']?.toString() ?? '',
-      deckLevel: json['deckLevel']?.toString() ?? json['deck']?.toString() ?? json['deckLevelName']?.toString(),
+      area: (json['subLocation'] != null && json['subLocation'].toString().trim().isNotEmpty)
+          ? json['subLocation'].toString()
+          : (json['platform']?.toString() ??
+              json['platformName']?.toString() ??
+              json['area']?.toString() ??
+              json['sublocationName']?.toString() ??
+              json['areaName']?.toString() ??
+              ''),
+      deckLevel: (json['subLocation'] != null && json['subLocation'].toString().trim().isNotEmpty)
+          ? (json['deckLevel']?.toString() ??
+              json['deck']?.toString() ??
+              json['deckLevelName']?.toString() ??
+              (json['area']?.toString() != json['subLocation']?.toString() ? json['area']?.toString() : null) ??
+              '')
+          : (json['deckLevel']?.toString() ??
+              json['deck']?.toString() ??
+              json['deckLevelName']?.toString()),
       isActive: json['isActive'] == true || json['isActive'] == 1 || json['isActive'] == 'true' || json['isActive'] == '1',
       zone: json['zone']?.toString() ?? json['zoneName']?.toString() ?? '',
       eqpmtTag: json['eqpmtTag']?.toString() ?? json['equipmentTag']?.toString() ?? json['tagNo']?.toString() ?? json['equipmentTagNo']?.toString() ?? json['tagNumber']?.toString(),
@@ -302,11 +317,11 @@ class ExRegister {
           : null,
       inspectionReferenceNumber: json['inspectionReferenceNumber']?.toString(),
       subArea: json['subArea']?.toString() ?? json['subAreaName']?.toString() ?? json['nearestLandmark']?.toString(),
-      locationGasGroup: toStringList(json['locationGasGroup']),
-      locationIpRating: toStringList(json['locationIpRating']),
-      locationTClass: toStringList(json['locationTClass']),
-      locationTAmbient: json['locationTAmbient']?.toString() ?? json['tAmbient']?.toString() ?? '',
-      tAmbient: json['tAmbient']?.toString(),
+      locationGasGroup: toStringList(json['locationGasGroup'] ?? json['gasGroup'] ?? json['areaGasGroup'] ?? json['locationGasGroups']),
+      locationIpRating: toStringList(json['locationIpRating'] ?? json['ipRating'] ?? json['locationIpRatings']),
+      locationTClass: toStringList(json['locationTClass'] ?? json['tClass'] ?? json['temperatureClass'] ?? json['tempClass'] ?? json['areaTClass'] ?? json['locationTClasses']),
+      locationTAmbient: json['locationTAmbient']?.toString() ?? json['tAmbient']?.toString() ?? json['ambientTemperature']?.toString() ?? '',
+      tAmbient: json['tAmbient']?.toString() ?? json['locationTAmbient']?.toString() ?? json['ambientTemperature']?.toString(),
       tAmbientEquip: json['tAmbientEquip']?.toString(),
       inspectionSignOff: json['inspectionSignOff']?.toString(),
       repairSignOff: json['repairSignOff']?.toString(),
@@ -417,20 +432,35 @@ class ExRegister {
                       : Map<String, dynamic>.from(json['rbiStrategy'] as Map),
                 ))
           : null,
-      additionalInfoForRepairs: json['additionalInfoForRepairs']?.toString(),
-      areaClassDrawNo: toStringList(json['areaClassDrawNo']),
-      eqpmtLytDrawNo: toStringList(json['eqpmtLytDrawNo']),
-      areaClassDrawAttach: toStringList(json['areaClassDrawAttach']),
+      areaClassDrawNo: toStringList(json['areaClassDrawNo'] ?? json['areaClassificationDrawingNo'] ?? json['areaClassificationDrawing'] ?? json['areaClassificationDrawNo']),
+      eqpmtLytDrawNo: toStringList(json['eqpmtLytDrawNo'] ?? json['equipmentLayoutDrawingNo'] ?? json['equipmentLayoutDrawing'] ?? json['equipmentLayoutDrawNo']),
+      areaClassDrawAttach: toStringList(json['areaClassDrawAttach'] ?? json['areaClassificationDrawingAttach'] ?? json['areaClassDrawAttachment']),
       areaClassDrawAttachOrgName: toStringList(
-        json['areaClassDrawAttachOrgName'],
+        json['areaClassDrawAttachOrgName'] ?? json['areaClassificationDrawingOrgName'] ?? json['areaClassDrawOrgName'],
       ),
       eqpmtLytDrawAttachOrgName: toStringList(
-        json['eqpmtLytDrawAttachOrgName'],
+        json['eqpmtLytDrawAttachOrgName'] ?? json['equipmentLayoutDrawingOrgName'] ?? json['eqpmtLytDrawOrgName'],
       ),
-      eqpmtLytDrawAttach: toStringList(json['eqpmtLytDrawAttach']),
-      locationId: json['locationId']?.toString() ?? '',
-      locationLatitude: json['locationLatitude']?.toString() ?? json['latitude']?.toString(),
-      locationLongitude: json['locationLongitude']?.toString() ?? json['longitude']?.toString(),
+      eqpmtLytDrawAttach: toStringList(json['eqpmtLytDrawAttach'] ?? json['equipmentLayoutDrawingAttach'] ?? json['eqpmtLytDrawAttachment']),
+      locationId: json['locationId']?.toString() ?? json['location_id']?.toString() ?? json['functionalAreaId']?.toString() ?? '',
+      locationLatitude: () {
+        final lat = json['locationLatitude']?.toString() ?? json['latitude']?.toString();
+        if (lat != null && lat.isNotEmpty && lat != 'null') return lat;
+        final gps = json['gpsCord']?.toString() ?? json['gpsCoordinates']?.toString() ?? json['gps']?.toString();
+        if (gps != null && gps.contains(',')) {
+          return gps.split(',')[0].trim();
+        }
+        return null;
+      }(),
+      locationLongitude: () {
+        final lon = json['locationLongitude']?.toString() ?? json['longitude']?.toString();
+        if (lon != null && lon.isNotEmpty && lon != 'null') return lon;
+        final gps = json['gpsCord']?.toString() ?? json['gpsCoordinates']?.toString() ?? json['gps']?.toString();
+        if (gps != null && gps.contains(',')) {
+          return gps.split(',')[1].trim();
+        }
+        return null;
+      }(),
       circuitId: json['circuitId']?.toString(),
       cableId: json['cableId']?.toString(),
       equipmentCategory: json['equipmentCategory']?.toString(),
@@ -498,6 +528,8 @@ class ExRegister {
       'rfidRef': rfidRef,
       'location': location,
       'area': area,
+      'subLocation': area,
+      'platform': area,
       'deckLevel': deckLevel,
       'zone': zone,
       'locationTAmbient': locationTAmbient,

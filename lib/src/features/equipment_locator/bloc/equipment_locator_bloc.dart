@@ -25,9 +25,13 @@ class EquipmentLocatorBloc
       LoadEquipmentLocator event, Emitter<EquipmentLocatorState> emit) async {
     try {
       final String? userType = await authUtils.getUserType();
-      List<Map<String, dynamic>> results = (userType == 'onshore')
-          ? await _dbHelper.getExRegisterOnshore()
-          : await _dbHelper.getExRegister();
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final String? ownerId = await authUtils.getUserId();
+      List<Map<String, dynamic>> results = await _dbHelper.getExRegisterForUser(
+        userType: userType,
+        targetIds: targetIds,
+        ownerId: ownerId,
+      );
       List<Map<String, dynamic>> functioanlResults = (userType == 'onshore')
           ? await _dbHelper.getFunctionalAreaDataOnshore()
           : await _dbHelper.getFunctionalAreaData();

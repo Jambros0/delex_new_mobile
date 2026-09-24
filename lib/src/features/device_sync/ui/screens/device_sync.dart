@@ -98,7 +98,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
       if (widget.title == 'Data Transfer To Device') {
         _selectedRows[index] = !_selectedRows[index];
       } else {
-        _selectedRows = rowSelection;
+        _selectedRows = List<bool>.from(rowSelection);
       }
     });
   }
@@ -125,8 +125,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
 
       if (stateAssets.isNotEmpty) {
         if (_selectedRows.length != stateAssets.length) {
-          _selectedRows.clear();
-          _selectedRows.addAll(List<bool>.filled(stateAssets.length, false));
+          _selectedRows = List<bool>.filled(stateAssets.length, false, growable: true);
         }
         for (int i = 0; i < _selectedRows.length; i++) {
           if (_selectedRows[i]) {
@@ -543,7 +542,11 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
     final token = tokens['accessToken'];
 
     final UserDetails? loggedInUser = await dbHelper.getLoggedInUser();
-    if (loggedInUser == null) {
+    final currentUserId = await authUtils.getUserId();
+    final userId = (currentUserId != null && currentUserId.isNotEmpty)
+        ? currentUserId
+        : (loggedInUser?.userId ?? '');
+    if (userId.isEmpty) {
       _closeDialogIfOpen(navigator);
       _showToast(
         "Failed to fetch logged-in user.",
@@ -552,10 +555,17 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
       );
       return;
     }
-    final userId = loggedInUser.userId;
     try {
-      int totalAssetsToSync = assets.length;
+      // Clear stale state from any previous transfer call
+      selectedAssetsSync.clear();
+
+      // Use unique asset IDs for accurate progress tracking
+      final uniqueAssetIds = assets.map((a) => a.id).where((id) => id.isNotEmpty).toSet();
+      int totalAssetsToSync = uniqueAssetIds.length;
+      if (totalAssetsToSync == 0) totalAssetsToSync = assets.length;
       int syncedCount = 0;
+      final List<String> failedAssetIds = [];
+
       for (int j = 0; j < workOrderCollection.length; j++) {
         final json = workOrderCollection[j].toJson();
         for (int i = 0; i < workOrderCollection[j].assets.length; i++) {
@@ -609,6 +619,72 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             dbHelper,
           );
 
+          final matchingAsset = assets.firstWhere((ass) => ass.id == asset.id, orElse: () => asset);
+          assetMap['subLocation'] = matchingAsset.area.isNotEmpty ? matchingAsset.area : asset.area;
+          assetMap['platform'] = assetMap['subLocation'];
+          assetMap['area'] = assetMap['subLocation'];
+          assetMap['deckLevel'] = matchingAsset.deckLevel ?? asset.deckLevel ?? json['deckLevel'] ?? '';
+          assetMap['subArea'] = (matchingAsset.subArea != null && matchingAsset.subArea.toString().isNotEmpty)
+              ? matchingAsset.subArea
+              : (asset.subArea ?? json['subArea'] ?? '');
+          assetMap['locationGasGroup'] = matchingAsset.locationGasGroup.isNotEmpty
+              ? matchingAsset.locationGasGroup
+              : (asset.locationGasGroup.isNotEmpty ? asset.locationGasGroup : (json['locationGasGroup'] ?? []));
+          assetMap['locationTClass'] = matchingAsset.locationTClass.isNotEmpty
+              ? matchingAsset.locationTClass
+              : (asset.locationTClass.isNotEmpty ? asset.locationTClass : (json['locationTClass'] ?? []));
+          assetMap['locationIpRating'] = matchingAsset.locationIpRating.isNotEmpty
+              ? matchingAsset.locationIpRating
+              : (asset.locationIpRating.isNotEmpty ? asset.locationIpRating : (json['locationIpRating'] ?? []));
+          assetMap['locationTAmbient'] = matchingAsset.locationTAmbient.isNotEmpty
+              ? matchingAsset.locationTAmbient
+              : (asset.locationTAmbient.isNotEmpty ? asset.locationTAmbient : (json['tAmbient'] ?? json['locationTAmbient'] ?? ''));
+          assetMap['tAmbient'] = assetMap['locationTAmbient'];
+          assetMap['locationLatitude'] = matchingAsset.locationLatitude ?? asset.locationLatitude ?? json['locationLatitude'] ?? '';
+          assetMap['locationLongitude'] = matchingAsset.locationLongitude ?? asset.locationLongitude ?? json['locationLongitude'] ?? '';
+          assetMap['gpsCord'] = matchingAsset.gpsCord ?? asset.gpsCord ?? json['gpsCoordinates'] ?? json['gpsCord'] ?? '';
+          assetMap['areaClassDrawNo'] = matchingAsset.areaClassDrawNo.isNotEmpty
+              ? matchingAsset.areaClassDrawNo
+              : (asset.areaClassDrawNo.isNotEmpty ? asset.areaClassDrawNo : (json['areaClassDrawNo'] ?? []));
+          assetMap['areaClassDrawAttachOrgName'] = matchingAsset.areaClassDrawAttachOrgName.isNotEmpty
+              ? matchingAsset.areaClassDrawAttachOrgName
+              : (asset.areaClassDrawAttachOrgName.isNotEmpty ? asset.areaClassDrawAttachOrgName : (json['areaClassDrawAttachOrgName'] ?? assetMap['areaClassDrawNo']));
+          assetMap['areaClassDrawAttach'] = matchingAsset.areaClassDrawAttach.isNotEmpty
+              ? matchingAsset.areaClassDrawAttach
+              : (asset.areaClassDrawAttach.isNotEmpty ? asset.areaClassDrawAttach : (json['areaClassDrawAttach'] ?? []));
+          assetMap['eqpmtLytDrawNo'] = matchingAsset.eqpmtLytDrawNo.isNotEmpty
+              ? matchingAsset.eqpmtLytDrawNo
+              : (asset.eqpmtLytDrawNo.isNotEmpty ? asset.eqpmtLytDrawNo : (json['eqpmtLytDrawNo'] ?? []));
+          assetMap['eqpmtLytDrawAttachOrgName'] = matchingAsset.eqpmtLytDrawAttachOrgName.isNotEmpty
+              ? matchingAsset.eqpmtLytDrawAttachOrgName
+              : (asset.eqpmtLytDrawAttachOrgName.isNotEmpty ? asset.eqpmtLytDrawAttachOrgName : (json['eqpmtLytDrawAttachOrgName'] ?? assetMap['eqpmtLytDrawNo']));
+          assetMap['eqpmtLytDrawAttach'] = matchingAsset.eqpmtLytDrawAttach.isNotEmpty
+              ? matchingAsset.eqpmtLytDrawAttach
+              : (asset.eqpmtLytDrawAttach.isNotEmpty ? asset.eqpmtLytDrawAttach : (json['eqpmtLytDrawAttach'] ?? []));
+          assetMap['areaStatus'] = matchingAsset.areaStatus ?? asset.areaStatus ?? json['areaStatus'] ?? 'Active';
+          assetMap['locationId'] = matchingAsset.locationId.isNotEmpty
+              ? matchingAsset.locationId
+              : (asset.locationId.isNotEmpty ? asset.locationId : (json['locationId'] ?? ''));
+
+          json['subLocation'] = assetMap['subLocation'];
+          json['platform'] = assetMap['platform'];
+          json['area'] = assetMap['area'];
+          json['deckLevel'] = assetMap['deckLevel'];
+          json['subArea'] = assetMap['subArea'];
+          json['locationGasGroup'] = assetMap['locationGasGroup'];
+          json['locationTClass'] = assetMap['locationTClass'];
+          json['locationIpRating'] = assetMap['locationIpRating'];
+          json['tAmbient'] = assetMap['tAmbient'];
+          json['locationLatitude'] = assetMap['locationLatitude'];
+          json['locationLongitude'] = assetMap['locationLongitude'];
+          json['gpsCoordinates'] = assetMap['gpsCord'];
+          json['areaClassDrawNo'] = assetMap['areaClassDrawNo'];
+          json['areaClassDrawAttach'] = assetMap['areaClassDrawAttach'];
+          json['areaClassDrawAttachOrgName'] = assetMap['areaClassDrawAttachOrgName'];
+          json['eqpmtLytDrawNo'] = assetMap['eqpmtLytDrawNo'];
+          json['eqpmtLytDrawAttach'] = assetMap['eqpmtLytDrawAttach'];
+          json['eqpmtLytDrawAttachOrgName'] = assetMap['eqpmtLytDrawAttachOrgName'];
+
           json['assets'] = assetMap;
 
           final workOrder = {
@@ -616,8 +692,14 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             'work_order_json': json,
             'created_by': userId,
             'updated_by': userId,
+            'owner_user_id': userId, // Bind to current user for isolation
           };
-          await repository.insertWorkOrderAsset(workOrder);
+          try {
+            await repository.insertWorkOrderAsset(workOrder);
+          } catch (e) {
+            failedAssetIds.add(asset.id);
+            debugPrint('⚠️ Transfer failed for asset ${asset.id}: $e');
+          }
 
           syncedCount++;
 
@@ -673,6 +755,28 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             dbHelper,
           );
 
+          assetJson['subLocation'] = asset.area;
+          assetJson['platform'] = asset.area;
+          assetJson['area'] = asset.area;
+          assetJson['deckLevel'] = asset.deckLevel ?? '';
+          assetJson['subArea'] = asset.subArea ?? '';
+          assetJson['locationGasGroup'] = asset.locationGasGroup;
+          assetJson['locationTClass'] = asset.locationTClass;
+          assetJson['locationIpRating'] = asset.locationIpRating;
+          assetJson['locationTAmbient'] = asset.locationTAmbient;
+          assetJson['tAmbient'] = asset.locationTAmbient;
+          assetJson['locationLatitude'] = asset.locationLatitude ?? '';
+          assetJson['locationLongitude'] = asset.locationLongitude ?? '';
+          assetJson['gpsCord'] = asset.gpsCord ?? '';
+          assetJson['areaClassDrawNo'] = asset.areaClassDrawNo;
+          assetJson['areaClassDrawAttach'] = asset.areaClassDrawAttach;
+          assetJson['areaClassDrawAttachOrgName'] = asset.areaClassDrawAttachOrgName;
+          assetJson['eqpmtLytDrawNo'] = asset.eqpmtLytDrawNo;
+          assetJson['eqpmtLytDrawAttach'] = asset.eqpmtLytDrawAttach;
+          assetJson['eqpmtLytDrawAttachOrgName'] = asset.eqpmtLytDrawAttachOrgName;
+          assetJson['areaStatus'] = asset.areaStatus ?? 'Active';
+          assetJson['locationId'] = asset.locationId;
+
           final syntheticJson = {
             '_id': 'wo_${asset.id}',
             'woNumber': 'WO-${asset.id}',
@@ -701,6 +805,23 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             'subLocation': asset.area,
             'deckLevel': asset.deckLevel ?? '',
             'area': asset.deckLevel ?? '',
+            'subArea': asset.subArea ?? '',
+            'locationGasGroup': asset.locationGasGroup,
+            'locationTClass': asset.locationTClass,
+            'locationIpRating': asset.locationIpRating,
+            'tAmbient': asset.locationTAmbient,
+            'locationLatitude': asset.locationLatitude ?? '',
+            'locationLongitude': asset.locationLongitude ?? '',
+            'gpsCoordinates': asset.gpsCord ??
+                (asset.locationLatitude != null && asset.locationLongitude != null
+                    ? '${asset.locationLatitude}, ${asset.locationLongitude}'
+                    : ''),
+            'areaClassDrawNo': asset.areaClassDrawNo,
+            'areaClassDrawAttach': asset.areaClassDrawAttach,
+            'areaClassDrawAttachOrgName': asset.areaClassDrawAttachOrgName,
+            'eqpmtLytDrawNo': asset.eqpmtLytDrawNo,
+            'eqpmtLytDrawAttach': asset.eqpmtLytDrawAttach,
+            'eqpmtLytDrawAttachOrgName': asset.eqpmtLytDrawAttachOrgName,
             'assets': assetJson,
           };
           final workOrder = {
@@ -708,12 +829,21 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             'work_order_json': syntheticJson,
             'created_by': userId,
             'updated_by': userId,
+            'owner_user_id': userId, // Bind to current user for isolation
           };
-          await repository.insertWorkOrderAsset(workOrder);
+          try {
+            await repository.insertWorkOrderAsset(workOrder);
+          } catch (e) {
+            failedAssetIds.add(asset.id);
+            debugPrint('⚠️ Transfer failed for asset ${asset.id} (fallback): $e');
+          }
           syncedCount++;
           double progress = syncedCount / totalAssetsToSync;
           _updateSyncProgress(progress);
         }
+      }
+      if (failedAssetIds.isNotEmpty) {
+        debugPrint('⚠️ Transfer completed with ${failedAssetIds.length} failed assets: $failedAssetIds');
       }
       final prefs = await SharedPreferences.getInstance();
       final existingIds = (prefs.getStringList('asset_ids') ?? [])
@@ -787,8 +917,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
         // selectedAssets.clear();
         List<ExRegister> selectedAssets = [];
         if (_selectedRows.length != allAssets.length) {
-          _selectedRows.clear();
-          _selectedRows.addAll(List<bool>.filled(allAssets.length, false));
+          _selectedRows = List<bool>.filled(allAssets.length, false, growable: true);
         }
         for (int i = 0; i < _selectedRows.length; i++) {
           if (_selectedRows[i]) {
@@ -822,7 +951,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             scaffoldMessenger,
           );
 
-          _selectedRows.clear();
+          _selectedRows = [];
           BlocProvider.of<ToServerBloc>(context).add(WorkOrderToServerLoad());
         } catch (e) {
           if (!mounted) return;
@@ -959,7 +1088,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
               selectedFilters = state.selectedFilters;
               collectionSelectedFilter = state.collectionSelectedFilter;
               getAssets = state.assets;
-              _selectedRows = List<bool>.filled(state.assets.length, false);
+              _selectedRows = List<bool>.filled(state.assets.length, false, growable: true);
             });
           }
         },
@@ -975,7 +1104,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
             }
             getAssets = state.assets;
             if (_selectedRows.length != state.assets.length) {
-              _selectedRows = List<bool>.filled(state.assets.length, false);
+              _selectedRows = List<bool>.filled(state.assets.length, false, growable: true);
             }
             return StatefulBuilder(
               builder: (BuildContext context, StateSetter setState) {
@@ -1041,7 +1170,7 @@ class DeviceSyncScreenState extends State<SyncPopupScreen> {
                 collectionSelectedFilter = state.collectionSelectedFilter;
                 getAssets = state.assets;
                 if (_selectedRows.length != state.assets.length) {
-                  _selectedRows = List<bool>.filled(state.assets.length, false);
+                  _selectedRows = List<bool>.filled(state.assets.length, false, growable: true);
                 }
               });
             }

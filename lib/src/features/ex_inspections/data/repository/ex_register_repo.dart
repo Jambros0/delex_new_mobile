@@ -191,6 +191,10 @@ class ExregisterRepo {
         assetMap['locationId'] = newLocationId;
       }
       assetMap['isDuplicate'] = true;
+      if (userId != null && userId.isNotEmpty) {
+        assetMap['userId'] = userId;
+        assetMap['createdBy'] = userId;
+      }
 
       Map<String, dynamic> exRegisterJson = {
         'exregister_json': jsonEncode({'asset': assetMap}),

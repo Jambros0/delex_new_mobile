@@ -89,9 +89,13 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
     emit(WorkOrderLoading());
     try {
       final String? userId = await authUtils.getUserId();
+      final String? userType = await authUtils.getUserType();
       dynamic userDetails;
       try {
-        userDetails = await _dbHelper.getLoggedInUser();
+        if (userId != null && userId.isNotEmpty) {
+          userDetails = await _dbHelper.getLoggedInUserByUserId(userId);
+        }
+        userDetails ??= await _dbHelper.getLoggedInUser();
       } catch (_) {}
       final String? userName =
           userDetails?.userName ?? await authUtils.getUsername();
@@ -101,7 +105,6 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
 
       final response =
           await deviceSyncServices.fetchWorkOrderAssets(userId: userId);
-      final String? userType = await authUtils.getUserType();
       final List<String> tableHeaders = _getTableHeaders(userType);
       final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
       final List<WorkOrderTableJson> rawWorkOrderCollection =
@@ -111,19 +114,24 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
         assets: rawAssets,
         workOrders: rawWorkOrderCollection,
         userId: userId ?? '',
+        userType: userType,
         userName: userName,
         email: email,
         firstName: firstName,
         lastName: lastName,
       );
 
-      final List<ExRegister> userAssets = userFilteredData.assets;
+      // Deduplicate assets by ID (same asset may appear in multiple work orders)
+      final List<ExRegister> userAssets = _deduplicateAssets(userFilteredData.assets);
       final List<WorkOrderTableJson> userWorkOrders =
           userFilteredData.workOrders;
 
       Set<String> localAssetIds = {};
       try {
-        localAssetIds = await _dbHelper.getLocalAssetIds(userType: userType);
+        localAssetIds = await _dbHelper.getLocalAssetIds(
+          userType: userType,
+          userId: userId, // Per-user filtering: only exclude THIS user's transferred assets
+        );
       } catch (_) {}
 
       final untransferredAssets = userAssets.where((asset) {
@@ -163,9 +171,13 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
     emit(WorkOrderLoading());
     try {
       final String? userId = await authUtils.getUserId();
+      final String? userType = await authUtils.getUserType();
       dynamic userDetails;
       try {
-        userDetails = await _dbHelper.getLoggedInUser();
+        if (userId != null && userId.isNotEmpty) {
+          userDetails = await _dbHelper.getLoggedInUserByUserId(userId);
+        }
+        userDetails ??= await _dbHelper.getLoggedInUser();
       } catch (_) {}
       final String? userName =
           userDetails?.userName ?? await authUtils.getUsername();
@@ -175,7 +187,6 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
 
       final response =
           await deviceSyncServices.fetchWorkOrderAssets(userId: userId);
-      final String? userType = await authUtils.getUserType();
       final List<String> tableHeaders = _getTableHeaders(userType);
       final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
       final List<WorkOrderTableJson> rawWorkOrderCollection =
@@ -185,19 +196,24 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
         assets: rawAssets,
         workOrders: rawWorkOrderCollection,
         userId: userId ?? '',
+        userType: userType,
         userName: userName,
         email: email,
         firstName: firstName,
         lastName: lastName,
       );
 
-      final List<ExRegister> userAssets = userFilteredData.assets;
+      // Deduplicate assets by ID (same asset may appear in multiple work orders)
+      final List<ExRegister> userAssets = _deduplicateAssets(userFilteredData.assets);
       final List<WorkOrderTableJson> userWorkOrders =
           userFilteredData.workOrders;
 
       Set<String> localAssetIds = {};
       try {
-        localAssetIds = await _dbHelper.getLocalAssetIds(userType: userType);
+        localAssetIds = await _dbHelper.getLocalAssetIds(
+          userType: userType,
+          userId: userId, // Per-user filtering: only exclude THIS user's transferred assets
+        );
       } catch (_) {}
 
       final untransferredAssets = userAssets.where((asset) {
@@ -243,11 +259,13 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
     required List<ExRegister> assets,
     required List<WorkOrderTableJson> workOrders,
     required String userId,
+    String? userType,
     String? userName,
     String? email,
     String? firstName,
     String? lastName,
   }) {
+    final bool isOffshore = (userType?.toLowerCase() == 'offshore');
     if (userId.trim().isEmpty) {
       return _UserFilteredResult(assets: assets, workOrders: workOrders);
     }
@@ -299,6 +317,14 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
     }
 
     bool isWorkOrderAssigned(WorkOrderTableJson wo) {
+      if (isOffshore) {
+        // In offshore, if work order is assigned to target user OR is unassigned / open
+        final assignedToStr = wo.assignedTo?.toString().trim();
+        final isUnassigned = assignedToStr == null ||
+            assignedToStr.isEmpty ||
+            assignedToStr.toLowerCase() == 'null';
+        if (isUnassigned) return true;
+      }
       return isTargetUser(wo.assigendTeam) ||
           isTargetUser(wo.assignedTo) ||
           isTargetUser(wo.userId) ||
@@ -358,7 +384,7 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
             a.assignedTeam.toString() != 'null')
     );
 
-    if (!hasAnyAssignment) {
+    if (!hasAnyAssignment && !isOffshore) {
       return _UserFilteredResult(assets: assets, workOrders: workOrders);
     }
 
@@ -368,7 +394,7 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
 
     for (final wo in workOrders) {
       final woMatches = isWorkOrderAssigned(wo);
-      if (woMatches) {
+      if (woMatches || isOffshore) {
         filteredWorkOrders.add(wo);
         for (final asset in wo.assets) {
           assignedAssetIds.add(asset.id);
@@ -390,7 +416,7 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
 
     for (final asset in assets) {
       if (!assignedAssetIds.contains(asset.id)) {
-        if (isAssetAssigned(asset)) {
+        if (isOffshore || isAssetAssigned(asset)) {
           assignedAssetIds.add(asset.id);
           filteredAssets.add(asset);
         }
@@ -676,6 +702,25 @@ class DeviceSyncBloc extends Bloc<DeviceSyncEvent, DeviceSyncState> {
             "Current Status",
           ];
   }
+
+  /// Deduplicates a list of assets by their ID.
+  /// When the same asset appears in multiple work orders, only the first
+  /// occurrence is kept (preserving the order they come in).
+  List<ExRegister> _deduplicateAssets(List<ExRegister> assets) {
+    final seen = <String>{};
+    final result = <ExRegister>[];
+    for (final asset in assets) {
+      final id = asset.id.trim();
+      if (id.isNotEmpty && !seen.contains(id)) {
+        seen.add(id);
+        result.add(asset);
+      } else if (id.isEmpty) {
+        // Keep assets without an ID (edge case)
+        result.add(asset);
+      }
+    }
+    return result;
+  }
 }
 
 class _UserFilteredResult {
@@ -687,3 +732,4 @@ class _UserFilteredResult {
     required this.workOrders,
   });
 }
+

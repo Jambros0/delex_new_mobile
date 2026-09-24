@@ -19,6 +19,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../data/models/functional_area_request.dart';
 
@@ -313,12 +314,21 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
         }
       }
 
+      final mergedLocationData = Map<String, dynamic>.from(assetDetails);
+      locationData.forEach((k, v) {
+        if (v != null && v != '' && !(v is List && v.isEmpty)) {
+          mergedLocationData[k] = v;
+        }
+      });
+      if (locationId.isNotEmpty) {
+        mergedLocationData['locationId'] = locationId;
+      }
+
       setState(() {
         _isUpdate = true;
         _exInspectionRequest = ExInspectionRequest(
-          functionalAreaRequest: locationId.isNotEmpty
-              ? _mapLocationToFunctionalAreaRequest(locationData)
-              : null,
+          functionalAreaRequest:
+              _mapLocationToFunctionalAreaRequest(mergedLocationData),
           equipmentTagRequest: _mapEquipmentTagRequest(assetDetails),
         );
         _isDataFetched = true;
@@ -479,37 +489,220 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
         assetDetails['_id'] = rowId.toString();
       }
 
-      String locationId = assetDetails['locationId']?.toString() ?? '';
-      Map<String, dynamic> locationData = {};
-      if (locationId.isNotEmpty) {
-        List<Map<String, dynamic>> functionalAreas = (userType == 'onshore')
-            ? await _dbHelper.getFunctionalAreaOnshore()
-            : await _dbHelper.getFunctionalArea();
-        for (var record in functionalAreas) {
-          dynamic functionalAreaJson = record['functional_area_json'];
-          Map<String, dynamic> functionalAreaMap = CommonFunctions().decodeJson(
-            functionalAreaJson,
-          );
-          final loc = (functionalAreaMap['location'] is Map)
-              ? Map<String, dynamic>.from(functionalAreaMap['location'])
-              : Map<String, dynamic>.from(functionalAreaMap);
-          final String? locId = loc['locationId']?.toString() ??
-              loc['_id']?.toString() ??
-              functionalAreaMap['locationId']?.toString() ??
-              functionalAreaMap['_id']?.toString() ??
-              record['id']?.toString();
-          final String? rowId = record['id']?.toString();
-
-          if (locId == locationId || rowId == locationId) {
-            locationData = loc;
-            locationData['locationId'] = locId ?? rowId ?? locationId;
-            break;
+      if (assetDetails.isEmpty) {
+        final woRows = (userType == 'onshore')
+            ? await _dbHelper.getWorkOrderAssetsOnshore()
+            : await _dbHelper.getWorkOrderAssets();
+        for (final row in woRows) {
+          if (row['id']?.toString() == assetId) {
+            final raw = row['work_order_json'];
+            if (raw != null) {
+              final Map<String, dynamic> parsed = (raw is String)
+                  ? jsonDecode(raw)
+                  : Map<String, dynamic>.from(raw);
+              if (parsed['asset'] is Map) {
+                assetDetails = Map<String, dynamic>.from(parsed['asset']);
+              } else if (parsed['assets'] is Map) {
+                assetDetails = Map<String, dynamic>.from(parsed['assets']);
+              } else {
+                assetDetails = parsed;
+              }
+              break;
+            }
           }
         }
       }
 
-      final mappedFa = locationData.isNotEmpty
-          ? _mapLocationToFunctionalAreaRequest(locationData)
+      String locationId = assetDetails['locationId']?.toString() ?? '';
+      Map<String, dynamic> locationData = {};
+      List<Map<String, dynamic>> functionalAreas = (userType == 'onshore')
+          ? await _dbHelper.getFunctionalAreaOnshore()
+          : await _dbHelper.getFunctionalArea();
+
+      for (var record in functionalAreas) {
+        dynamic functionalAreaJson = record['functional_area_json'];
+        Map<String, dynamic> functionalAreaMap = CommonFunctions().decodeJson(
+          functionalAreaJson,
+        );
+        final loc = (functionalAreaMap['location'] is Map)
+            ? Map<String, dynamic>.from(functionalAreaMap['location'])
+            : Map<String, dynamic>.from(functionalAreaMap);
+        final String? locId = loc['locationId']?.toString() ??
+            loc['_id']?.toString() ??
+            functionalAreaMap['locationId']?.toString() ??
+            functionalAreaMap['_id']?.toString() ??
+            record['id']?.toString();
+        final String? rowId = record['id']?.toString();
+        final String? locName = loc['location']?.toString();
+
+        if (locationId.isNotEmpty &&
+            (locId == locationId || rowId == locationId || locName == locationId)) {
+          locationData = loc;
+          locationData['locationId'] = locId ?? rowId ?? locationId;
+          break;
+        }
+      }
+
+      if (locationData.isEmpty) {
+        final targetLoc = assetDetails['location']?.toString();
+        if (targetLoc != null && targetLoc.isNotEmpty) {
+          for (var record in functionalAreas) {
+            dynamic functionalAreaJson = record['functional_area_json'];
+            Map<String, dynamic> functionalAreaMap = CommonFunctions().decodeJson(
+              functionalAreaJson,
+            );
+            final loc = (functionalAreaMap['location'] is Map)
+                ? Map<String, dynamic>.from(functionalAreaMap['location'])
+                : Map<String, dynamic>.from(functionalAreaMap);
+            if (loc['location']?.toString() == targetLoc) {
+              locationData = loc;
+              break;
+            }
+          }
+        }
+      }
+
+      // Check work order assets table for any location details (drawings, gasGroup, etc.)
+      if (locationData['subArea'] == null ||
+          locationData['subArea'].toString().isEmpty ||
+          locationData['locationGasGroup'] == null ||
+          (locationData['locationGasGroup'] is List && (locationData['locationGasGroup'] as List).isEmpty) ||
+          locationData['areaClassDrawNo'] == null ||
+          (locationData['areaClassDrawNo'] is List && (locationData['areaClassDrawNo'] as List).isEmpty)) {
+        try {
+          final woRows = (userType == 'onshore')
+              ? await _dbHelper.getWorkOrderAssetsOnshore()
+              : await _dbHelper.getWorkOrderAssets();
+          for (final row in woRows) {
+            final raw = row['work_order_json'];
+            if (raw == null) continue;
+            final Map<String, dynamic> parsed = (raw is String)
+                ? jsonDecode(raw)
+                : Map<String, dynamic>.from(raw);
+            final wo = parsed['workOrder'] is Map ? parsed['workOrder'] : parsed;
+            final ass = parsed['asset'] is Map ? parsed['asset'] : (parsed['assets'] is Map ? parsed['assets'] : {});
+
+            final match = (row['id']?.toString() == assetId) ||
+                (ass['_id']?.toString() == assetId) ||
+                (ass['id']?.toString() == assetId) ||
+                (locationId.isNotEmpty && (ass['locationId']?.toString() == locationId || wo['locationId']?.toString() == locationId));
+
+            if (match) {
+              for (final src in [ass, wo]) {
+                if (src is! Map) continue;
+                for (final key in [
+                  'subArea',
+                  'locationGasGroup',
+                  'locationTClass',
+                  'locationIpRating',
+                  'tAmbient',
+                  'locationTAmbient',
+                  'locationLatitude',
+                  'locationLongitude',
+                  'gpsCoordinates',
+                  'gpsCord',
+                  'areaClassDrawNo',
+                  'areaClassDrawAttach',
+                  'areaClassDrawAttachOrgName',
+                  'eqpmtLytDrawNo',
+                  'eqpmtLytDrawAttach',
+                  'eqpmtLytDrawAttachOrgName',
+                  'areaStatus',
+                ]) {
+                  final v = src[key];
+                  if (v != null &&
+                      (v is! String || v.isNotEmpty) &&
+                      (v is! List || v.isNotEmpty)) {
+                    if (locationData[key] == null ||
+                        (locationData[key] is String && (locationData[key] as String).isEmpty) ||
+                        (locationData[key] is List && (locationData[key] as List).isEmpty)) {
+                      locationData[key] = v;
+                    }
+                  }
+                }
+              }
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // If location area details are still missing, query LocationService
+      if (locationId.isNotEmpty &&
+          (locationData['subArea'] == null ||
+              locationData['subArea'].toString().isEmpty ||
+              locationData['locationGasGroup'] == null ||
+              (locationData['locationGasGroup'] is List && (locationData['locationGasGroup'] as List).isEmpty) ||
+              locationData['areaClassDrawNo'] == null ||
+              (locationData['areaClassDrawNo'] is List && (locationData['areaClassDrawNo'] as List).isEmpty))) {
+        try {
+          final LocationService locationService = LocationService();
+          final locResponse = await locationService.fetchLocationById(
+            locationId: locationId,
+          ).timeout(const Duration(seconds: 4));
+          if (locResponse.containsKey('data') && locResponse['data'] is Map) {
+            final locApiData = Map<String, dynamic>.from(locResponse['data']);
+            locApiData.forEach((k, v) {
+              if (v != null && v != '' && !(v is List && v.isEmpty)) {
+                locationData[k] = v;
+              }
+            });
+            locationData['locationId'] = locationId;
+
+            // Cache back into SQLite functional_area
+            try {
+              final faPayload = {
+                'functional_area_json': jsonEncode({'location': locationData}),
+                'created_by': assetDetails['createdBy'] ?? 'system',
+                'updated_by': assetDetails['createdBy'] ?? 'system',
+              };
+              if (userType == 'onshore') {
+                final db = await _dbHelper.onshoreDatabase;
+                await db.insert('functional_area_onshore', faPayload,
+                    conflictAlgorithm: ConflictAlgorithm.replace);
+              } else {
+                final db = await _dbHelper.workOrderDatabase;
+                await db.insert('functional_area', faPayload,
+                    conflictAlgorithm: ConflictAlgorithm.replace);
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+
+      final Map<String, dynamic> mergedLocationData =
+          Map<String, dynamic>.from(locationData);
+      assetDetails.forEach((k, v) {
+        if (v != null &&
+            (v is! String || v.isNotEmpty) &&
+            (v is! List || v.isNotEmpty)) {
+          if (!mergedLocationData.containsKey(k) ||
+              mergedLocationData[k] == null ||
+              (mergedLocationData[k] is String &&
+                  (mergedLocationData[k] as String).isEmpty) ||
+              (mergedLocationData[k] is List &&
+                  (mergedLocationData[k] as List).isEmpty)) {
+            mergedLocationData[k] = v;
+          }
+        }
+      });
+
+      // Also ensure assetDetails has all enriched location details
+      mergedLocationData.forEach((k, v) {
+        if (v != null &&
+            (v is! String || v.isNotEmpty) &&
+            (v is! List || v.isNotEmpty)) {
+          if (!assetDetails.containsKey(k) ||
+              assetDetails[k] == null ||
+              (assetDetails[k] is String && (assetDetails[k] as String).isEmpty) ||
+              (assetDetails[k] is List && (assetDetails[k] as List).isEmpty)) {
+            assetDetails[k] = v;
+          }
+        }
+      });
+
+      final mappedFa = mergedLocationData.isNotEmpty
+          ? _mapLocationToFunctionalAreaRequest(mergedLocationData)
           : null;
       if (mappedFa != null && locationId.isNotEmpty) {
         mappedFa.locationId = locationId;
@@ -612,52 +805,106 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
   //   return jsonMap;
   // }
 
+  List<String> _toListOfString(dynamic val) {
+    if (val == null) return [];
+    if (val is List) return val.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+    if (val is String && val.trim().isNotEmpty) {
+      if (val.contains(',')) {
+        return val.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      }
+      return [val.trim()];
+    }
+    return [];
+  }
+
   FunctionalAreaRequest _mapLocationToFunctionalAreaRequest(
     Map<String, dynamic> locationData,
   ) {
     String latitude = locationData['locationLatitude']?.toString() ?? '';
     String longitude = locationData['locationLongitude']?.toString() ?? '';
-    if ((latitude.isEmpty || longitude.isEmpty) &&
-        locationData['gpsCoordinates'] != null) {
-      final gps = locationData['gpsCoordinates'].toString();
+    final rawGps = locationData['gpsCoordinates'] ??
+        locationData['gpsCord'] ??
+        locationData['gps'];
+    if ((latitude.isEmpty || longitude.isEmpty) && rawGps != null) {
+      final gps = rawGps.toString();
       if (gps.contains(',')) {
         final parts = gps.split(',');
         latitude = parts[0].trim();
         longitude = parts[1].trim();
       }
     }
+
+    final gasGroupVal = locationData['locationGasGroup'] ??
+        locationData['gasGroup'] ??
+        locationData['areaGasGroup'];
+    final tClassVal = locationData['locationTClass'] ??
+        locationData['tClass'] ??
+        locationData['temperatureClass'] ??
+        locationData['areaTClass'];
+    final ipRatingVal = locationData['locationIpRating'] ??
+        locationData['ipRating'] ??
+        locationData['areaIpRating'];
+
+    final areaDrawing = locationData['areaClassificationDrawing']?.toString() ??
+        locationData['areaClassificationDrawingNo']?.toString();
+    final eqDrawing = locationData['equipmentLayoutDrawing']?.toString() ??
+        locationData['equipmentLayoutDrawingNo']?.toString();
+
+    List<String> areaClassDrawNo =
+        _toListOfString(locationData['areaClassDrawNo']);
+    if (areaClassDrawNo.isEmpty && areaDrawing != null && areaDrawing.isNotEmpty) {
+      areaClassDrawNo = [areaDrawing];
+    }
+    List<String> areaClassDrawAttachOrgName =
+        _toListOfString(locationData['areaClassDrawAttachOrgName']);
+    if (areaClassDrawAttachOrgName.isEmpty &&
+        areaDrawing != null &&
+        areaDrawing.isNotEmpty) {
+      areaClassDrawAttachOrgName = [areaDrawing];
+    }
+
+    List<String> eqpmtLytDrawNo =
+        _toListOfString(locationData['eqpmtLytDrawNo']);
+    if (eqpmtLytDrawNo.isEmpty && eqDrawing != null && eqDrawing.isNotEmpty) {
+      eqpmtLytDrawNo = [eqDrawing];
+    }
+    List<String> eqpmtLytDrawAttachOrgName =
+        _toListOfString(locationData['eqpmtLytDrawAttachOrgName']);
+    if (eqpmtLytDrawAttachOrgName.isEmpty &&
+        eqDrawing != null &&
+        eqDrawing.isNotEmpty) {
+      eqpmtLytDrawAttachOrgName = [eqDrawing];
+    }
+
     return FunctionalAreaRequest(
       location: locationData['location']?.toString() ?? '',
-      area: locationData['area']?.toString() ?? '',
-      deckLevel: locationData['deckLevel']?.toString() ?? '',
+      area: (locationData['subLocation'] ??
+              locationData['platform'] ??
+              locationData['area'])
+              ?.toString() ??
+          '',
+      deckLevel: (locationData['deckLevel'] ??
+              (locationData['subLocation'] != null
+                  ? locationData['area']
+                  : null))
+              ?.toString() ??
+          '',
       subArea: locationData['subArea']?.toString() ?? '',
       zone: locationData['zone']?.toString() ?? '',
-      locationGasGroup: List<String>.from(
-        locationData['locationGasGroup'] ?? [],
-      ),
-      locationTClass: List<String>.from(locationData['locationTClass'] ?? []),
-      locationIpRating: List<String>.from(
-        locationData['locationIpRating'] ?? [],
-      ),
+      locationGasGroup: _toListOfString(gasGroupVal),
+      locationTClass: _toListOfString(tClassVal),
+      locationIpRating: _toListOfString(ipRatingVal),
       tAmbient: (locationData['tAmbient'] ??
               locationData['locationTAmbient'] ??
+              locationData['ambientTemperature'] ??
               '')
-          ?.toString() ??
-          '',
-      areaClassDrawAttach: List<String>.from(
-        locationData['areaClassDrawAttach'] ?? [],
-      ),
-      areaClassDrawNo: List<String>.from(locationData['areaClassDrawNo'] ?? []),
-      eqpmtLytDrawAttach: List<String>.from(
-        locationData['eqpmtLytDrawAttach'] ?? [],
-      ),
-      eqpmtLytDrawNo: List<String>.from(locationData['eqpmtLytDrawNo'] ?? []),
-      areaClassDrawAttachOrgName: List<String>.from(
-        locationData['areaClassDrawAttachOrgName'] ?? [],
-      ),
-      eqpmtLytDrawAttachOrgName: List<String>.from(
-        locationData['eqpmtLytDrawAttachOrgName'] ?? [],
-      ),
+          .toString(),
+      areaClassDrawAttach: _toListOfString(locationData['areaClassDrawAttach']),
+      areaClassDrawNo: areaClassDrawNo,
+      eqpmtLytDrawAttach: _toListOfString(locationData['eqpmtLytDrawAttach']),
+      eqpmtLytDrawNo: eqpmtLytDrawNo,
+      areaClassDrawAttachOrgName: areaClassDrawAttachOrgName,
+      eqpmtLytDrawAttachOrgName: eqpmtLytDrawAttachOrgName,
       locationId: locationData['locationId']?.toString() ??
           locationData['_id']?.toString() ??
           locationData['id']?.toString() ??
@@ -673,40 +920,97 @@ class ExInspectionScreenState extends State<ExInspectionScreen> {
   EquipmentTagRequest _mapEquipmentTagRequest(
     Map<String, dynamic> assetDetails,
   ) {
+    String latitude = assetDetails['locationLatitude']?.toString() ?? '';
+    String longitude = assetDetails['locationLongitude']?.toString() ?? '';
+    final rawGps = assetDetails['gpsCord'] ??
+        assetDetails['gpsCoordinates'] ??
+        assetDetails['gps'];
+    if ((latitude.isEmpty || longitude.isEmpty) && rawGps != null) {
+      final gps = rawGps.toString();
+      if (gps.contains(',')) {
+        final parts = gps.split(',');
+        latitude = parts[0].trim();
+        longitude = parts[1].trim();
+      }
+    }
+
+    final gasGroupVal = assetDetails['locationGasGroup'] ??
+        assetDetails['gasGroup'] ??
+        assetDetails['areaGasGroup'];
+    final tClassVal = assetDetails['locationTClass'] ??
+        assetDetails['tClass'] ??
+        assetDetails['temperatureClass'] ??
+        assetDetails['areaTClass'];
+    final ipRatingVal = assetDetails['locationIpRating'] ??
+        assetDetails['ipRating'] ??
+        assetDetails['areaIpRating'];
+
+    final areaDrawing = assetDetails['areaClassificationDrawing']?.toString() ??
+        assetDetails['areaClassificationDrawingNo']?.toString();
+    final eqDrawing = assetDetails['equipmentLayoutDrawing']?.toString() ??
+        assetDetails['equipmentLayoutDrawingNo']?.toString();
+
+    List<String> areaClassDrawNo =
+        _toListOfString(assetDetails['areaClassDrawNo']);
+    if (areaClassDrawNo.isEmpty && areaDrawing != null && areaDrawing.isNotEmpty) {
+      areaClassDrawNo = [areaDrawing];
+    }
+    List<String> areaClassDrawAttachOrgName =
+        _toListOfString(assetDetails['areaClassDrawAttachOrgName']);
+    if (areaClassDrawAttachOrgName.isEmpty &&
+        areaDrawing != null &&
+        areaDrawing.isNotEmpty) {
+      areaClassDrawAttachOrgName = [areaDrawing];
+    }
+
+    List<String> eqpmtLytDrawNo =
+        _toListOfString(assetDetails['eqpmtLytDrawNo']);
+    if (eqpmtLytDrawNo.isEmpty && eqDrawing != null && eqDrawing.isNotEmpty) {
+      eqpmtLytDrawNo = [eqDrawing];
+    }
+    List<String> eqpmtLytDrawAttachOrgName =
+        _toListOfString(assetDetails['eqpmtLytDrawAttachOrgName']);
+    if (eqpmtLytDrawAttachOrgName.isEmpty &&
+        eqDrawing != null &&
+        eqDrawing.isNotEmpty) {
+      eqpmtLytDrawAttachOrgName = [eqDrawing];
+    }
+
     return EquipmentTagRequest(
       location: assetDetails['location'],
-      area: assetDetails['area'],
+      area: (assetDetails['subLocation'] ??
+              assetDetails['platform'] ??
+              assetDetails['area'])
+              ?.toString() ??
+          '',
       subArea: assetDetails['subArea'],
       zone: assetDetails['zone'],
       isActive: assetDetails['isActive'] ?? true,
-      locationGasGroup: List<String>.from(
-        assetDetails['locationGasGroup'] ?? [],
-      ),
-      locationTAmbient: assetDetails['locationTAmbient'] ?? '',
-      locationTClass: List<String>.from(assetDetails['locationTClass'] ?? []),
-      locationIpRating: List<String>.from(
-        assetDetails['locationIpRating'] ?? [],
-      ),
-      areaClassDrawAttach: List<String>.from(
-        assetDetails['areaClassDrawAttach'] ?? [],
-      ),
-      areaClassDrawAttachOrgName: List<String>.from(
-        assetDetails['areaClassDrawAttachOrgName'] ?? [],
-      ),
-      eqpmtLytDrawAttachOrgName: List<String>.from(
-        assetDetails['eqpmtLytDrawAttachOrgName'] ?? [],
-      ),
-      areaClassDrawNo: List<String>.from(assetDetails['areaClassDrawNo'] ?? []),
-      eqpmtLytDrawAttach: List<String>.from(
-        assetDetails['eqpmtLytDrawAttach'] ?? [],
-      ),
-      eqpmtLytDrawNo: List<String>.from(assetDetails['eqpmtLytDrawNo'] ?? []),
+      locationGasGroup: _toListOfString(gasGroupVal),
+      locationTAmbient: (assetDetails['locationTAmbient'] ??
+              assetDetails['tAmbient'] ??
+              assetDetails['ambientTemperature'] ??
+              '')
+          .toString(),
+      locationTClass: _toListOfString(tClassVal),
+      locationIpRating: _toListOfString(ipRatingVal),
+      areaClassDrawAttach: _toListOfString(assetDetails['areaClassDrawAttach']),
+      areaClassDrawAttachOrgName: areaClassDrawAttachOrgName,
+      eqpmtLytDrawAttachOrgName: eqpmtLytDrawAttachOrgName,
+      areaClassDrawNo: areaClassDrawNo,
+      eqpmtLytDrawAttach: _toListOfString(assetDetails['eqpmtLytDrawAttach']),
+      eqpmtLytDrawNo: eqpmtLytDrawNo,
       locationId: assetDetails['locationId']?.toString() ?? '',
-      deckLevel: assetDetails['deckLevel'] ?? '',
-      locationLatitude: assetDetails['locationLatitude'] ?? '',
-      locationLongitude: assetDetails['locationLongitude'] ?? '',
+      deckLevel: (assetDetails['deckLevel'] ??
+              (assetDetails['subLocation'] != null
+                  ? assetDetails['area']
+                  : null))
+              ?.toString() ??
+          '',
+      locationLatitude: latitude,
+      locationLongitude: longitude,
       rfidRef: assetDetails['rfidRef'] ?? '',
-      gpsCord: assetDetails['gpsCord'] ?? '',
+      gpsCord: rawGps?.toString() ?? (latitude.isNotEmpty && longitude.isNotEmpty ? '$latitude, $longitude' : ''),
       eqpmtCatg: assetDetails['eqpmtCatg'] ?? '',
       eqpmtTag: assetDetails['eqpmtTag'] ?? '',
       circuitId: assetDetails['circuitId'] ?? '',

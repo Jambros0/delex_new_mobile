@@ -25,7 +25,7 @@ class LocationField extends StatefulWidget {
 
 class LocationFieldState extends State<LocationField> {
   late List<String> _selectedFields;
-  bool allFieldsChecked = false;
+  bool allLocationsChecked = true;
 
   @override
   void initState() {
@@ -33,14 +33,20 @@ class LocationFieldState extends State<LocationField> {
     _selectedFields = List.from(
       widget.selectedFilters,
     ); // Keep previous selections
-    allFieldsChecked = _selectedFields.length == widget.locationDropDown.length;
+    if (_selectedFields.isEmpty ||
+        _selectedFields.length == widget.locationDropDown.length) {
+      allLocationsChecked = true;
+      _selectedFields = List.from(widget.locationDropDown);
+    } else {
+      allLocationsChecked = false;
+    }
   }
 
   void _toggleFilter(String filterOption) {
     setState(() {
-      if (filterOption == "All Fields") {
-        allFieldsChecked = !allFieldsChecked;
-        if (allFieldsChecked) {
+      if (filterOption == "All Locations") {
+        allLocationsChecked = !allLocationsChecked;
+        if (allLocationsChecked) {
           _selectedFields
             ..clear()
             ..addAll(widget.locationDropDown);
@@ -53,7 +59,7 @@ class LocationFieldState extends State<LocationField> {
         } else {
           _selectedFields.add(filterOption);
         }
-        allFieldsChecked =
+        allLocationsChecked =
             _selectedFields.length == widget.locationDropDown.length;
       }
     });
@@ -99,7 +105,7 @@ class LocationFieldState extends State<LocationField> {
                           itemCount: widget.locationDropDown.length + 1,
                           itemBuilder: (context, index) {
                             if (index == 0) {
-                              return _buildCheckboxOption("All Fields");
+                              return _buildCheckboxOption("All Locations");
                             } else {
                               return _buildCheckboxOption(
                                 widget.locationDropDown[index - 1],
@@ -123,7 +129,9 @@ class LocationFieldState extends State<LocationField> {
                                 child: ElevatedButton(
                                   onPressed: () {
                                     setState(() {
-                                      _selectedFields.clear();
+                                      _selectedFields =
+                                          List.from(widget.locationDropDown);
+                                      allLocationsChecked = true;
                                       widget.resetFilters(_selectedFields);
                                       widget.selectedFilters.clear();
                                       Navigator.of(context).pop();
@@ -151,15 +159,6 @@ class LocationFieldState extends State<LocationField> {
                                         width: 18,
                                         height: 18,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Reset',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: const Color(0xFF002B5C),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -176,9 +175,17 @@ class LocationFieldState extends State<LocationField> {
                                     ),
                                   ),
                                   onPressed: () {
-                                    widget.onFilterApplied?.call(
-                                      _selectedFields,
-                                    );
+                                    if (allLocationsChecked ||
+                                        _selectedFields.length >=
+                                            widget.locationDropDown.length) {
+                                      widget.onFilterApplied?.call(
+                                        List.from(widget.locationDropDown),
+                                      );
+                                    } else {
+                                      widget.onFilterApplied?.call(
+                                        _selectedFields,
+                                      );
+                                    }
                                     Navigator.of(context).pop();
                                   },
                                   style: ElevatedButton.styleFrom(
@@ -209,8 +216,8 @@ class LocationFieldState extends State<LocationField> {
   }
 
   Widget _buildCheckboxOption(String filterText) {
-    bool isSelected = filterText == "All Fields"
-        ? allFieldsChecked
+    bool isSelected = filterText == "All Locations"
+        ? allLocationsChecked
         : _selectedFields.contains(filterText);
 
     return Padding(
@@ -235,8 +242,8 @@ class LocationFieldState extends State<LocationField> {
                   (states) =>
                       const BorderSide(width: 1.0, color: Colors.black54),
                 ),
-                value: filterText == "All Fields"
-                    ? allFieldsChecked
+                value: filterText == "All Locations"
+                    ? allLocationsChecked
                     : _selectedFields.contains(filterText),
                 onChanged: (bool? value) {
                   _toggleFilter(filterText);

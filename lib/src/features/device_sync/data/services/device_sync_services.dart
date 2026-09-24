@@ -6,7 +6,6 @@ import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/work_order_table_model.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/rest_client_util.dart';
-import 'package:http/http.dart' as http;
 
 class DeviceSyncServices {
   Future<Map<String, dynamic>> fetchWorkOrderAssets({
@@ -21,109 +20,200 @@ class DeviceSyncServices {
     final accessToken = tokens['accessToken'];
     final currentUserId = userId ?? await authUtils.getUserId();
 
-    final targetEndpoint = (currentUserId != null && currentUserId.isNotEmpty)
-        ? "/user-work-orders/$currentUserId"
-        : "/user-work-orders";
+    List<dynamic> extractCollections(Map<String, dynamic> data) {
+      final dynamic inner = data['workOrders'] ??
+          data['work_orders'] ??
+          data['workOrder'] ??
+          data['work_order'] ??
+          data['data'] ??
+          data['result'] ??
+          data['assets'];
+      if (inner is List) {
+        return inner;
+      } else if (inner is Map) {
+        if (inner['workOrders'] is List) return inner['workOrders'];
+        if (inner['work_orders'] is List) return inner['work_orders'];
+        if (inner['workOrder'] is List) return inner['workOrder'];
+        if (inner['work_order'] is List) return inner['work_order'];
+        if (inner['data'] is List) return inner['data'];
+        if (inner['assignedAssets'] is List || inner['assets'] is List) return [inner];
+        return [inner];
+      } else if (data['data'] is List) {
+        return data['data'];
+      }
+      return [];
+    }
 
-    http.Response response;
-    try {
-      response = await HttpUtils.get(
-        targetEndpoint,
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
-        },
-        useInterceptor: true,
-      );
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        final fallbackEndpoint = (currentUserId != null && currentUserId.isNotEmpty)
-            ? "/work-order/$currentUserId"
-            : "/work-order";
-        final fallbackResponse = await HttpUtils.get(
-          fallbackEndpoint,
+    Map<String, dynamic>? successfulData;
+    List<dynamic> collections = [];
+    final String? userType = await authUtils.getUserType();
+    final bool isOffshore = userType?.toLowerCase() == 'offshore';
+
+    void mergeIntoCollections(List<dynamic> source) {
+      for (var item in source) {
+        if (item is Map) {
+          final id = (item['_id'] ?? item['id'] ?? item['woNumber'])?.toString().trim();
+          if (id != null && id.isNotEmpty) {
+            final existingIdx = collections.indexWhere((c) {
+              if (c is Map) {
+                final cId = (c['_id'] ?? c['id'] ?? c['woNumber'])?.toString().trim();
+                return cId == id;
+              }
+              return false;
+            });
+            if (existingIdx >= 0) {
+              final existingMap = collections[existingIdx] as Map;
+              final existingAssets = existingMap['assignedAssets'] ?? existingMap['assets'];
+              final newAssets = item['assignedAssets'] ?? item['assets'];
+              if (newAssets is List && existingAssets is List) {
+                final Set<String> existingAssetIds = existingAssets
+                    .whereType<Map>()
+                    .map((a) => (a['_id'] ?? a['id'])?.toString().trim() ?? '')
+                    .where((s) => s.isNotEmpty)
+                    .toSet();
+                for (var a in newAssets) {
+                  if (a is Map) {
+                    final aId = (a['_id'] ?? a['id'])?.toString().trim() ?? '';
+                    if (aId.isEmpty || !existingAssetIds.contains(aId)) {
+                      existingAssets.add(a);
+                    }
+                  }
+                }
+              }
+            } else {
+              collections.add(item);
+            }
+          } else {
+            collections.add(item);
+          }
+        } else {
+          collections.add(item);
+        }
+      }
+    }
+
+    // 1. Try user-specific work orders if userId is available
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      try {
+        final res = await HttpUtils.get(
+          "/user-work-orders/$currentUserId",
           headers: {
             'Authorization': 'Bearer $accessToken',
             'Content-Type': 'application/json',
           },
           useInterceptor: true,
         );
-        if (fallbackResponse.statusCode == 200) {
-          response = fallbackResponse;
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          final Map<String, dynamic> d = jsonDecode(res.body);
+          final extracted = extractCollections(d);
+          if (extracted.isNotEmpty) {
+            successfulData = d;
+            if (isOffshore) {
+              mergeIntoCollections(extracted);
+            } else {
+              collections = extracted;
+            }
+          }
         }
-      }
-    } catch (_) {
-      final fallbackEndpoint = (currentUserId != null && currentUserId.isNotEmpty)
-          ? "/work-order/$currentUserId"
-          : "/work-order";
-      response = await HttpUtils.get(
-        fallbackEndpoint,
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
-        },
-        useInterceptor: true,
-      );
+      } catch (_) {}
     }
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      final dynamic innerData = data['data'] ??
-          data['result'] ??
-          data['work_order'] ??
-          data['workOrder'] ??
-          data['work_orders'] ??
-          data['assets'];
-
-      List<dynamic> collections = [];
-      int totalRecords = 0;
-
-      if (innerData is List) {
-        collections = innerData;
-        totalRecords = innerData.length;
-      } else if (innerData is Map) {
-        if (innerData.containsKey('data') && innerData['data'] is List) {
-          collections = innerData['data'] ?? [];
-        } else if (innerData.containsKey('work_order') &&
-            innerData['work_order'] is List) {
-          collections = innerData['work_order'] ?? [];
-        } else if (innerData.containsKey('workOrder') &&
-            innerData['workOrder'] is List) {
-          collections = innerData['workOrder'] ?? [];
-        } else if (innerData.containsKey('work_orders') &&
-            innerData['work_orders'] is List) {
-          collections = innerData['work_orders'] ?? [];
-        } else if (innerData.containsKey('assignedAssets') &&
-            innerData['assignedAssets'] is List) {
-          collections = [innerData];
-        } else if (innerData.containsKey('assets') &&
-            innerData['assets'] is List) {
-          collections = [innerData];
-        } else {
-          collections = [innerData];
+    // 2. Fetch /workorder/assets (always merged for offshore, or fallback for onshore)
+    if (isOffshore || collections.isEmpty) {
+      try {
+        final res = await HttpUtils.get(
+          "/workorder/assets",
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/json',
+          },
+          useInterceptor: true,
+        );
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          final Map<String, dynamic> d = jsonDecode(res.body);
+          final extracted = extractCollections(d);
+          if (extracted.isNotEmpty) {
+            successfulData ??= d;
+            if (isOffshore) {
+              mergeIntoCollections(extracted);
+            } else {
+              collections = extracted;
+            }
+          }
         }
-        totalRecords = innerData['total'] ??
-            (innerData['info'] is List && innerData['info'].isNotEmpty
-                ? innerData['info'][0]['total']
-                : collections.length);
-      } else if (data.containsKey('data') && data['data'] is List) {
-        collections = data['data'];
-        totalRecords = collections.length;
-      }
+      } catch (_) {}
+    }
 
-      if (data['total'] != null) {
-        totalRecords = int.tryParse(data['total'].toString()) ?? totalRecords;
-      } else if (data['totalRecords'] != null) {
-        totalRecords =
-            int.tryParse(data['totalRecords'].toString()) ?? totalRecords;
-      }
+    // 3. Fetch /work-orders (always merged for offshore, or fallback for onshore)
+    if (isOffshore || collections.isEmpty) {
+      try {
+        final res = await HttpUtils.get(
+          "/work-orders",
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/json',
+          },
+          useInterceptor: true,
+        );
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          final Map<String, dynamic> d = jsonDecode(res.body);
+          final extracted = extractCollections(d);
+          if (extracted.isNotEmpty) {
+            successfulData ??= d;
+            if (isOffshore) {
+              mergeIntoCollections(extracted);
+            } else {
+              collections = extracted;
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
-      if (collections.isEmpty) {
-        return {
-          'tableHeaders': <String>[],
-          'assets': <ExRegister>[],
-          'work_order': <WorkOrderTableJson>[],
-          'totalRecords': 0,
-        };
+    if (collections.isEmpty) {
+      return {
+        'tableHeaders': <String>[],
+        'assets': <ExRegister>[],
+        'work_order': <WorkOrderTableJson>[],
+        'totalRecords': 0,
+      };
+    }
+
+    int totalRecords = collections.length;
+    if (successfulData != null) {
+      if (successfulData['total'] != null) {
+        totalRecords = int.tryParse(successfulData['total'].toString()) ?? totalRecords;
+      } else if (successfulData['totalRecords'] != null) {
+        totalRecords = int.tryParse(successfulData['totalRecords'].toString()) ?? totalRecords;
+      }
+    }
+
+      final Map<String, Map<String, dynamic>> locationCache = {};
+
+      Future<Map<String, dynamic>?> fetchLocationDataCached(String? locId) async {
+        if (locId == null || locId.isEmpty || locId == 'null') return null;
+        if (locationCache.containsKey(locId)) return locationCache[locId];
+        try {
+          final locResponse = await HttpUtils.get(
+            "/location/$locId",
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            useInterceptor: true,
+          );
+          if (locResponse.statusCode == 200) {
+            final Map<String, dynamic> locJson = jsonDecode(locResponse.body);
+            final locData = (locJson['data'] is Map)
+                ? Map<String, dynamic>.from(locJson['data'])
+                : (locJson['location'] is Map
+                    ? Map<String, dynamic>.from(locJson['location'])
+                    : Map<String, dynamic>.from(locJson));
+            locationCache[locId] = locData;
+            return locData;
+          }
+        } catch (_) {}
+        return null;
       }
 
       // Extract all assets from all collections
@@ -138,64 +228,347 @@ class DeviceSyncServices {
           if (rawAssets is List) {
             for (var a in rawAssets) {
               if (a is Map) {
-                if (!a.containsKey('assignedTeam') && collection.containsKey('assigendTeam')) {
-                  a['assignedTeam'] = collection['assigendTeam'];
+                if ((a['assignedTeam'] == null || a['assignedTeam'].toString().isEmpty || a['assignedTeam'].toString() == 'null') &&
+                    (collection['assigendTeam'] ?? collection['assignedTeam']) != null) {
+                  a['assignedTeam'] = collection['assigendTeam'] ?? collection['assignedTeam'];
                 }
-                if (!a.containsKey('assignedTo') && collection.containsKey('assignedTo')) {
-                  a['assignedTo'] = collection['assignedTo'];
+                if ((a['assignedTo'] == null || a['assignedTo'].toString().isEmpty || a['assignedTo'].toString() == 'null') &&
+                    (collection['assignedTo'] ?? collection['assigned_to']) != null) {
+                  a['assignedTo'] = collection['assignedTo'] ?? collection['assigned_to'];
                 }
-                if (!a.containsKey('userId') && collection.containsKey('userId')) {
-                  a['userId'] = collection['userId'];
+                if ((a['userId'] == null || a['userId'].toString().isEmpty || a['userId'].toString() == 'null') &&
+                    (collection['userId'] ?? collection['user_id']) != null) {
+                  a['userId'] = collection['userId'] ?? collection['user_id'];
                 }
-                if (!a.containsKey('woNumber') && collection.containsKey('woNumber')) {
-                  a['woNumber'] = collection['woNumber'];
+                if ((a['woNumber'] == null || a['woNumber'].toString().isEmpty || a['woNumber'].toString() == 'null') &&
+                    (collection['woNumber'] ?? collection['workOrderNumber']) != null) {
+                  a['woNumber'] = collection['woNumber'] ?? collection['workOrderNumber'];
                 }
-                if (!a.containsKey('workOrderId') && collection.containsKey('_id')) {
+                if ((a['workOrderId'] == null || a['workOrderId'].toString().isEmpty || a['workOrderId'].toString() == 'null') &&
+                    collection['_id'] != null) {
                   a['workOrderId'] = collection['_id'];
                 }
                 if ((a['location'] == null || a['location'].toString().isEmpty)) {
                   a['location'] = collection['fieldName'] ?? collection['location'];
                 }
-                if ((a['subLocation'] == null || a['subLocation'].toString().isEmpty)) {
-                  a['subLocation'] = collection['subLocation'] ?? collection['platform'];
+                final subLoc = collection['subLocation'] ?? collection['platform'];
+                if (subLoc != null && subLoc.toString().isNotEmpty) {
+                  if (a['subLocation'] == null || a['subLocation'].toString().isEmpty) {
+                    a['subLocation'] = subLoc;
+                  }
+                  if (a['platform'] == null || a['platform'].toString().isEmpty) {
+                    a['platform'] = subLoc;
+                  }
+                  if (a['area'] == null || a['area'].toString().isEmpty) {
+                    a['area'] = subLoc;
+                  }
+                  if (a['deckLevel'] == null || a['deckLevel'].toString().isEmpty) {
+                    a['deckLevel'] = collection['deckLevel'] ?? collection['area'];
+                  }
+                } else {
+                  if ((a['subLocation'] == null || a['subLocation'].toString().isEmpty)) {
+                    a['subLocation'] = collection['subLocation'] ?? collection['platform'];
+                  }
+                  if ((a['area'] == null || a['area'].toString().isEmpty)) {
+                    a['area'] = collection['platform'] ?? collection['area'] ?? collection['subLocation'];
+                  }
+                  if ((a['deckLevel'] == null || a['deckLevel'].toString().isEmpty)) {
+                    a['deckLevel'] = collection['deckLevel'] ?? collection['area'];
+                  }
                 }
-                if ((a['area'] == null || a['area'].toString().isEmpty)) {
-                  a['area'] = collection['platform'] ?? collection['area'] ?? collection['subLocation'];
+                // Area details inheritance from work order collection
+                if (!a.containsKey('locationId') || a['locationId'] == null || a['locationId'].toString().isEmpty) {
+                  a['locationId'] = collection['locationId'] ?? collection['functionalAreaId'];
                 }
-                if ((a['deckLevel'] == null || a['deckLevel'].toString().isEmpty)) {
-                  a['deckLevel'] = collection['deckLevel'] ?? collection['area'];
+                if (!a.containsKey('subArea') || a['subArea'] == null || a['subArea'].toString().isEmpty) {
+                  a['subArea'] = collection['subArea'] ?? collection['nearestLandmark'];
+                }
+                if (!a.containsKey('locationGasGroup') || a['locationGasGroup'] == null || (a['locationGasGroup'] is List && (a['locationGasGroup'] as List).isEmpty)) {
+                  a['locationGasGroup'] = collection['locationGasGroup'] ?? collection['gasGroup'] ?? collection['areaGasGroup'];
+                }
+                if (!a.containsKey('locationTClass') || a['locationTClass'] == null || (a['locationTClass'] is List && (a['locationTClass'] as List).isEmpty)) {
+                  a['locationTClass'] = collection['locationTClass'] ?? collection['tClass'] ?? collection['temperatureClass'];
+                }
+                if (!a.containsKey('locationIpRating') || a['locationIpRating'] == null || (a['locationIpRating'] is List && (a['locationIpRating'] as List).isEmpty)) {
+                  a['locationIpRating'] = collection['locationIpRating'] ?? collection['ipRating'];
+                }
+                if (!a.containsKey('locationTAmbient') || a['locationTAmbient'] == null || a['locationTAmbient'].toString().isEmpty) {
+                  a['locationTAmbient'] = collection['locationTAmbient'] ?? collection['tAmbient'];
+                }
+                if (!a.containsKey('tAmbient') || a['tAmbient'] == null || a['tAmbient'].toString().isEmpty) {
+                  a['tAmbient'] = collection['tAmbient'] ?? collection['locationTAmbient'];
+                }
+                if (!a.containsKey('locationLatitude') || a['locationLatitude'] == null || a['locationLatitude'].toString().isEmpty) {
+                  a['locationLatitude'] = collection['locationLatitude'] ?? collection['latitude'];
+                }
+                if (!a.containsKey('locationLongitude') || a['locationLongitude'] == null || a['locationLongitude'].toString().isEmpty) {
+                  a['locationLongitude'] = collection['locationLongitude'] ?? collection['longitude'];
+                }
+                if (!a.containsKey('gpsCord') || a['gpsCord'] == null || a['gpsCord'].toString().isEmpty) {
+                  a['gpsCord'] = collection['gpsCord'] ?? collection['gpsCoordinates'] ?? collection['gps'];
+                }
+                if (!a.containsKey('zone') || a['zone'] == null || a['zone'].toString().isEmpty) {
+                  a['zone'] = collection['zone'];
+                }
+                if (!a.containsKey('areaClassDrawNo') || a['areaClassDrawNo'] == null || (a['areaClassDrawNo'] is List && (a['areaClassDrawNo'] as List).isEmpty)) {
+                  a['areaClassDrawNo'] = collection['areaClassDrawNo'];
+                }
+                if (!a.containsKey('areaClassDrawAttach') || a['areaClassDrawAttach'] == null || (a['areaClassDrawAttach'] is List && (a['areaClassDrawAttach'] as List).isEmpty)) {
+                  a['areaClassDrawAttach'] = collection['areaClassDrawAttach'];
+                }
+                if (!a.containsKey('areaClassDrawAttachOrgName') || a['areaClassDrawAttachOrgName'] == null || (a['areaClassDrawAttachOrgName'] is List && (a['areaClassDrawAttachOrgName'] as List).isEmpty)) {
+                  a['areaClassDrawAttachOrgName'] = collection['areaClassDrawAttachOrgName'];
+                }
+                if (!a.containsKey('eqpmtLytDrawNo') || a['eqpmtLytDrawNo'] == null || (a['eqpmtLytDrawNo'] is List && (a['eqpmtLytDrawNo'] as List).isEmpty)) {
+                  a['eqpmtLytDrawNo'] = collection['eqpmtLytDrawNo'];
+                }
+                if (!a.containsKey('eqpmtLytDrawAttach') || a['eqpmtLytDrawAttach'] == null || (a['eqpmtLytDrawAttach'] is List && (a['eqpmtLytDrawAttach'] as List).isEmpty)) {
+                  a['eqpmtLytDrawAttach'] = collection['eqpmtLytDrawAttach'];
+                }
+                if (!a.containsKey('eqpmtLytDrawAttachOrgName') || a['eqpmtLytDrawAttachOrgName'] == null || (a['eqpmtLytDrawAttachOrgName'] is List && (a['eqpmtLytDrawAttachOrgName'] as List).isEmpty)) {
+                  a['eqpmtLytDrawAttachOrgName'] = collection['eqpmtLytDrawAttachOrgName'];
+                }
+
+                // If location area details are still missing, fetch location from server API
+                final locId = a['locationId']?.toString() ??
+                    collection['locationId']?.toString() ??
+                    collection['functionalAreaId']?.toString();
+                final locData = await fetchLocationDataCached(locId);
+                if (locData != null) {
+                  if (a['subArea'] == null || a['subArea'].toString().isEmpty) {
+                    a['subArea'] = locData['subArea'];
+                  }
+                  if (a['locationGasGroup'] == null || (a['locationGasGroup'] is List && (a['locationGasGroup'] as List).isEmpty)) {
+                    a['locationGasGroup'] = locData['locationGasGroup'];
+                  }
+                  if (a['locationTClass'] == null || (a['locationTClass'] is List && (a['locationTClass'] as List).isEmpty)) {
+                    a['locationTClass'] = locData['locationTClass'];
+                  }
+                  if (a['locationIpRating'] == null || (a['locationIpRating'] is List && (a['locationIpRating'] as List).isEmpty)) {
+                    a['locationIpRating'] = locData['locationIpRating'];
+                  }
+                  if (a['tAmbient'] == null || a['tAmbient'].toString().isEmpty) {
+                    a['tAmbient'] = locData['tAmbient'] ?? locData['locationTAmbient'];
+                    a['locationTAmbient'] = locData['tAmbient'] ?? locData['locationTAmbient'];
+                  }
+                  if (a['locationLatitude'] == null || a['locationLatitude'].toString().isEmpty) {
+                    a['locationLatitude'] = locData['locationLatitude'];
+                  }
+                  if (a['locationLongitude'] == null || a['locationLongitude'].toString().isEmpty) {
+                    a['locationLongitude'] = locData['locationLongitude'];
+                  }
+                  if (a['gpsCord'] == null || a['gpsCord'].toString().isEmpty) {
+                    a['gpsCord'] = locData['gpsCoordinates'] ?? locData['gpsCord'] ?? locData['gps'];
+                  }
+                  if (a['areaClassDrawNo'] == null || (a['areaClassDrawNo'] is List && (a['areaClassDrawNo'] as List).isEmpty)) {
+                    a['areaClassDrawNo'] = locData['areaClassDrawNo'];
+                  }
+                  if (a['areaClassDrawAttach'] == null || (a['areaClassDrawAttach'] is List && (a['areaClassDrawAttach'] as List).isEmpty)) {
+                    a['areaClassDrawAttach'] = locData['areaClassDrawAttach'];
+                  }
+                  if (a['areaClassDrawAttachOrgName'] == null || (a['areaClassDrawAttachOrgName'] is List && (a['areaClassDrawAttachOrgName'] as List).isEmpty)) {
+                    a['areaClassDrawAttachOrgName'] = locData['areaClassDrawAttachOrgName'] ?? locData['areaClassDrawNo'];
+                  }
+                  if (a['eqpmtLytDrawNo'] == null || (a['eqpmtLytDrawNo'] is List && (a['eqpmtLytDrawNo'] as List).isEmpty)) {
+                    a['eqpmtLytDrawNo'] = locData['eqpmtLytDrawNo'];
+                  }
+                  if (a['eqpmtLytDrawAttach'] == null || (a['eqpmtLytDrawAttach'] is List && (a['eqpmtLytDrawAttach'] as List).isEmpty)) {
+                    a['eqpmtLytDrawAttach'] = locData['eqpmtLytDrawAttach'];
+                  }
+                  if (a['eqpmtLytDrawAttachOrgName'] == null || (a['eqpmtLytDrawAttachOrgName'] is List && (a['eqpmtLytDrawAttachOrgName'] as List).isEmpty)) {
+                    a['eqpmtLytDrawAttachOrgName'] = locData['eqpmtLytDrawAttachOrgName'] ?? locData['eqpmtLytDrawNo'];
+                  }
+                  if (a['areaStatus'] == null || a['areaStatus'].toString().isEmpty) {
+                    a['areaStatus'] = locData['areaStatus'];
+                  }
+                  collection['subArea'] ??= locData['subArea'];
+                  collection['locationGasGroup'] ??= locData['locationGasGroup'];
+                  collection['locationTClass'] ??= locData['locationTClass'];
+                  collection['locationIpRating'] ??= locData['locationIpRating'];
+                  collection['tAmbient'] ??= locData['tAmbient'] ?? locData['locationTAmbient'];
+                  collection['locationLatitude'] ??= locData['locationLatitude'];
+                  collection['locationLongitude'] ??= locData['locationLongitude'];
+                  collection['gpsCoordinates'] ??= locData['gpsCoordinates'] ?? locData['gpsCord'] ?? locData['gps'];
+                  collection['areaClassDrawNo'] ??= locData['areaClassDrawNo'];
+                  collection['areaClassDrawAttach'] ??= locData['areaClassDrawAttach'];
+                  collection['areaClassDrawAttachOrgName'] ??= locData['areaClassDrawAttachOrgName'] ?? locData['areaClassDrawNo'];
+                  collection['eqpmtLytDrawNo'] ??= locData['eqpmtLytDrawNo'];
+                  collection['eqpmtLytDrawAttach'] ??= locData['eqpmtLytDrawAttach'];
+                  collection['eqpmtLytDrawAttachOrgName'] ??= locData['eqpmtLytDrawAttachOrgName'] ?? locData['eqpmtLytDrawNo'];
                 }
               }
             }
             assetsData.addAll(rawAssets);
           } else if (rawAssets is Map) {
-            if (!rawAssets.containsKey('assignedTeam') && collection.containsKey('assigendTeam')) {
-              rawAssets['assignedTeam'] = collection['assigendTeam'];
+            if ((rawAssets['assignedTeam'] == null || rawAssets['assignedTeam'].toString().isEmpty || rawAssets['assignedTeam'].toString() == 'null') &&
+                (collection['assigendTeam'] ?? collection['assignedTeam']) != null) {
+              rawAssets['assignedTeam'] = collection['assigendTeam'] ?? collection['assignedTeam'];
             }
-            if (!rawAssets.containsKey('assignedTo') && collection.containsKey('assignedTo')) {
-              rawAssets['assignedTo'] = collection['assignedTo'];
+            if ((rawAssets['assignedTo'] == null || rawAssets['assignedTo'].toString().isEmpty || rawAssets['assignedTo'].toString() == 'null') &&
+                (collection['assignedTo'] ?? collection['assigned_to']) != null) {
+              rawAssets['assignedTo'] = collection['assignedTo'] ?? collection['assigned_to'];
             }
-            if (!rawAssets.containsKey('userId') && collection.containsKey('userId')) {
-              rawAssets['userId'] = collection['userId'];
+            if ((rawAssets['userId'] == null || rawAssets['userId'].toString().isEmpty || rawAssets['userId'].toString() == 'null') &&
+                (collection['userId'] ?? collection['user_id']) != null) {
+              rawAssets['userId'] = collection['userId'] ?? collection['user_id'];
             }
-            if (!rawAssets.containsKey('woNumber') && collection.containsKey('woNumber')) {
-              rawAssets['woNumber'] = collection['woNumber'];
+            if ((rawAssets['woNumber'] == null || rawAssets['woNumber'].toString().isEmpty || rawAssets['woNumber'].toString() == 'null') &&
+                (collection['woNumber'] ?? collection['workOrderNumber']) != null) {
+              rawAssets['woNumber'] = collection['woNumber'] ?? collection['workOrderNumber'];
             }
-            if (!rawAssets.containsKey('workOrderId') && collection.containsKey('_id')) {
+            if ((rawAssets['workOrderId'] == null || rawAssets['workOrderId'].toString().isEmpty || rawAssets['workOrderId'].toString() == 'null') &&
+                collection['_id'] != null) {
               rawAssets['workOrderId'] = collection['_id'];
             }
             if ((rawAssets['location'] == null || rawAssets['location'].toString().isEmpty)) {
               rawAssets['location'] = collection['fieldName'] ?? collection['location'];
             }
-            if ((rawAssets['subLocation'] == null || rawAssets['subLocation'].toString().isEmpty)) {
-              rawAssets['subLocation'] = collection['subLocation'] ?? collection['platform'];
+            final subLoc = collection['subLocation'] ?? collection['platform'];
+            if (subLoc != null && subLoc.toString().isNotEmpty) {
+              if (rawAssets['subLocation'] == null || rawAssets['subLocation'].toString().isEmpty) {
+                rawAssets['subLocation'] = subLoc;
+              }
+              if (rawAssets['platform'] == null || rawAssets['platform'].toString().isEmpty) {
+                rawAssets['platform'] = subLoc;
+              }
+              if (rawAssets['area'] == null || rawAssets['area'].toString().isEmpty) {
+                rawAssets['area'] = subLoc;
+              }
+              if (rawAssets['deckLevel'] == null || rawAssets['deckLevel'].toString().isEmpty) {
+                rawAssets['deckLevel'] = collection['deckLevel'] ?? collection['area'];
+              }
+            } else {
+              if ((rawAssets['subLocation'] == null || rawAssets['subLocation'].toString().isEmpty)) {
+                rawAssets['subLocation'] = collection['subLocation'] ?? collection['platform'];
+              }
+              if ((rawAssets['area'] == null || rawAssets['area'].toString().isEmpty)) {
+                rawAssets['area'] = collection['platform'] ?? collection['area'] ?? collection['subLocation'];
+              }
+              if ((rawAssets['deckLevel'] == null || rawAssets['deckLevel'].toString().isEmpty)) {
+                rawAssets['deckLevel'] = collection['deckLevel'] ?? collection['area'];
+              }
             }
-            if ((rawAssets['area'] == null || rawAssets['area'].toString().isEmpty)) {
-              rawAssets['area'] = collection['platform'] ?? collection['area'] ?? collection['subLocation'];
+            if (!rawAssets.containsKey('locationId') || rawAssets['locationId'] == null || rawAssets['locationId'].toString().isEmpty) {
+              rawAssets['locationId'] = collection['locationId'] ?? collection['functionalAreaId'];
             }
-            if ((rawAssets['deckLevel'] == null || rawAssets['deckLevel'].toString().isEmpty)) {
-              rawAssets['deckLevel'] = collection['deckLevel'] ?? collection['area'];
+            if (!rawAssets.containsKey('subArea') || rawAssets['subArea'] == null || rawAssets['subArea'].toString().isEmpty) {
+              rawAssets['subArea'] = collection['subArea'] ?? collection['nearestLandmark'];
             }
+            if (!rawAssets.containsKey('locationGasGroup') || rawAssets['locationGasGroup'] == null || (rawAssets['locationGasGroup'] is List && (rawAssets['locationGasGroup'] as List).isEmpty)) {
+              rawAssets['locationGasGroup'] = collection['locationGasGroup'] ?? collection['gasGroup'] ?? collection['areaGasGroup'];
+            }
+            if (!rawAssets.containsKey('locationTClass') || rawAssets['locationTClass'] == null || (rawAssets['locationTClass'] is List && (rawAssets['locationTClass'] as List).isEmpty)) {
+              rawAssets['locationTClass'] = collection['locationTClass'] ?? collection['tClass'] ?? collection['temperatureClass'];
+            }
+            if (!rawAssets.containsKey('locationIpRating') || rawAssets['locationIpRating'] == null || (rawAssets['locationIpRating'] is List && (rawAssets['locationIpRating'] as List).isEmpty)) {
+              rawAssets['locationIpRating'] = collection['locationIpRating'] ?? collection['ipRating'];
+            }
+            if (!rawAssets.containsKey('locationTAmbient') || rawAssets['locationTAmbient'] == null || rawAssets['locationTAmbient'].toString().isEmpty) {
+              rawAssets['locationTAmbient'] = collection['locationTAmbient'] ?? collection['tAmbient'];
+            }
+            if (!rawAssets.containsKey('tAmbient') || rawAssets['tAmbient'] == null || rawAssets['tAmbient'].toString().isEmpty) {
+              rawAssets['tAmbient'] = collection['tAmbient'] ?? collection['locationTAmbient'];
+            }
+            if (!rawAssets.containsKey('locationLatitude') || rawAssets['locationLatitude'] == null || rawAssets['locationLatitude'].toString().isEmpty) {
+              rawAssets['locationLatitude'] = collection['locationLatitude'] ?? collection['latitude'];
+            }
+            if (!rawAssets.containsKey('locationLongitude') || rawAssets['locationLongitude'] == null || rawAssets['locationLongitude'].toString().isEmpty) {
+              rawAssets['locationLongitude'] = collection['locationLongitude'] ?? collection['longitude'];
+            }
+            if (!rawAssets.containsKey('gpsCord') || rawAssets['gpsCord'] == null || rawAssets['gpsCord'].toString().isEmpty) {
+              rawAssets['gpsCord'] = collection['gpsCord'] ?? collection['gpsCoordinates'] ?? collection['gps'];
+            }
+            if (!rawAssets.containsKey('zone') || rawAssets['zone'] == null || rawAssets['zone'].toString().isEmpty) {
+              rawAssets['zone'] = collection['zone'];
+            }
+            if (!rawAssets.containsKey('areaClassDrawNo') || rawAssets['areaClassDrawNo'] == null || (rawAssets['areaClassDrawNo'] is List && (rawAssets['areaClassDrawNo'] as List).isEmpty)) {
+              rawAssets['areaClassDrawNo'] = collection['areaClassDrawNo'];
+            }
+            if (!rawAssets.containsKey('areaClassDrawAttach') || rawAssets['areaClassDrawAttach'] == null || (rawAssets['areaClassDrawAttach'] is List && (rawAssets['areaClassDrawAttach'] as List).isEmpty)) {
+              rawAssets['areaClassDrawAttach'] = collection['areaClassDrawAttach'];
+            }
+            if (!rawAssets.containsKey('areaClassDrawAttachOrgName') || rawAssets['areaClassDrawAttachOrgName'] == null || (rawAssets['areaClassDrawAttachOrgName'] is List && (rawAssets['areaClassDrawAttachOrgName'] as List).isEmpty)) {
+              rawAssets['areaClassDrawAttachOrgName'] = collection['areaClassDrawAttachOrgName'];
+            }
+            if (!rawAssets.containsKey('eqpmtLytDrawNo') || rawAssets['eqpmtLytDrawNo'] == null || (rawAssets['eqpmtLytDrawNo'] is List && (rawAssets['eqpmtLytDrawNo'] as List).isEmpty)) {
+              rawAssets['eqpmtLytDrawNo'] = collection['eqpmtLytDrawNo'];
+            }
+            if (!rawAssets.containsKey('eqpmtLytDrawAttach') || rawAssets['eqpmtLytDrawAttach'] == null || (rawAssets['eqpmtLytDrawAttach'] is List && (rawAssets['eqpmtLytDrawAttach'] as List).isEmpty)) {
+              rawAssets['eqpmtLytDrawAttach'] = collection['eqpmtLytDrawAttach'];
+            }
+            if (!rawAssets.containsKey('eqpmtLytDrawAttachOrgName') || rawAssets['eqpmtLytDrawAttachOrgName'] == null || (rawAssets['eqpmtLytDrawAttachOrgName'] is List && (rawAssets['eqpmtLytDrawAttachOrgName'] as List).isEmpty)) {
+              rawAssets['eqpmtLytDrawAttachOrgName'] = collection['eqpmtLytDrawAttachOrgName'];
+            }
+
+            // Fetch location API data for map asset
+            final locId = rawAssets['locationId']?.toString() ??
+                collection['locationId']?.toString() ??
+                collection['functionalAreaId']?.toString();
+            final locData = await fetchLocationDataCached(locId);
+            if (locData != null) {
+              if (rawAssets['subArea'] == null || rawAssets['subArea'].toString().isEmpty) {
+                rawAssets['subArea'] = locData['subArea'];
+              }
+              if (rawAssets['locationGasGroup'] == null || (rawAssets['locationGasGroup'] is List && (rawAssets['locationGasGroup'] as List).isEmpty)) {
+                rawAssets['locationGasGroup'] = locData['locationGasGroup'];
+              }
+              if (rawAssets['locationTClass'] == null || (rawAssets['locationTClass'] is List && (rawAssets['locationTClass'] as List).isEmpty)) {
+                rawAssets['locationTClass'] = locData['locationTClass'];
+              }
+              if (rawAssets['locationIpRating'] == null || (rawAssets['locationIpRating'] is List && (rawAssets['locationIpRating'] as List).isEmpty)) {
+                rawAssets['locationIpRating'] = locData['locationIpRating'];
+              }
+              if (rawAssets['tAmbient'] == null || rawAssets['tAmbient'].toString().isEmpty) {
+                rawAssets['tAmbient'] = locData['tAmbient'] ?? locData['locationTAmbient'];
+                rawAssets['locationTAmbient'] = locData['tAmbient'] ?? locData['locationTAmbient'];
+              }
+              if (rawAssets['locationLatitude'] == null || rawAssets['locationLatitude'].toString().isEmpty) {
+                rawAssets['locationLatitude'] = locData['locationLatitude'];
+              }
+              if (rawAssets['locationLongitude'] == null || rawAssets['locationLongitude'].toString().isEmpty) {
+                rawAssets['locationLongitude'] = locData['locationLongitude'];
+              }
+              if (rawAssets['gpsCord'] == null || rawAssets['gpsCord'].toString().isEmpty) {
+                rawAssets['gpsCord'] = locData['gpsCoordinates'] ?? locData['gpsCord'] ?? locData['gps'];
+              }
+              if (rawAssets['areaClassDrawNo'] == null || (rawAssets['areaClassDrawNo'] is List && (rawAssets['areaClassDrawNo'] as List).isEmpty)) {
+                rawAssets['areaClassDrawNo'] = locData['areaClassDrawNo'];
+              }
+              if (rawAssets['areaClassDrawAttach'] == null || (rawAssets['areaClassDrawAttach'] is List && (rawAssets['areaClassDrawAttach'] as List).isEmpty)) {
+                rawAssets['areaClassDrawAttach'] = locData['areaClassDrawAttach'];
+              }
+              if (rawAssets['areaClassDrawAttachOrgName'] == null || (rawAssets['areaClassDrawAttachOrgName'] is List && (rawAssets['areaClassDrawAttachOrgName'] as List).isEmpty)) {
+                rawAssets['areaClassDrawAttachOrgName'] = locData['areaClassDrawAttachOrgName'] ?? locData['areaClassDrawNo'];
+              }
+              if (rawAssets['eqpmtLytDrawNo'] == null || (rawAssets['eqpmtLytDrawNo'] is List && (rawAssets['eqpmtLytDrawNo'] as List).isEmpty)) {
+                rawAssets['eqpmtLytDrawNo'] = locData['eqpmtLytDrawNo'];
+              }
+              if (rawAssets['eqpmtLytDrawAttach'] == null || (rawAssets['eqpmtLytDrawAttach'] is List && (rawAssets['eqpmtLytDrawAttach'] as List).isEmpty)) {
+                rawAssets['eqpmtLytDrawAttach'] = locData['eqpmtLytDrawAttach'];
+              }
+              if (rawAssets['eqpmtLytDrawAttachOrgName'] == null || (rawAssets['eqpmtLytDrawAttachOrgName'] is List && (rawAssets['eqpmtLytDrawAttachOrgName'] as List).isEmpty)) {
+                rawAssets['eqpmtLytDrawAttachOrgName'] = locData['eqpmtLytDrawAttachOrgName'] ?? locData['eqpmtLytDrawNo'];
+              }
+              if (rawAssets['areaStatus'] == null || rawAssets['areaStatus'].toString().isEmpty) {
+                rawAssets['areaStatus'] = locData['areaStatus'];
+              }
+
+              collection['subArea'] ??= locData['subArea'];
+              collection['locationGasGroup'] ??= locData['locationGasGroup'];
+              collection['locationTClass'] ??= locData['locationTClass'];
+              collection['locationIpRating'] ??= locData['locationIpRating'];
+              collection['tAmbient'] ??= locData['tAmbient'] ?? locData['locationTAmbient'];
+              collection['locationLatitude'] ??= locData['locationLatitude'];
+              collection['locationLongitude'] ??= locData['locationLongitude'];
+              collection['gpsCoordinates'] ??= locData['gpsCoordinates'] ?? locData['gpsCord'] ?? locData['gps'];
+              collection['areaClassDrawNo'] ??= locData['areaClassDrawNo'];
+              collection['areaClassDrawAttach'] ??= locData['areaClassDrawAttach'];
+              collection['areaClassDrawAttachOrgName'] ??= locData['areaClassDrawAttachOrgName'] ?? locData['areaClassDrawNo'];
+              collection['eqpmtLytDrawNo'] ??= locData['eqpmtLytDrawNo'];
+              collection['eqpmtLytDrawAttach'] ??= locData['eqpmtLytDrawAttach'];
+              collection['eqpmtLytDrawAttachOrgName'] ??= locData['eqpmtLytDrawAttachOrgName'] ?? locData['eqpmtLytDrawNo'];
+            }
+
             assetsData.add(rawAssets);
           } else if (collection.containsKey('eqpmtTag') ||
               collection.containsKey('equipmentId') ||
@@ -203,6 +576,24 @@ class DeviceSyncServices {
               collection.containsKey('eqpmtCatg') ||
               collection.containsKey('location') ||
               collection.containsKey('description')) {
+            final locId = collection['locationId']?.toString() ?? collection['functionalAreaId']?.toString();
+            final locData = await fetchLocationDataCached(locId);
+            if (locData != null) {
+              collection['subArea'] ??= locData['subArea'];
+              collection['locationGasGroup'] ??= locData['locationGasGroup'];
+              collection['locationTClass'] ??= locData['locationTClass'];
+              collection['locationIpRating'] ??= locData['locationIpRating'];
+              collection['tAmbient'] ??= locData['tAmbient'] ?? locData['locationTAmbient'];
+              collection['locationLatitude'] ??= locData['locationLatitude'];
+              collection['locationLongitude'] ??= locData['locationLongitude'];
+              collection['gpsCoordinates'] ??= locData['gpsCoordinates'] ?? locData['gpsCord'] ?? locData['gps'];
+              collection['areaClassDrawNo'] ??= locData['areaClassDrawNo'];
+              collection['areaClassDrawAttach'] ??= locData['areaClassDrawAttach'];
+              collection['areaClassDrawAttachOrgName'] ??= locData['areaClassDrawAttachOrgName'] ?? locData['areaClassDrawNo'];
+              collection['eqpmtLytDrawNo'] ??= locData['eqpmtLytDrawNo'];
+              collection['eqpmtLytDrawAttach'] ??= locData['eqpmtLytDrawAttach'];
+              collection['eqpmtLytDrawAttachOrgName'] ??= locData['eqpmtLytDrawAttachOrgName'] ?? locData['eqpmtLytDrawNo'];
+            }
             assetsData.add(collection);
           }
         }
@@ -250,9 +641,6 @@ class DeviceSyncServices {
         'work_order': workOrderCollection,
         'totalRecords': totalRecords > 0 ? totalRecords : assets.length,
       };
-    } else {
-      throw Exception('Failed to load assets: HTTP ${response.statusCode}');
-    }
   }
 
   Future<Map<String, dynamic>> syncAssetsToServer(

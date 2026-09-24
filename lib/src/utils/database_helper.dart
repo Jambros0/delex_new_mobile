@@ -169,7 +169,7 @@ class DBHelper {
     final path = await _getDbPath('workOrder.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       singleInstance: true,
       onConfigure: (db) async {
         // ❗ MUST be rawQuery
@@ -185,6 +185,7 @@ class DBHelper {
           work_order_json JSON,
           created_by TEXT,
           updated_by TEXT,
+          owner_user_id TEXT,
           created_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime')),
           updated_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime'))
         )
@@ -219,6 +220,7 @@ class DBHelper {
           created_by TEXT,
           updated_by TEXT,
           asset_id TEXT,
+          owner_user_id TEXT,
           created_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime')),
           updated_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime'))
         )
@@ -237,6 +239,17 @@ class DBHelper {
         )
       ''');
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add owner_user_id column for user-specific data isolation
+          try {
+            await db.execute('ALTER TABLE workOrder_assets ADD COLUMN owner_user_id TEXT');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE exregister_table ADD COLUMN owner_user_id TEXT');
+          } catch (_) {}
+        }
+      },
     );
   }
 
@@ -245,7 +258,7 @@ class DBHelper {
     final path = await _getDbPath('onshore.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       singleInstance: true,
       onConfigure: (db) async {
         // ❗ MUST be rawQuery
@@ -288,6 +301,7 @@ class DBHelper {
           work_order_json JSON,
           created_by TEXT,
           updated_by TEXT,
+          owner_user_id TEXT,
           created_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime')),
           updated_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime'))
         )
@@ -322,6 +336,7 @@ class DBHelper {
           created_by TEXT,
           updated_by TEXT,
           asset_id TEXT,
+          owner_user_id TEXT,
           created_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime')),
           updated_date DATETIME DEFAULT (datetime(CURRENT_TIMESTAMP, 'localtime'))
         )
@@ -367,6 +382,17 @@ class DBHelper {
         updated_by TEXT NOT NULL
         )
       ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add owner_user_id column for user-specific data isolation
+          try {
+            await db.execute('ALTER TABLE workOrder_assets_onshore ADD COLUMN owner_user_id TEXT');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE exregister_table_onshore ADD COLUMN owner_user_id TEXT');
+          } catch (_) {}
+        }
       },
     );
   }
@@ -540,6 +566,7 @@ class DBHelper {
         'work_order_json': jsonEncode(dbJson),
         'created_by': workOrder['created_by'],
         'updated_by': workOrder['updated_by'],
+        'owner_user_id': workOrder['owner_user_id'] ?? workOrder['created_by'],
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -599,12 +626,38 @@ class DBHelper {
     /// FUNCTIONAL AREA (UNCHANGED)
     /// ==================================================
     final assetFuncationJson = assetJson;
-    final locationId = assetFuncationJson['locationId'];
+    String locationId = assetFuncationJson['locationId']?.toString() ?? '';
+    final locField = assetFuncationJson['location']?.toString() ?? '';
+    final areaField = assetFuncationJson['area']?.toString() ?? '';
+
+    if (locationId.isEmpty || locationId == 'null') {
+      if (locField.isNotEmpty && areaField.isNotEmpty) {
+        final existingRows = await db.query(
+          'functional_area',
+          columns: ['id', 'functional_area_json'],
+          where: 'functional_area_json LIKE ? AND functional_area_json LIKE ?',
+          whereArgs: ['%"location":"$locField"%', '%"area":"$areaField"%'],
+        );
+        if (existingRows.isNotEmpty) {
+          try {
+            final faMap = jsonDecode(existingRows.first['functional_area_json'] as String);
+            locationId = faMap['location']?['locationId']?.toString() ??
+                existingRows.first['id'].toString();
+          } catch (_) {
+            locationId = existingRows.first['id'].toString();
+          }
+        }
+      }
+      if (locationId.isEmpty || locationId == 'null') {
+        locationId = 'loc_$assetId';
+      }
+    }
+    assetFuncationJson['locationId'] = locationId;
 
     final functionalAreaData = {
       'functional_area_json': jsonEncode({
         'location': {
-          'locationId': assetFuncationJson['locationId'],
+          'locationId': locationId,
           'location': assetFuncationJson['location'],
           'areaClassDrawAttach':
               assetFuncationJson['areaClassDrawAttach'] ?? [],
@@ -634,14 +687,53 @@ class DBHelper {
       'updated_by': workOrder['updated_by'],
     };
 
-    // final locationId = assetFuncationJson['locationId'];
     final existingFunctionalArea = await db.query(
       'functional_area',
-      columns: ['id'],
-      where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$locationId"%'],
+      columns: ['id', 'functional_area_json'],
+      where: 'functional_area_json LIKE ? OR (functional_area_json LIKE ? AND functional_area_json LIKE ?)',
+      whereArgs: [
+        '%"locationId":"$locationId"%',
+        '%"location":"$locField"%',
+        '%"area":"$areaField"%',
+      ],
     );
     if (existingFunctionalArea.isNotEmpty) {
+      try {
+        final existingFaJson = existingFunctionalArea.first['functional_area_json'] as String?;
+        if (existingFaJson != null) {
+          final existingFaMap = jsonDecode(existingFaJson);
+          final existingLoc = (existingFaMap['location'] is Map)
+              ? existingFaMap['location'] as Map<String, dynamic>
+              : existingFaMap as Map<String, dynamic>;
+          final newFaMap = jsonDecode(functionalAreaData['functional_area_json'] as String);
+          final newLoc = newFaMap['location'] as Map<String, dynamic>;
+          for (final key in [
+            'subArea',
+            'locationGasGroup',
+            'locationTClass',
+            'locationIpRating',
+            'tAmbient',
+            'locationLatitude',
+            'locationLongitude',
+            'areaClassDrawNo',
+            'areaClassDrawAttach',
+            'areaClassDrawAttachOrgName',
+            'eqpmtLytDrawNo',
+            'eqpmtLytDrawAttach',
+            'eqpmtLytDrawAttachOrgName',
+            'areaStatus'
+          ]) {
+            final newVal = newLoc[key];
+            final oldVal = existingLoc[key];
+            if ((newVal == null || (newVal is String && newVal.isEmpty) || (newVal is List && newVal.isEmpty)) &&
+                (oldVal != null && (oldVal is! String || oldVal.isNotEmpty) && (oldVal is! List || oldVal.isNotEmpty))) {
+              newLoc[key] = oldVal;
+              assetFuncationJson[key] = oldVal;
+            }
+          }
+          functionalAreaData['functional_area_json'] = jsonEncode(newFaMap);
+        }
+      } catch (_) {}
       await db.update(
         'functional_area',
         functionalAreaData,
@@ -657,8 +749,11 @@ class DBHelper {
     }
     final Map<String, dynamic> fullAssetMap =
         Map<String, dynamic>.from(assetFuncationJson);
-    fullAssetMap['_id'] = assetFuncationJson['_id'] ?? '';
-    fullAssetMap['locationId'] = assetFuncationJson['locationId'] ?? '';
+    final String finalAssetId =
+        (assetFuncationJson['_id'] ?? assetFuncationJson['id'] ?? assetId).toString().trim();
+    fullAssetMap['_id'] = finalAssetId;
+    fullAssetMap['id'] = finalAssetId;
+    fullAssetMap['locationId'] = locationId;
     fullAssetMap['location'] = assetFuncationJson['location'] ?? '';
     fullAssetMap['area'] = assetFuncationJson['area'] ?? '';
     fullAssetMap['zone'] = assetFuncationJson['zone'] ?? '';
@@ -673,18 +768,57 @@ class DBHelper {
       'created_by': workOrder['created_by'],
       'updated_by': workOrder['updated_by'],
       'updated_date': nowTimestamp,
+      'asset_id': finalAssetId,
+      'owner_user_id': workOrder['owner_user_id'] ?? workOrder['created_by'],
     };
-    final assetIdData = assetFuncationJson['_id'];
+    final assetIdData = finalAssetId.isNotEmpty ? finalAssetId : assetFuncationJson['_id'];
     final existingExRegister = await db.query(
       'exregister_table',
-      columns: ['id'],
-      where: 'exregister_json LIKE ? AND exregister_json LIKE ?',
-      whereArgs: ['%"locationId":"$locationId"%', '%"_id":"$assetIdData"%'],
+      columns: ['id', 'exregister_json'],
+      where: 'exregister_json LIKE ?',
+      whereArgs: ['%"_id":"$assetIdData"%'],
     );
 
     int recordId;
     if (existingExRegister.isNotEmpty) {
       recordId = existingExRegister.first['id'] as int;
+      try {
+        final existingExJson = existingExRegister.first['exregister_json'] as String?;
+        if (existingExJson != null) {
+          final existingExMap = jsonDecode(existingExJson);
+          final existingAsset = (existingExMap['asset'] is Map)
+              ? existingExMap['asset'] as Map<String, dynamic>
+              : existingExMap as Map<String, dynamic>;
+          for (final key in [
+            'subArea',
+            'locationGasGroup',
+            'locationTClass',
+            'locationIpRating',
+            'tAmbient',
+            'locationTAmbient',
+            'locationLatitude',
+            'locationLongitude',
+            'gpsCord',
+            'areaClassDrawNo',
+            'areaClassDrawAttach',
+            'areaClassDrawAttachOrgName',
+            'eqpmtLytDrawNo',
+            'eqpmtLytDrawAttach',
+            'eqpmtLytDrawAttachOrgName',
+            'areaStatus'
+          ]) {
+            final newVal = fullAssetMap[key];
+            final oldVal = existingAsset[key];
+            if ((newVal == null || (newVal is String && newVal.isEmpty) || (newVal is List && newVal.isEmpty)) &&
+                (oldVal != null && (oldVal is! String || oldVal.isNotEmpty) && (oldVal is! List || oldVal.isNotEmpty))) {
+              fullAssetMap[key] = oldVal;
+            }
+          }
+        }
+      } catch (_) {}
+      exRegisterData['exregister_json'] = jsonEncode({
+        'asset': fullAssetMap,
+      });
       final updatedJson = jsonDecode(exRegisterData['exregister_json']!);
       updatedJson['asset']['primaryId'] = recordId;
       exRegisterData['exregister_json'] = jsonEncode(updatedJson);
@@ -967,7 +1101,11 @@ class DBHelper {
     return newId.toString();
   }
 
-  Future<Set<String>> getLocalAssetIds({String? userType}) async {
+  /// Returns asset IDs that are already stored locally.
+  /// When [userId] is provided, only returns IDs that belong to that specific user
+  /// (via the owner_user_id column). This prevents User A's assets from blocking
+  /// User B's Data Transfer to Device list.
+  Future<Set<String>> getLocalAssetIds({String? userType, String? userId}) async {
     final Set<String> assetIds = {};
     try {
       final bool isOnshore = userType?.toLowerCase() == 'onshore';
@@ -975,18 +1113,41 @@ class DBHelper {
       final assetTable = isOnshore ? 'workOrder_assets_onshore' : 'workOrder_assets';
       final exregisterTable = isOnshore ? 'exregister_table_onshore' : 'exregister_table';
 
-      try {
-        final rows = await db.query(assetTable, columns: ['id']);
-        for (final r in rows) {
-          final id = r['id']?.toString().trim();
-          if (id != null && id.isNotEmpty && id.toLowerCase() != 'null') {
-            assetIds.add(id);
+      if (isOnshore) {
+        try {
+          List<Map<String, dynamic>> rows;
+          if (userId != null && userId.trim().isNotEmpty) {
+            // Filter by owner_user_id so each user only sees their own transferred assets
+            rows = await db.query(
+              assetTable,
+              columns: ['id'],
+              where: 'owner_user_id = ? OR (owner_user_id IS NULL AND created_by = ?)',
+              whereArgs: [userId.trim(), userId.trim()],
+            );
+          } else {
+            rows = await db.query(assetTable, columns: ['id']);
           }
-        }
-      } catch (_) {}
+          for (final r in rows) {
+            final id = r['id']?.toString().trim();
+            if (id != null && id.isNotEmpty && id.toLowerCase() != 'null') {
+              assetIds.add(id);
+            }
+          }
+        } catch (_) {}
+      }
 
       try {
-        final exRows = await db.query(exregisterTable, columns: ['asset_id', 'exregister_json']);
+        List<Map<String, dynamic>> exRows;
+        if (userId != null && userId.trim().isNotEmpty) {
+          exRows = await db.query(
+            exregisterTable,
+            columns: ['asset_id', 'exregister_json'],
+            where: 'owner_user_id = ? OR (owner_user_id IS NULL AND created_by = ?)',
+            whereArgs: [userId.trim(), userId.trim()],
+          );
+        } else {
+          exRows = await db.query(exregisterTable, columns: ['asset_id', 'exregister_json']);
+        }
         for (final r in exRows) {
           final assetId = r['asset_id']?.toString().trim();
           if (assetId != null && assetId.isNotEmpty && assetId.toLowerCase() != 'null') {
@@ -2275,6 +2436,7 @@ class DBHelper {
         'work_order_json': jsonEncode(dbJson),
         'created_by': workOrder['created_by'],
         'updated_by': workOrder['updated_by'],
+        'owner_user_id': workOrder['owner_user_id'] ?? workOrder['created_by'],
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -2339,17 +2501,38 @@ class DBHelper {
     /// FUNCTIONAL AREA (UNCHANGED)
     /// -----------------------------
     final assetFuncationJson = assetJson;
-    final locationId = assetFuncationJson['locationId'];
+    String locationId = assetFuncationJson['locationId']?.toString() ?? '';
+    final locField = assetFuncationJson['location']?.toString() ?? '';
+    final areaField = assetFuncationJson['area']?.toString() ?? '';
 
-    // dynamic gps = workOrderJson['gpsCoordinates'] == "" ||
-    //         workOrderJson['gpsCoordinates'] == null
-    //     ? null
-    //     : workOrderJson['gpsCoordinates'].toString().split(',');
+    if (locationId.isEmpty || locationId == 'null') {
+      if (locField.isNotEmpty && areaField.isNotEmpty) {
+        final existingRows = await db.query(
+          'functional_area_onshore',
+          columns: ['id', 'functional_area_json'],
+          where: 'functional_area_json LIKE ? AND functional_area_json LIKE ?',
+          whereArgs: ['%"location":"$locField"%', '%"area":"$areaField"%'],
+        );
+        if (existingRows.isNotEmpty) {
+          try {
+            final faMap = jsonDecode(existingRows.first['functional_area_json'] as String);
+            locationId = faMap['location']?['locationId']?.toString() ??
+                existingRows.first['id'].toString();
+          } catch (_) {
+            locationId = existingRows.first['id'].toString();
+          }
+        }
+      }
+      if (locationId.isEmpty || locationId == 'null') {
+        locationId = 'loc_$assetId';
+      }
+    }
+    assetFuncationJson['locationId'] = locationId;
 
     final functionalAreaData = {
       'functional_area_json': jsonEncode({
         'location': {
-          'locationId': assetFuncationJson['locationId'],
+          'locationId': locationId,
           'location': assetFuncationJson['location'],
           'area': assetFuncationJson['area'] ?? '',
           'deckLevel': assetFuncationJson['deckLevel'] ?? '',
@@ -2369,11 +2552,7 @@ class DBHelper {
           'eqpmtLytDrawAttachOrgName':
               assetFuncationJson['eqpmtLytDrawAttachOrgName'] ?? [],
           'locationLongitude': assetFuncationJson['locationLongitude'],
-          //  ??
-          //     (gps != null && gps.length > 1 ? gps[1].trim() : ''),
           'locationLatitude': assetFuncationJson['locationLatitude'],
-          //  ??
-          //     (gps != null && gps.length > 0 ? gps[0].trim() : ''),
           'isActive': assetFuncationJson['isActive'] ?? '',
           'areaStatus': assetFuncationJson['areaStatus'],
           'isDuplicate': false,
@@ -2382,15 +2561,55 @@ class DBHelper {
       'created_by': workOrder['created_by'],
       'updated_by': workOrder['updated_by'],
     };
-    // final locationId = assetFuncationJson['locationId'];
+
     final existingFunctionalArea = await db.query(
       'functional_area_onshore',
-      columns: ['id'],
-      where: 'functional_area_json LIKE ?',
-      whereArgs: ['%"locationId":"$locationId"%'],
+      columns: ['id', 'functional_area_json'],
+      where: 'functional_area_json LIKE ? OR (functional_area_json LIKE ? AND functional_area_json LIKE ?)',
+      whereArgs: [
+        '%"locationId":"$locationId"%',
+        '%"location":"$locField"%',
+        '%"area":"$areaField"%',
+      ],
     );
 
     if (existingFunctionalArea.isNotEmpty) {
+      try {
+        final existingFaJson = existingFunctionalArea.first['functional_area_json'] as String?;
+        if (existingFaJson != null) {
+          final existingFaMap = jsonDecode(existingFaJson);
+          final existingLoc = (existingFaMap['location'] is Map)
+              ? existingFaMap['location'] as Map<String, dynamic>
+              : existingFaMap as Map<String, dynamic>;
+          final newFaMap = jsonDecode(functionalAreaData['functional_area_json'] as String);
+          final newLoc = newFaMap['location'] as Map<String, dynamic>;
+          for (final key in [
+            'subArea',
+            'locationGasGroup',
+            'locationTClass',
+            'locationIpRating',
+            'tAmbient',
+            'locationLatitude',
+            'locationLongitude',
+            'areaClassDrawNo',
+            'areaClassDrawAttach',
+            'areaClassDrawAttachOrgName',
+            'eqpmtLytDrawNo',
+            'eqpmtLytDrawAttach',
+            'eqpmtLytDrawAttachOrgName',
+            'areaStatus'
+          ]) {
+            final newVal = newLoc[key];
+            final oldVal = existingLoc[key];
+            if ((newVal == null || (newVal is String && newVal.isEmpty) || (newVal is List && newVal.isEmpty)) &&
+                (oldVal != null && (oldVal is! String || oldVal.isNotEmpty) && (oldVal is! List || oldVal.isNotEmpty))) {
+              newLoc[key] = oldVal;
+              assetFuncationJson[key] = oldVal;
+            }
+          }
+          functionalAreaData['functional_area_json'] = jsonEncode(newFaMap);
+        }
+      } catch (_) {}
       await db.update(
         'functional_area_onshore',
         functionalAreaData,
@@ -2407,7 +2626,7 @@ class DBHelper {
     final Map<String, dynamic> fullAssetMap =
         Map<String, dynamic>.from(assetFuncationJson);
     fullAssetMap['_id'] = assetFuncationJson['_id'] ?? '';
-    fullAssetMap['locationId'] = assetFuncationJson['locationId'] ?? '';
+    fullAssetMap['locationId'] = locationId;
     fullAssetMap['location'] = assetFuncationJson['location'] ?? '';
     fullAssetMap['area'] = assetFuncationJson['area'] ?? '';
     fullAssetMap['zone'] = assetFuncationJson['zone'] ?? '';
@@ -2422,18 +2641,56 @@ class DBHelper {
       'created_by': workOrder['created_by'],
       'updated_by': workOrder['updated_by'],
       'updated_date': nowTimestamp,
+      'owner_user_id': workOrder['owner_user_id'] ?? workOrder['created_by'],
     };
     final assetIdData = assetFuncationJson['_id'];
     final existingExRegister = await db.query(
       'exregister_table_onshore',
-      columns: ['id'],
-      where: 'exregister_json LIKE ? AND exregister_json LIKE ?',
-      whereArgs: ['%"locationId":"$locationId"%', '%"_id":"$assetIdData"%'],
+      columns: ['id', 'exregister_json'],
+      where: 'exregister_json LIKE ?',
+      whereArgs: ['%"_id":"$assetIdData"%'],
     );
 
     int recordId;
     if (existingExRegister.isNotEmpty) {
       recordId = existingExRegister.first['id'] as int;
+      try {
+        final existingExJson = existingExRegister.first['exregister_json'] as String?;
+        if (existingExJson != null) {
+          final existingExMap = jsonDecode(existingExJson);
+          final existingAsset = (existingExMap['asset'] is Map)
+              ? existingExMap['asset'] as Map<String, dynamic>
+              : existingExMap as Map<String, dynamic>;
+          for (final key in [
+            'subArea',
+            'locationGasGroup',
+            'locationTClass',
+            'locationIpRating',
+            'tAmbient',
+            'locationTAmbient',
+            'locationLatitude',
+            'locationLongitude',
+            'gpsCord',
+            'areaClassDrawNo',
+            'areaClassDrawAttach',
+            'areaClassDrawAttachOrgName',
+            'eqpmtLytDrawNo',
+            'eqpmtLytDrawAttach',
+            'eqpmtLytDrawAttachOrgName',
+            'areaStatus'
+          ]) {
+            final newVal = fullAssetMap[key];
+            final oldVal = existingAsset[key];
+            if ((newVal == null || (newVal is String && newVal.isEmpty) || (newVal is List && newVal.isEmpty)) &&
+                (oldVal != null && (oldVal is! String || oldVal.isNotEmpty) && (oldVal is! List || oldVal.isNotEmpty))) {
+              fullAssetMap[key] = oldVal;
+            }
+          }
+        }
+      } catch (_) {}
+      exRegisterData['exregister_json'] = jsonEncode({
+        'asset': fullAssetMap,
+      });
       final updatedJson = jsonDecode(exRegisterData['exregister_json']!);
       updatedJson['asset']['primaryId'] = recordId;
       exRegisterData['exregister_json'] = jsonEncode(updatedJson);
@@ -2787,6 +3044,320 @@ class DBHelper {
   Future<void> vacuumDatabase(bool isOnshore) async {
     final db = isOnshore ? await onshoreDatabase : await workOrderDatabase;
     await db.execute('VACUUM');
+  }
+
+  /// Extracts all lowercase, trimmed identifiers for the currently logged-in user
+  /// (userId, userName, email, fullName, firstName) to reliably match against records.
+  Future<Set<String>> getUserTargetIds(dynamic authUtils) async {
+    String? userId;
+    String? userName;
+    try {
+      userId = await authUtils.getUserId();
+    } catch (_) {}
+    UserDetails? userDetails;
+    try {
+      userDetails = await getLoggedInUser();
+    } catch (_) {}
+    try {
+      userName = userDetails?.userName ?? await authUtils.getUsername();
+    } catch (_) {}
+    final String? email = userDetails?.email;
+    final String? firstName = userDetails?.firstName;
+    final String? lastName = userDetails?.lastName;
+
+    final Set<String> targetIds = {};
+    if (userId != null && userId.trim().isNotEmpty) {
+      targetIds.add(userId.trim().toLowerCase());
+    }
+    if (userName != null && userName.trim().isNotEmpty) {
+      targetIds.add(userName.trim().toLowerCase());
+    }
+    if (email != null && email.trim().isNotEmpty) {
+      targetIds.add(email.trim().toLowerCase());
+    }
+    if (firstName != null &&
+        firstName.trim().isNotEmpty &&
+        lastName != null &&
+        lastName.trim().isNotEmpty) {
+      targetIds.add('$firstName $lastName'.trim().toLowerCase());
+    }
+    if (firstName != null && firstName.trim().isNotEmpty) {
+      targetIds.add(firstName.trim().toLowerCase());
+    }
+    return targetIds;
+  }
+
+  /// Retrieves asset IDs associated with the user via transferred work order assets
+  Future<Set<String>> _getUserWorkOrderAssetIds(
+    String? userType,
+    Set<String> targetIds,
+  ) async {
+    final Set<String> assetIds = {};
+    if (targetIds.isEmpty) return assetIds;
+
+    try {
+      final List<Map<String, dynamic>> workOrderAssets = (userType == 'onshore')
+          ? await getWorkOrderAssetsOnshore()
+          : await getWorkOrderAssets();
+
+      bool matchesTarget(dynamic value) {
+        if (value == null) return false;
+        if (value is String) {
+          final v = value.trim().toLowerCase();
+          if (v.isEmpty || v == 'null') return false;
+          if (targetIds.contains(v)) return true;
+          if (v.contains(',')) {
+            final parts = v.split(',').map((e) => e.trim().toLowerCase());
+            if (parts.any((p) => targetIds.contains(p))) return true;
+          }
+        } else if (value is num) {
+          if (targetIds.contains(value.toString())) return true;
+        } else if (value is List) {
+          for (var item in value) {
+            if (matchesTarget(item)) return true;
+          }
+        } else if (value is Map) {
+          final candidate = value['_id'] ??
+              value['userId'] ??
+              value['id'] ??
+              value['user_id'] ??
+              value['userName'] ??
+              value['username'] ??
+              value['email'] ??
+              value['name'];
+          if (matchesTarget(candidate)) return true;
+        }
+        return false;
+      }
+
+      for (final woRow in workOrderAssets) {
+        final rowCreatedBy = woRow['created_by'];
+        final rowUpdatedBy = woRow['updated_by'];
+        final rowId = woRow['id']?.toString().trim();
+
+        bool isUserWo =
+            matchesTarget(rowCreatedBy) || matchesTarget(rowUpdatedBy);
+
+        final woJsonRaw = woRow['work_order_json'];
+        Map<String, dynamic>? woJsonMap;
+        if (woJsonRaw is String && woJsonRaw.isNotEmpty) {
+          try {
+            woJsonMap = jsonDecode(woJsonRaw);
+          } catch (_) {}
+        } else if (woJsonRaw is Map<String, dynamic>) {
+          woJsonMap = woJsonRaw;
+        }
+
+        if (woJsonMap != null) {
+          final woObj = woJsonMap['workOrder'] ?? woJsonMap;
+          if (woObj is Map) {
+            for (final field in [
+              'assignedTo',
+              'assignedUserId',
+              'userId',
+              'assigendTeam',
+              'assignedTeam',
+              'inspectorId',
+              'custodian',
+              'createdBy',
+              'issuedBy',
+              'uploadedBy',
+            ]) {
+              if (matchesTarget(woObj[field])) {
+                isUserWo = true;
+                break;
+              }
+            }
+          }
+
+          final assetObj = woJsonMap['asset'];
+          if (assetObj is Map) {
+            final aId1 = assetObj['_id']?.toString().trim();
+            final aId2 = assetObj['id']?.toString().trim();
+            final aId3 = assetObj['primaryId']?.toString().trim();
+
+            for (final field in [
+              'assignedTo',
+              'assignedUserId',
+              'userId',
+              'inspectedId',
+              'inspectedBy',
+              'inspectorId',
+              'assignedTeam',
+              'assigendTeam',
+              'createdBy',
+            ]) {
+              if (matchesTarget(assetObj[field])) {
+                isUserWo = true;
+                break;
+              }
+            }
+
+            if (isUserWo) {
+              if (aId1 != null && aId1.isNotEmpty) assetIds.add(aId1);
+              if (aId2 != null && aId2.isNotEmpty) assetIds.add(aId2);
+              if (aId3 != null && aId3.isNotEmpty) assetIds.add(aId3);
+            }
+          }
+        }
+
+        if (isUserWo && rowId != null && rowId.isNotEmpty) {
+          assetIds.add(rowId);
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching user work order asset ids: $e");
+    }
+    return assetIds;
+  }
+
+  /// Fetches Ex Register rows filtered by the logged-in user's ID and credentials.
+  /// [ownerId] is the raw userId for exact owner_user_id column matching (fastest, most reliable).
+  Future<List<Map<String, dynamic>>> getExRegisterForUser({
+    required String? userType,
+    required Set<String> targetIds,
+    String? ownerId,
+  }) async {
+    final bool isOnshore = userType?.toLowerCase() == 'onshore';
+    // Fast path: if we have an ownerId, try exact column match first using _safeBatchQuery
+    if (ownerId != null && ownerId.trim().isNotEmpty) {
+      try {
+        final db = isOnshore ? await onshoreDatabase : await workOrderDatabase;
+        final table = isOnshore ? 'exregister_table_onshore' : 'exregister_table';
+        final exactRows = await _safeBatchQuery(
+          db,
+          table,
+          where: 'owner_user_id = ? OR (owner_user_id IS NULL AND created_by = ?)',
+          whereArgs: [ownerId.trim(), ownerId.trim()],
+        );
+        if (exactRows.isNotEmpty) return exactRows;
+      } catch (_) {}
+    }
+
+    final List<Map<String, dynamic>> rawList = isOnshore
+        ? await getExRegisterOnshore()
+        : await getExRegister();
+
+    if (targetIds.isEmpty && (ownerId == null || ownerId.trim().isEmpty)) {
+      return rawList;
+    }
+
+    final Set<String> userWorkOrderAssetIds =
+        await _getUserWorkOrderAssetIds(userType, targetIds);
+
+    bool matchesTarget(dynamic value) {
+      if (value == null) return false;
+      if (value is String) {
+        final v = value.trim().toLowerCase();
+        if (v.isEmpty || v == 'null') return false;
+        if (targetIds.contains(v)) return true;
+        if (v.contains(',')) {
+          final parts = v.split(',').map((e) => e.trim().toLowerCase());
+          if (parts.any((p) => targetIds.contains(p))) return true;
+        }
+      } else if (value is num) {
+        if (targetIds.contains(value.toString())) return true;
+      } else if (value is List) {
+        for (var item in value) {
+          if (matchesTarget(item)) return true;
+        }
+      } else if (value is Map) {
+        final candidate = value['_id'] ??
+            value['userId'] ??
+            value['id'] ??
+            value['user_id'] ??
+            value['userName'] ??
+            value['username'] ??
+            value['email'] ??
+            value['name'];
+        if (matchesTarget(candidate)) return true;
+      }
+      return false;
+    }
+
+    return rawList.where((row) {
+      // 0. Check owner_user_id exact match
+      if (ownerId != null && ownerId.trim().isNotEmpty) {
+        final rOwner = row['owner_user_id']?.toString().trim();
+        if (rOwner != null && rOwner.isNotEmpty && rOwner == ownerId.trim()) {
+          return true;
+        }
+      }
+
+      // 1. Check row-level created_by & updated_by
+      if (matchesTarget(row['created_by']) ||
+          matchesTarget(row['updated_by'])) {
+        return true;
+      }
+
+      // 2. Check if row['id'] or row['asset_id'] matches user's work order assets
+      final rowId = row['id']?.toString().trim();
+      if (rowId != null &&
+          rowId.isNotEmpty &&
+          userWorkOrderAssetIds.contains(rowId)) {
+        return true;
+      }
+      final assetIdCol = row['asset_id']?.toString().trim();
+      if (assetIdCol != null &&
+          assetIdCol.isNotEmpty &&
+          userWorkOrderAssetIds.contains(assetIdCol)) {
+        return true;
+      }
+
+      // 3. Check inside exregister_json
+      final rawJson = row['exregister_json'];
+      if (rawJson == null) return false;
+      try {
+        final jsonMap = (rawJson is String)
+            ? jsonDecode(rawJson) as Map<String, dynamic>
+            : rawJson as Map<String, dynamic>;
+        final dynamic rawAsset = jsonMap['asset'] ?? jsonMap;
+        if (rawAsset is Map) {
+          final aMap = Map<String, dynamic>.from(rawAsset);
+
+          // Check if asset IDs match user's work order assets
+          final id1 = aMap['_id']?.toString().trim();
+          final id2 = aMap['id']?.toString().trim();
+          final id3 = aMap['primaryId']?.toString().trim();
+          if ((id1 != null &&
+                  id1.isNotEmpty &&
+                  userWorkOrderAssetIds.contains(id1)) ||
+              (id2 != null &&
+                  id2.isNotEmpty &&
+                  userWorkOrderAssetIds.contains(id2)) ||
+              (id3 != null &&
+                  id3.isNotEmpty &&
+                  userWorkOrderAssetIds.contains(id3))) {
+            return true;
+          }
+
+          // Check user assignment fields in asset
+          if (matchesTarget(aMap['userId']) ||
+              matchesTarget(aMap['user_id']) ||
+              matchesTarget(aMap['assignedUserId']) ||
+              matchesTarget(aMap['assigned_user_id']) ||
+              matchesTarget(aMap['assignedTo']) ||
+              matchesTarget(aMap['assigned_to']) ||
+              matchesTarget(aMap['inspectedId']) ||
+              matchesTarget(aMap['inspected_id']) ||
+              matchesTarget(aMap['inspectedBy']) ||
+              matchesTarget(aMap['inspected_by']) ||
+              matchesTarget(aMap['inspectorId']) ||
+              matchesTarget(aMap['inspector_id']) ||
+              matchesTarget(aMap['technicianId']) ||
+              matchesTarget(aMap['assignedTeam']) ||
+              matchesTarget(aMap['assigendTeam']) ||
+              matchesTarget(aMap['createdBy']) ||
+              matchesTarget(aMap['created_by']) ||
+              matchesTarget(aMap['uploadedBy']) ||
+              matchesTarget(aMap['custodian'])) {
+            return true;
+          }
+        }
+      } catch (_) {}
+
+      return false;
+    }).toList();
   }
 
   /// 🛠 HELPER: Batched Query to avoid "Row too big for CursorWindow" (Android 2MB limit)

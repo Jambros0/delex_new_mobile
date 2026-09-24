@@ -901,7 +901,7 @@ class CustomTableGridState extends State<CustomTableGrid>
     setState(() {
       _isAllSelected = value ?? false;
       showMoreIcon = _isAllSelected;
-      _selectionStates = List<bool>.filled(widget.rows.length, _isAllSelected);
+      _selectionStates = List<bool>.filled(widget.rows.length, _isAllSelected, growable: true);
       selectedAssetIds = _isAllSelected
           ? widget.rows.asMap().entries.map((entry) {
               int idx = entry.key;

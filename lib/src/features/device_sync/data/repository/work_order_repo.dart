@@ -8,7 +8,7 @@ class WorkOrderRepository {
   Future<void> insertWorkOrderAsset(Map<String, dynamic> workOrder) async {
     try {
       final String? userType = await authUtils.getUserType();
-      (userType == 'onshore')
+      (userType?.toLowerCase() == 'onshore')
           ? await _dbHelper.saveWorkOrderAssetOnshore(workOrder)
           : await _dbHelper.saveWorkOrderAsset(workOrder);
     } catch (e) {
@@ -18,7 +18,7 @@ class WorkOrderRepository {
 
   Future<List<Map<String, dynamic>>> getWorkOrderAssets() async {
     final String? userType = await authUtils.getUserType();
-    return (userType == 'onshore')
+    return (userType?.toLowerCase() == 'onshore')
         ? await _dbHelper.getWorkOrderAssetsOnshore()
         : await _dbHelper.getWorkOrderAssets();
   }

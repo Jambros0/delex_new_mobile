@@ -143,8 +143,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       );
       final List<String> tableHeaders =
           response['tableHeaders'] as List<String>;
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int totalRecords = response['totalRecords'] as int;
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final List<ExRegister> assets =
+          _filterExRegisterAssets(rawAssets, targetIds);
+      final int totalRecords = assets.length;
       skip += assets.length;
       emit(ShowExRegisterMoreOption(showIcon: false, selectedAssets: const []));
       emit(
@@ -201,8 +204,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       );
       final List<String> tableHeaders =
           response['tableHeaders'] as List<String>;
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int totalRecords = response['totalRecords'] as int;
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final List<ExRegister> assets =
+          _filterExRegisterAssets(rawAssets, targetIds);
+      final int totalRecords = assets.length;
       skip += assets.length;
       emit(ShowExRegisterMoreOption(showIcon: false, selectedAssets: const []));
       emit(
@@ -271,8 +277,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       );
       final List<String> tableHeaders =
           response['tableHeaders'] as List<String>;
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int totalRecords = response['totalRecords'] as int;
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final List<ExRegister> assets =
+          _filterExRegisterAssets(rawAssets, targetIds);
+      final int totalRecords = event.assets.length + assets.length;
       emit(
         ExRegisterLoaded(
           isDuplicate: false,
@@ -328,8 +337,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       );
       final List<String> tableHeaders =
           response['tableHeaders'] as List<String>;
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int totalRecords = response['totalRecords'] as int;
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final List<ExRegister> assets =
+          _filterExRegisterAssets(rawAssets, targetIds);
+      final int totalRecords = assets.length;
       emit(
         ExRegisterLoaded(
           isDuplicate: false,
@@ -395,8 +407,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
             );
       final List<String> tableHeaders =
           response['tableHeaders'] as List<String>;
-      final List<ExRegister> assets = response['assets'] as List<ExRegister>;
-      final int totalRecords = response['totalRecords'] as int;
+      final List<ExRegister> rawAssets = response['assets'] as List<ExRegister>;
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final List<ExRegister> assets =
+          _filterExRegisterAssets(rawAssets, targetIds);
+      final int totalRecords = assets.length;
       emit(
         ExRegisterLoaded(
           isDuplicate: false,
@@ -604,9 +619,8 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       }
       // If no specific asset IDs, load all
       else {
-        final exRegisterList = (userType == 'onshore')
-            ? await _dbHelper.getExRegisterOnshore()
-            : await _dbHelper.getExRegister();
+        final exRegisterList =
+            await _fetchExRegisterData(userType: userType, all: true);
 
         final allAssets = exRegisterList.map((map) {
           final dashboardJson = map['exregister_json'];
@@ -890,7 +904,7 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       fromDate = event.fromDate ?? DateTime(now.year, 1, 1);
       toDate = event.toDate ?? DateTime(now.year, 12, 31);
 
-      final results = await _fetchExRegisterData(userType: userType);
+      final results = await _fetchExRegisterData(userType: userType, all: true);
       final assets = _parseExRegisterTableModels(results);
       assets.sort((a, b) {
         final createdDateA =
@@ -939,7 +953,7 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       offset = 0;
       hasMoreData = true;
 
-      final results = await _fetchExRegisterData(userType: userType);
+      final results = await _fetchExRegisterData(userType: userType, all: true);
       final models = _parseExRegisterTableModels(results);
       models.sort((a, b) {
         final createdDateA =
@@ -1147,7 +1161,7 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
   ) async {
     emit(ExRegisterLoading());
     try {
-      skip = skip;
+      skip = 0;
       final userType = await authUtils.getUserType();
       final results = await _fetchExRegisterData(userType: userType, all: true);
       final assets = _parseExRegisterTableModels(results);
@@ -1195,7 +1209,7 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
           isLoadMore: false,
           filterIndex: filterIndex,
           sortOrder: sortOrder,
-          skip: skip,
+          skip: paginatedAssets.length,
         ),
       );
     } catch (e, stackTrace) {
@@ -1214,7 +1228,7 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
       event.sortOrder == "descending"
           ? filterIndex = event.columnIndex
           : filterIndex = null;
-      final results = await _fetchExRegisterData(userType: userType);
+      final results = await _fetchExRegisterData(userType: userType, all: true);
       final assets = _parseExRegisterTableModels(results);
       assets.sort((a, b) {
         final createdDateA =
@@ -1337,20 +1351,80 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
     }
   }
 
+  List<ExRegister> _filterExRegisterAssets(
+    List<ExRegister> assets,
+    Set<String> targetIds,
+  ) {
+    if (targetIds.isEmpty) return assets;
+
+    bool matchesTarget(dynamic value) {
+      if (value == null) return false;
+      if (value is String) {
+        final v = value.trim().toLowerCase();
+        if (v.isEmpty || v == 'null') return false;
+        if (targetIds.contains(v)) return true;
+        if (v.contains(',')) {
+          final parts = v.split(',').map((e) => e.trim().toLowerCase());
+          if (parts.any((p) => targetIds.contains(p))) return true;
+        }
+      } else if (value is num) {
+        if (targetIds.contains(value.toString())) return true;
+      } else if (value is List) {
+        for (var item in value) {
+          if (matchesTarget(item)) return true;
+        }
+      }
+      return false;
+    }
+
+    final filtered = assets.where((asset) {
+      return matchesTarget(asset.userId) ||
+          matchesTarget(asset.assignedUserId) ||
+          matchesTarget(asset.assignedTo) ||
+          matchesTarget(asset.inspectedId) ||
+          matchesTarget(asset.inspectedBy) ||
+          matchesTarget(asset.inspectorId) ||
+          matchesTarget(asset.assignedTeam) ||
+          matchesTarget(asset.createdBy);
+    }).toList();
+
+    final bool anyHasAssignment = assets.any((asset) =>
+        (asset.userId?.isNotEmpty ?? false) ||
+        (asset.assignedUserId?.isNotEmpty ?? false) ||
+        (asset.assignedTo?.isNotEmpty ?? false) ||
+        (asset.inspectedId?.isNotEmpty ?? false) ||
+        (asset.inspectedBy?.isNotEmpty ?? false) ||
+        (asset.inspectorId?.isNotEmpty ?? false) ||
+        (asset.assignedTeam?.isNotEmpty ?? false) ||
+        (asset.createdBy?.isNotEmpty ?? false));
+
+    return anyHasAssignment ? filtered : assets;
+  }
+
   Future<List<Map<String, dynamic>>> _fetchExRegisterData({
     required String? userType,
     int offset = 0,
     int limit = 30,
     bool all = false,
   }) async {
+    final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+    final String? ownerId = await authUtils.getUserId();
+    final userResults = await _dbHelper.getExRegisterForUser(
+      userType: userType,
+      targetIds: targetIds,
+      ownerId: ownerId,
+    );
+
     if (all) {
-      return (userType == 'onshore')
-          ? await _dbHelper.getExRegisterOnshore()
-          : await _dbHelper.getExRegister();
+      return userResults;
     } else {
-      return (userType == 'onshore')
-          ? await _dbHelper.getExRegisterByOffsetOnshore(offset, limit)
-          : await _dbHelper.getExRegisterByOffset(offset, limit);
+      if (offset >= userResults.length) {
+        return [];
+      }
+      final end = (offset + limit > userResults.length)
+          ? userResults.length
+          : offset + limit;
+      return userResults.sublist(offset, end);
     }
   }
 
@@ -1401,7 +1475,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
           ? map['id']
           : int.tryParse(map['id'].toString()) ?? 0;
       assetMap['primaryId'] = rowId;
-      assetMap['_id'] = rowId.toString();
+      if (assetMap['_id'] == null ||
+          assetMap['_id'].toString().trim().isEmpty ||
+          assetMap['_id'].toString() == 'null') {
+        assetMap['_id'] = (map['asset_id'] ?? rowId).toString();
+      }
 
       return ExRegisterTableModel(
         id: map['id'],
@@ -1469,7 +1547,7 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
     final userType = await authUtils.getUserType();
     final tableHeaders = _getHeaders(userType);
 
-    final results = await _fetchExRegisterData(userType: userType);
+    final results = await _fetchExRegisterData(userType: userType, all: true);
 
     if (results.isEmpty) {
       hasMoreData = false;
@@ -1787,11 +1865,11 @@ class ExRegisterBloc extends Bloc<ExRegisterEvent, ExRegisterState> {
 
     return assets
         .where((asset) {
-          final assetDateString = asset.updatedDate;
-          if (assetDateString == null) return false;
+          final assetDateString = asset.updatedDate ?? asset.createdDate;
+          if (assetDateString == null) return true;
 
           final assetDate = DateTime.tryParse(assetDateString);
-          if (assetDate == null) return false;
+          if (assetDate == null) return true;
 
           final normalizedAssetDate = normalize(assetDate);
           return normalizedAssetDate.isAtSameMomentAs(normalizedFromDate) ||

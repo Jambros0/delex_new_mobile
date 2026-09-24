@@ -127,9 +127,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final from = event.fromDate ?? DateTime(now.year, 1, 1);
       final to = event.toDate ?? DateTime(now.year, 12, 31);
       final String? userType = await authUtils.getUserType();
-      final results = (userType == 'onshore')
-          ? await _dbHelper.getExRegisterOnshore()
-          : await _dbHelper.getExRegister();
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final String? ownerId = await authUtils.getUserId();
+      final results = await _dbHelper.getExRegisterForUser(
+        userType: userType,
+        targetIds: targetIds,
+        ownerId: ownerId,
+      );
 
       final assets = results.map((map) {
         final json = map['exregister_json'];
@@ -225,9 +229,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // final String? userType = await authUtils.getUserType();
 
-      final results = (userType == 'onshore')
-          ? await _dbHelper.getExRegisterOnshore()
-          : await _dbHelper.getExRegister();
+      final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+      final String? ownerId = await authUtils.getUserId();
+      final results = await _dbHelper.getExRegisterForUser(
+        userType: userType,
+        targetIds: targetIds,
+        ownerId: ownerId,
+      );
 
       final assets = results.map((map) {
         final json = map['exregister_json'];

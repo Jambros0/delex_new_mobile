@@ -37,7 +37,7 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
   void initState() {
     super.initState();
 
-    _rowSelection = List<bool>.filled(widget.assets.length, false);
+    _rowSelection = List<bool>.filled(widget.assets.length, false, growable: true);
     _chunkSize = widget.assets.length > 0 ? widget.assets.length : 50;
     rows = [];
 
@@ -93,7 +93,7 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
     if (oldWidget.assets != widget.assets) {
       _loadedCount = 0;
       rows.clear();
-      _rowSelection = List<bool>.filled(widget.assets.length, false);
+      _rowSelection = List<bool>.filled(widget.assets.length, false, growable: true);
       _loadNextChunkSync();
     }
   }

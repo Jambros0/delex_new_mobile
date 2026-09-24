@@ -326,6 +326,10 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
         final Map<String, dynamic> assetMap = (requestMap['asset'] is Map)
             ? Map<String, dynamic>.from(requestMap['asset'] as Map)
             : Map<String, dynamic>.from(requestMap);
+        if (userId != null && userId.isNotEmpty) {
+          assetMap['userId'] ??= userId;
+          assetMap['createdBy'] ??= userId;
+        }
         final exRegisterData = {
           'exregister_json': jsonEncode({'asset': assetMap}),
           'created_by': userId,

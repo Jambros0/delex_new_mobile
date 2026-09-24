@@ -14,6 +14,7 @@ class ExRegisterService {
     String? sortField,
     String? sortOrder,
     String? type,
+    String? userId,
   }) async {
     final authUtils = AuthUtils();
     final tokens = await authUtils.getSessionTokens();
@@ -24,7 +25,12 @@ class ExRegisterService {
     String? formattedToDate =
         toDate != null ? DateFormat('yyyy-MM-dd').format(toDate) : null;
 
+    final effectiveUserId = userId ?? await authUtils.getUserId();
+
     String url = "/assets?limit=$limit&skip=$skip";
+    if (effectiveUserId != null && effectiveUserId.trim().isNotEmpty) {
+      url += "&userId=${effectiveUserId.trim()}";
+    }
     if (formattedFromDate != null) {
       url += "&fromDate=$formattedFromDate";
     }

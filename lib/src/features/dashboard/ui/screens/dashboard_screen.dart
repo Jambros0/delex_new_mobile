@@ -6,7 +6,6 @@ import 'package:deex_bloc_mobile_app_dev/src/features/dashboard/ui/widgets/statu
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/repository/dropdown_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../utils/auth_util.dart';
@@ -60,6 +59,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       _userType = userType;
       locationDropDown = fieldNames;
+      selectedFilter = 'All Locations';
+      selectedLocations = List.from(fieldNames);
     });
   }
 
@@ -143,7 +144,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       fromDate: date?.fromDate,
       toDate: date?.toDate,
       isBefore: isBeforeRepairs,
-      selectedLocations: selectedFilter.toLowerCase() == 'all fields'
+      selectedLocations: (selectedFilter.toLowerCase() == 'all fields' ||
+              selectedFilter.toLowerCase() == 'all locations')
           ? locationDropDown
           : selectedLocations,
       type: dateType,
@@ -177,15 +179,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onFilterApplied: (selectedFilters) async {
                   setState(() {
                     selectedLocations = selectedFilters;
-                    selectedFilter = selectedFilters.length >= 5
+                    selectedFilter = (selectedFilters.length >= locationDropDown.length ||
+                            selectedFilters.isEmpty)
                         ? 'All Locations'
-                        : selectedFilters.isNotEmpty
-                            ? selectedFilters.join(', ')
-                            : 'All Locations';
+                        : selectedFilters.join(', ');
                   });
                   await authUtils.setDashboardFilter(selectedFilter);
-                  if (selectedFilter == "All Locations" &&
-                      selectedLocations.isEmpty) {
+                  if (selectedFilter == "All Locations" ||
+                      selectedLocations.isEmpty ||
+                      selectedLocations.length == locationDropDown.length) {
                     BlocProvider.of<DashboardBloc>(context).add(
                       LocationFilterDashboard(
                         selectedLocations: locationDropDown,
@@ -209,7 +211,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
                 resetFilters: (selectedFilters) {
                   setState(() {
-                    selectedFilters.clear();
+                    selectedLocations = List.from(locationDropDown);
                     selectedFilter = 'All Locations';
                   });
                   BlocProvider.of<DashboardBloc>(context).add(
@@ -312,54 +314,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               runSpacing: 10,
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                SizedBox(
-                                  height: 38,
-                                  width: isPortrait ? 180 : 160,
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.translucent,
-                                    onTapDown: (TapDownDetails details) {
-                                      _showFilterPopup(
-                                          context, details.globalPosition);
-                                    },
-                                    child: OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        side: const BorderSide(
-                                            color: Color(0xFFD0D3D8),
-                                            width: 1),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8.0),
+                                GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onTapDown: (TapDownDetails details) {
+                                    _showFilterPopup(
+                                        context, details.globalPosition);
+                                  },
+                                  child: Container(
+                                    width: isPortrait ? 180 : 160,
+                                    height: (48 / screenHeight) * screenHeight,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: screenWidth * 0.015,
+                                      vertical: screenHeight * 0.005,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: const Color(0xFFB3B3B3),
+                                        width: 1.0,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8.0),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      children: [
+                                        Flexible(
+                                          fit: FlexFit.tight,
+                                          child: Text(
+                                            selectedFilter,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w400,
+                                              color: const Color(0xFF212121),
+                                              height: 24 / 17,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                      ),
-                                      onPressed: null,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: SingleChildScrollView(
-                                              scrollDirection: Axis.horizontal,
-                                              child: Text(
-                                                selectedFilter,
-                                                style: GoogleFonts.inter(
-                                                  color: const Color(0xFF353535),
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w400,
-                                                ),
-                                                overflow: TextOverflow.visible,
-                                              ),
-                                            ),
-                                          ),
-                                          SvgPicture.asset(
-                                            'lib/src/features/dashboard/assets/svg/filter.svg',
-                                            height: 18,
-                                            width: 18,
-                                            colorFilter: const ColorFilter.mode(
-                                              Colors.black,
-                                              BlendMode.srcIn,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                        const SizedBox(width: 8),
+                                        const Icon(
+                                          Icons.keyboard_arrow_down,
+                                          color: Color(0xFF3B475B),
+                                          size: 24,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -389,10 +386,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               repairedChartCounts: state.repairedChartCounts,
                               onChangedValue: _onChangedValue,
                               equipmentCounts: state.equipmentCounts,
-                              selectedLocations:
-                                  selectedFilter.toLowerCase() == 'all fields'
-                                      ? locationDropDown
-                                      : selectedLocations,
+                              selectedLocations: (selectedFilter.toLowerCase() ==
+                                          'all fields' ||
+                                      selectedFilter.toLowerCase() ==
+                                          'all locations')
+                                  ? locationDropDown
+                                  : selectedLocations,
                               toDate: date?.toDate,
                               fromDate: date?.fromDate,
                               dataType: dateType,

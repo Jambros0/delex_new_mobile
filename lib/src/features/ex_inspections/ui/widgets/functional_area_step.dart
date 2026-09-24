@@ -157,7 +157,8 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       }
     });
 
-    if (widget.exInspectionRequest.functionalAreaRequest != null) {
+    if (widget.exInspectionRequest.functionalAreaRequest != null ||
+        widget.exInspectionRequest.equipmentTagRequest != null) {
       _initializeValues();
     }
     _addInitialControllers();
@@ -244,18 +245,24 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     super.didUpdateWidget(oldWidget);
     final oldFa = oldWidget.exInspectionRequest.functionalAreaRequest;
     final newFa = widget.exInspectionRequest.functionalAreaRequest;
-    if (newFa != null &&
+    final oldEq = oldWidget.exInspectionRequest.equipmentTagRequest;
+    final newEq = widget.exInspectionRequest.equipmentTagRequest;
+    if ((newFa != null || newEq != null) &&
         (oldWidget.exInspectionRequest != widget.exInspectionRequest ||
             oldFa != newFa ||
-            oldFa?.location != newFa.location ||
-            oldFa?.area != newFa.area ||
-            oldFa?.deckLevel != newFa.deckLevel ||
-            oldFa?.zone != newFa.zone ||
-            oldFa?.locationId != newFa.locationId ||
+            oldEq != newEq ||
+            oldFa?.location != newFa?.location ||
+            oldFa?.area != newFa?.area ||
+            oldFa?.deckLevel != newFa?.deckLevel ||
+            oldFa?.zone != newFa?.zone ||
+            oldFa?.locationId != newFa?.locationId ||
             (_selectedFieldName.isEmpty &&
-                (newFa.location.isNotEmpty ||
-                    (newFa.locationId != null &&
-                        newFa.locationId!.isNotEmpty))))) {
+                ((newFa?.location.isNotEmpty == true) ||
+                    (newEq?.location.isNotEmpty == true) ||
+                    (newFa?.locationId != null &&
+                        newFa!.locationId!.isNotEmpty) ||
+                    (newEq?.locationId != null &&
+                        newEq!.locationId.isNotEmpty))))) {
       controllerCheck = true;
       _initializeValues();
       _addInitialControllers();
@@ -264,37 +271,92 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
 
   void _initializeValues() {
     final request = widget.exInspectionRequest.functionalAreaRequest;
-    if (request == null) return;
-    _selectedFieldName = request.location;
-    _selectedPlatform = request.area;
-    _selectedDeckLevel = request.deckLevel;
-    _selectedZone = request.zone;
+    final eq = widget.exInspectionRequest.equipmentTagRequest;
+    if (request == null && eq == null) return;
 
-    if (request.locationGasGroup.isNotEmpty) {
-      selectedGasItems = List.from(request.locationGasGroup);
+    _selectedFieldName = (request != null && request.location.isNotEmpty)
+        ? request.location
+        : (eq?.location ?? '');
+    _selectedPlatform = (request != null && request.area.isNotEmpty)
+        ? request.area
+        : (eq?.area ?? '');
+    _selectedDeckLevel = (request != null && request.deckLevel.isNotEmpty)
+        ? request.deckLevel
+        : (eq?.deckLevel ?? '');
+    _selectedZone = (request != null && request.zone.isNotEmpty)
+        ? request.zone
+        : (eq?.zone ?? '');
+
+    final gasList = (request != null && request.locationGasGroup.isNotEmpty)
+        ? request.locationGasGroup
+        : (eq?.locationGasGroup ?? []);
+    if (gasList.isNotEmpty) {
+      selectedGasItems = List.from(gasList);
       _selectedGasGroup = selectedGasItems.join(',');
     }
-    if (request.locationTClass.isNotEmpty) {
-      selectedTemperatureItems = List.from(request.locationTClass);
+
+    final tClassList = (request != null && request.locationTClass.isNotEmpty)
+        ? request.locationTClass
+        : (eq?.locationTClass ?? []);
+    if (tClassList.isNotEmpty) {
+      selectedTemperatureItems = List.from(tClassList);
       _selectedTemperatureClass = selectedTemperatureItems.join(',');
     }
-    if (request.locationIpRating.isNotEmpty) {
-      selectedIPRatingItems = List.from(request.locationIpRating);
+
+    final ipList = (request != null && request.locationIpRating.isNotEmpty)
+        ? request.locationIpRating
+        : (eq?.locationIpRating ?? []);
+    if (ipList.isNotEmpty) {
+      selectedIPRatingItems = List.from(ipList);
       _selectedIpRating = selectedIPRatingItems.join(',');
     }
-    _subAreaController.text = request.subArea ?? '';
-    _ambientTemperatureController.text = request.tAmbient;
-    _areaClassDrawNo = List<String?>.from(request.areaClassDrawNo);
-    _areaClassDrawAttach = List<String?>.from(request.areaClassDrawAttach);
-    _areaClassDrawAttachOrgName = List<String?>.from(
-      request.areaClassDrawAttachOrgName,
-    );
+
+    final subAreaVal = (request?.subArea != null && request!.subArea!.isNotEmpty)
+        ? request.subArea!
+        : (eq?.subArea ?? '');
+    _subAreaController.text = subAreaVal;
+
+    final tAmbientVal = (request != null && request.tAmbient.isNotEmpty)
+        ? request.tAmbient
+        : ((eq?.locationTAmbient.isNotEmpty == true)
+            ? eq!.locationTAmbient
+            : (eq?.tAmbient ?? ''));
+    _ambientTemperatureController.text = tAmbientVal;
+
+    final areaDrawNo = (request != null && request.areaClassDrawNo.isNotEmpty)
+        ? request.areaClassDrawNo
+        : (eq?.areaClassDrawNo ?? []);
+    final areaDrawAttach =
+        (request != null && request.areaClassDrawAttach.isNotEmpty)
+            ? request.areaClassDrawAttach
+            : (eq?.areaClassDrawAttach ?? []);
+    final areaDrawOrg =
+        (request != null && request.areaClassDrawAttachOrgName.isNotEmpty)
+            ? request.areaClassDrawAttachOrgName
+            : (eq?.areaClassDrawAttachOrgName ?? []);
+
+    _areaClassDrawNo = List<String?>.from(areaDrawNo);
+    _areaClassDrawAttach = List<String?>.from(areaDrawAttach);
+    _areaClassDrawAttachOrgName = List<String?>.from(areaDrawOrg);
+
+    if (_areaClassDrawAttachOrgName.isEmpty && _areaClassDrawNo.isNotEmpty) {
+      _areaClassDrawAttachOrgName = List<String?>.from(_areaClassDrawNo);
+    }
+
+    final areaCount = [
+      _areaClassDrawNo.length,
+      _areaClassDrawAttachOrgName.length,
+      _areaClassDrawAttach.length
+    ].reduce((a, b) => a > b ? a : b);
 
     _areaClassificationDrawingController.clear();
     _areaFilePaths.clear();
-    for (int i = 0; i < _areaClassDrawAttachOrgName.length; i++) {
+    for (int i = 0; i < areaCount; i++) {
+      final drawNo = (i < _areaClassDrawNo.length) ? (_areaClassDrawNo[i] ?? '') : '';
+      final orgName = (i < _areaClassDrawAttachOrgName.length) ? (_areaClassDrawAttachOrgName[i] ?? '') : '';
+      final displayText = drawNo.isNotEmpty ? drawNo : orgName;
       _areaClassificationDrawingController.add(
-        TextEditingController(text: _areaClassDrawAttachOrgName[i] ?? ''),
+        TextEditingController(text: displayText),
       );
       final path = (i < _areaClassDrawAttach.length)
           ? (_areaClassDrawAttach[i] ?? '')
@@ -306,17 +368,40 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       _areaFilePaths.add(null);
     }
 
-    _eqpmtLytDrawNo = List<String?>.from(request.eqpmtLytDrawNo);
-    _eqpmtLytDrawAttach = List<String?>.from(request.eqpmtLytDrawAttach);
-    _eqpmntLytDrawAttachOrgName = List<String?>.from(
-      request.eqpmtLytDrawAttachOrgName,
-    );
+    final eqDrawNo = (request != null && request.eqpmtLytDrawNo.isNotEmpty)
+        ? request.eqpmtLytDrawNo
+        : (eq?.eqpmtLytDrawNo ?? []);
+    final eqDrawAttach =
+        (request != null && request.eqpmtLytDrawAttach.isNotEmpty)
+            ? request.eqpmtLytDrawAttach
+            : (eq?.eqpmtLytDrawAttach ?? []);
+    final eqDrawOrg =
+        (request != null && request.eqpmtLytDrawAttachOrgName.isNotEmpty)
+            ? request.eqpmtLytDrawAttachOrgName
+            : (eq?.eqpmtLytDrawAttachOrgName ?? []);
+
+    _eqpmtLytDrawNo = List<String?>.from(eqDrawNo);
+    _eqpmtLytDrawAttach = List<String?>.from(eqDrawAttach);
+    _eqpmntLytDrawAttachOrgName = List<String?>.from(eqDrawOrg);
+
+    if (_eqpmntLytDrawAttachOrgName.isEmpty && _eqpmtLytDrawNo.isNotEmpty) {
+      _eqpmntLytDrawAttachOrgName = List<String?>.from(_eqpmtLytDrawNo);
+    }
+
+    final eqCount = [
+      _eqpmtLytDrawNo.length,
+      _eqpmntLytDrawAttachOrgName.length,
+      _eqpmtLytDrawAttach.length
+    ].reduce((a, b) => a > b ? a : b);
 
     _equipmentLayoutDrawingController.clear();
     _equipmentFilePaths.clear();
-    for (int i = 0; i < _eqpmntLytDrawAttachOrgName.length; i++) {
+    for (int i = 0; i < eqCount; i++) {
+      final drawNo = (i < _eqpmtLytDrawNo.length) ? (_eqpmtLytDrawNo[i] ?? '') : '';
+      final orgName = (i < _eqpmntLytDrawAttachOrgName.length) ? (_eqpmntLytDrawAttachOrgName[i] ?? '') : '';
+      final displayText = drawNo.isNotEmpty ? drawNo : orgName;
       _equipmentLayoutDrawingController.add(
-        TextEditingController(text: _eqpmntLytDrawAttachOrgName[i] ?? ''),
+        TextEditingController(text: displayText),
       );
       final path = (i < _eqpmtLytDrawAttach.length)
           ? (_eqpmtLytDrawAttach[i] ?? '')
@@ -328,23 +413,43 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       _equipmentFilePaths.add(null);
     }
 
-    _locationId = (request.locationId != null && request.locationId!.isNotEmpty)
+    _locationId = (request?.locationId != null && request!.locationId!.isNotEmpty)
         ? request.locationId
-        : ((widget.exInspectionRequest.equipmentTagRequest?.locationId != null &&
-                widget.exInspectionRequest.equipmentTagRequest!.locationId
-                    .isNotEmpty)
-            ? widget.exInspectionRequest.equipmentTagRequest!.locationId
+        : ((eq?.locationId != null && eq!.locationId.isNotEmpty)
+            ? eq.locationId
             : '');
-    _locationLatitude.text = request.locationLatitude ?? '';
-    _locationLongtitude.text = request.locationLongitude ?? '';
-    _isActive = request.isActive;
+
+    String lat = (request?.locationLatitude != null &&
+            request!.locationLatitude!.isNotEmpty)
+        ? request.locationLatitude!
+        : (eq?.locationLatitude ?? '');
+    String lng = (request?.locationLongitude != null &&
+            request!.locationLongitude!.isNotEmpty)
+        ? request.locationLongitude!
+        : (eq?.locationLongitude ?? '');
+
+    if ((lat.isEmpty || lng.isEmpty) &&
+        eq?.gpsCord != null &&
+        eq!.gpsCord!.contains(',')) {
+      final parts = eq.gpsCord!.split(',');
+      if (parts.length >= 2) {
+        lat = parts[0].trim();
+        lng = parts[1].trim();
+      }
+    }
+
+    _locationLatitude.text = lat;
+    _locationLongtitude.text = lng;
+    _isActive = request?.isActive ?? true;
     _selectedAreaStatus =
-        request.areaStatus ?? (_isActive ? 'Active' : 'In Active');
+        request?.areaStatus ?? (_isActive ? 'Active' : 'In Active');
 
     if (_locationLatitude.text.isNotEmpty &&
         _locationLongtitude.text.isNotEmpty) {
       _gpsCoordinatesController.text =
           '${_locationLatitude.text}, ${_locationLongtitude.text}';
+    } else if (eq?.gpsCord != null && eq!.gpsCord!.isNotEmpty) {
+      _gpsCoordinatesController.text = eq.gpsCord!;
     }
 
     _addInitialControllers();
@@ -1193,9 +1298,15 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
                   selectedGasItems = value;
                   _selectedGasGroup = value.isEmpty ? '' : value.join(',');
                 });
+                try {
+                  widget.exInspectionRequest.functionalAreaRequest?.locationGasGroup.clear();
+                  widget.exInspectionRequest.functionalAreaRequest?.locationGasGroup.addAll(value);
+                  widget.exInspectionRequest.equipmentTagRequest?.locationGasGroup.clear();
+                  widget.exInspectionRequest.equipmentTagRequest?.locationGasGroup.addAll(value);
+                } catch (_) {}
                 final equipGas = widget.exInspectionRequest.equipmentTagRequest?.equipmentGasGroup ?? [];
-                if (selectedGasItems.isNotEmpty && equipGas.isNotEmpty) {
-                  final warning = _getGasGroupValidationWarning(selectedGasItems, equipGas);
+                if (value.isNotEmpty && equipGas.isNotEmpty) {
+                  final warning = _getGasGroupValidationWarning(value, equipGas);
                   if (warning != null) {
                     Fluttertoast.showToast(
                       msg: warning,
@@ -2775,54 +2886,66 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
     return null;
   }
 
+  String _normalizeGasGroup(String raw) {
+    var clean = raw.trim().toUpperCase();
+    clean = clean.replaceAll('GAS GROUP', '').replaceAll('GROUP', '').replaceAll(' ', '').trim();
+    return clean;
+  }
+
+  /// Returns a warning if equipment gas group is not suitable for the area gas group.
+  /// 1. Area details - IIC -> IIC, IIB, IIA - Equipment tag
+  /// 2. Area details - IIB -> IIB, IIA - Equipment tag
+  /// 3. Area details - IIA -> IIA - Equipment tag
   String? _getGasGroupValidationWarning(
       List<String> areaGasGroups, List<String> equipmentGasGroups) {
-    // Gas group hierarchy:
-    // IEC: IIA (1) < IIB (2) < IIC (3)
-    // NEC: D (1) < C (2) < B (3) < A (4)
-    // Dust: IIIA (1) < IIIB (2) < IIIC (3)
-    const gasGroupRank = {
-      'IIA': 1,
-      'GROUP IIA': 1,
-      'GAS GROUP IIA': 1,
-      'IIB': 2,
-      'GROUP IIB': 2,
-      'GAS GROUP IIB': 2,
-      'IIC': 3,
-      'GROUP IIC': 3,
-      'GAS GROUP IIC': 3,
-      'IIIA': 1,
-      'GROUP IIIA': 1,
-      'IIIB': 2,
-      'GROUP IIIB': 2,
-      'IIIC': 3,
-      'GROUP IIIC': 3,
-      'D': 1,
-      'GROUP D': 1,
-      'C': 2,
-      'GROUP C': 2,
-      'B': 3,
-      'GROUP B': 3,
-      'A': 4,
-      'GROUP A': 4,
+    const Map<String, List<String>> allowedEquipMap = {
+      // IEC Gas
+      'IIC': ['IIC', 'IIB', 'IIA'],
+      'IIB': ['IIB', 'IIA'],
+      'IIA': ['IIA'],
+      // Dust
+      'IIIC': ['IIIC', 'IIIB', 'IIIA'],
+      'IIIB': ['IIIB', 'IIIA'],
+      'IIIA': ['IIIA'],
+      // NEC
+      'A': ['A', 'B', 'C', 'D'],
+      'B': ['B', 'C', 'D'],
+      'C': ['C', 'D'],
+      'D': ['D'],
     };
 
-    for (final areaGroup in areaGasGroups) {
-      final cleanArea = areaGroup.trim().toUpperCase();
-      final areaRank = gasGroupRank[cleanArea];
-      if (areaRank == null) continue;
-
-      bool covered = false;
-      for (final equipGroup in equipmentGasGroups) {
-        final cleanEquip = equipGroup.trim().toUpperCase();
-        final equipRank = gasGroupRank[cleanEquip];
-        if (equipRank != null && equipRank >= areaRank) {
-          covered = true;
-          break;
-        }
+    final List<String> flatAreaGroups = [];
+    for (final ag in areaGasGroups) {
+      if (ag.contains(',')) {
+        flatAreaGroups.addAll(
+            ag.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+      } else if (ag.trim().isNotEmpty) {
+        flatAreaGroups.add(ag.trim());
       }
-      if (!covered && equipmentGasGroups.isNotEmpty) {
-        return 'Equipment Gas Group ${equipmentGasGroups.join(", ")} does not cover Area Gas Group $areaGroup. Equipment must have gas group $areaGroup or higher.';
+    }
+
+    final List<String> flatEquipGroups = [];
+    for (final eg in equipmentGasGroups) {
+      if (eg.contains(',')) {
+        flatEquipGroups.addAll(
+            eg.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+      } else if (eg.trim().isNotEmpty) {
+        flatEquipGroups.add(eg.trim());
+      }
+    }
+
+    for (final equipGroup in flatEquipGroups) {
+      final cleanEquip = _normalizeGasGroup(equipGroup);
+      if (cleanEquip.isEmpty) continue;
+
+      for (final areaGroup in flatAreaGroups) {
+        final cleanArea = _normalizeGasGroup(areaGroup);
+        if (cleanArea.isEmpty) continue;
+
+        final allowed = allowedEquipMap[cleanArea];
+        if (allowed != null && !allowed.contains(cleanEquip)) {
+          return 'Gas Group "$equipGroup" is not suitable for $areaGroup. Please select an appropriate Gas Group.';
+        }
       }
     }
     return null;
@@ -2965,10 +3088,25 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
       return false;
     }
 
+    _areaClassDrawNo = List<String?>.generate(
+      _areaClassificationDrawingController.length,
+      (i) {
+        final text = _areaClassificationDrawingController[i].text.trim();
+        if (text.isNotEmpty) {
+          return text;
+        } else if (_areaClassDrawNo.length > i &&
+            _areaClassDrawNo[i] != null &&
+            _areaClassDrawNo[i]!.isNotEmpty) {
+          return _areaClassDrawNo[i];
+        } else {
+          return null;
+        }
+      },
+    );
     _areaClassDrawAttachOrgName = List<String?>.generate(
       _areaClassificationDrawingController.length,
       (i) {
-        final text = _areaClassificationDrawingController[i].text;
+        final text = _areaClassificationDrawingController[i].text.trim();
         if (text.isNotEmpty) {
           return text;
         } else if (_areaClassDrawAttachOrgName.length > i &&
@@ -2980,10 +3118,25 @@ class FunctionalAreaStepState extends State<FunctionalAreaStep> {
         }
       },
     );
+    _eqpmtLytDrawNo = List<String?>.generate(
+      _equipmentLayoutDrawingController.length,
+      (i) {
+        final text = _equipmentLayoutDrawingController[i].text.trim();
+        if (text.isNotEmpty) {
+          return text;
+        } else if (_eqpmtLytDrawNo.length > i &&
+            _eqpmtLytDrawNo[i] != null &&
+            _eqpmtLytDrawNo[i]!.isNotEmpty) {
+          return _eqpmtLytDrawNo[i];
+        } else {
+          return null;
+        }
+      },
+    );
     _eqpmntLytDrawAttachOrgName = List<String?>.generate(
       _equipmentLayoutDrawingController.length,
       (i) {
-        final text = _equipmentLayoutDrawingController[i].text;
+        final text = _equipmentLayoutDrawingController[i].text.trim();
         if (text.isNotEmpty) {
           return text;
         } else if (_eqpmntLytDrawAttachOrgName.length > i &&

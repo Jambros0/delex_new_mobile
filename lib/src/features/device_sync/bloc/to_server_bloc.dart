@@ -104,9 +104,13 @@ class ToServerBloc extends Bloc<ToServerEvent, ToServerState> {
 
   Future<List<ExRegisterTableModel>> _loadOfflineAssets() async {
     final String? userType = await authUtils.getUserType();
-    final results = (userType == 'onshore')
-        ? await _dbHelper.getExRegisterOnshore()
-        : await _dbHelper.getExRegister();
+    final targetIds = await _dbHelper.getUserTargetIds(authUtils);
+    final String? ownerId = await authUtils.getUserId();
+    final results = await _dbHelper.getExRegisterForUser(
+      userType: userType,
+      targetIds: targetIds,
+      ownerId: ownerId,
+    );
 
     final List<ExRegisterTableModel> list = [];
     for (var map in results) {

@@ -1741,58 +1741,66 @@ class EquipmentTagsStepState extends State<EquipmentTagsStep> {
     return null;
   }
 
-  /// Returns a warning if equipment gas group doesn't cover the area gas group.
-  /// Area IIC → equipment must have IIC
-  /// Area IIB → equipment can have IIB or IIC
-  /// Area IIA → equipment can have IIA, IIB, or IIC
+  String _normalizeGasGroup(String raw) {
+    var clean = raw.trim().toUpperCase();
+    clean = clean.replaceAll('GAS GROUP', '').replaceAll('GROUP', '').replaceAll(' ', '').trim();
+    return clean;
+  }
+
+  /// Returns a warning if equipment gas group is not suitable for the area gas group.
+  /// 1. Area details - IIC -> IIC, IIB, IIA - Equipment tag
+  /// 2. Area details - IIB -> IIB, IIA - Equipment tag
+  /// 3. Area details - IIA -> IIA - Equipment tag
   String? _getGasGroupValidationWarning(
       List<String> areaGasGroups, List<String> equipmentGasGroups) {
-    // Gas group hierarchy:
-    // IEC: IIA (1) < IIB (2) < IIC (3)
-    // NEC: D (1) < C (2) < B (3) < A (4)
-    // Dust: IIIA (1) < IIIB (2) < IIIC (3)
-    const gasGroupRank = {
-      'IIA': 1,
-      'GROUP IIA': 1,
-      'GAS GROUP IIA': 1,
-      'IIB': 2,
-      'GROUP IIB': 2,
-      'GAS GROUP IIB': 2,
-      'IIC': 3,
-      'GROUP IIC': 3,
-      'GAS GROUP IIC': 3,
-      'IIIA': 1,
-      'GROUP IIIA': 1,
-      'IIIB': 2,
-      'GROUP IIIB': 2,
-      'IIIC': 3,
-      'GROUP IIIC': 3,
-      'D': 1,
-      'GROUP D': 1,
-      'C': 2,
-      'GROUP C': 2,
-      'B': 3,
-      'GROUP B': 3,
-      'A': 4,
-      'GROUP A': 4,
+    const Map<String, List<String>> allowedEquipMap = {
+      // IEC Gas
+      'IIC': ['IIC', 'IIB', 'IIA'],
+      'IIB': ['IIB', 'IIA'],
+      'IIA': ['IIA'],
+      // Dust
+      'IIIC': ['IIIC', 'IIIB', 'IIIA'],
+      'IIIB': ['IIIB', 'IIIA'],
+      'IIIA': ['IIIA'],
+      // NEC
+      'A': ['A', 'B', 'C', 'D'],
+      'B': ['B', 'C', 'D'],
+      'C': ['C', 'D'],
+      'D': ['D'],
     };
 
-    for (final areaGroup in areaGasGroups) {
-      final cleanArea = areaGroup.trim().toUpperCase();
-      final areaRank = gasGroupRank[cleanArea];
-      if (areaRank == null) continue;
-
-      bool covered = false;
-      for (final equipGroup in equipmentGasGroups) {
-        final cleanEquip = equipGroup.trim().toUpperCase();
-        final equipRank = gasGroupRank[cleanEquip];
-        if (equipRank != null && equipRank >= areaRank) {
-          covered = true;
-          break;
-        }
+    final List<String> flatAreaGroups = [];
+    for (final ag in areaGasGroups) {
+      if (ag.contains(',')) {
+        flatAreaGroups.addAll(
+            ag.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+      } else if (ag.trim().isNotEmpty) {
+        flatAreaGroups.add(ag.trim());
       }
-      if (!covered && equipmentGasGroups.isNotEmpty) {
-        return 'Equipment Gas Group ${equipmentGasGroups.join(", ")} does not cover Area Gas Group $areaGroup. Equipment must have gas group $areaGroup or higher.';
+    }
+
+    final List<String> flatEquipGroups = [];
+    for (final eg in equipmentGasGroups) {
+      if (eg.contains(',')) {
+        flatEquipGroups.addAll(
+            eg.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+      } else if (eg.trim().isNotEmpty) {
+        flatEquipGroups.add(eg.trim());
+      }
+    }
+
+    for (final equipGroup in flatEquipGroups) {
+      final cleanEquip = _normalizeGasGroup(equipGroup);
+      if (cleanEquip.isEmpty) continue;
+
+      for (final areaGroup in flatAreaGroups) {
+        final cleanArea = _normalizeGasGroup(areaGroup);
+        if (cleanArea.isEmpty) continue;
+
+        final allowed = allowedEquipMap[cleanArea];
+        if (allowed != null && !allowed.contains(cleanEquip)) {
+          return 'Gas Group "$equipGroup" is not suitable for $areaGroup. Please select an appropriate Gas Group.';
+        }
       }
     }
     return null;

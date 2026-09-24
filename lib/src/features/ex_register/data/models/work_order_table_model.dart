@@ -155,24 +155,39 @@ class WorkOrderTableJson {
     List<ExRegister> parsedAssets = [];
     final rawAssets = json["assignedAssets"] ?? json["assets"] ?? json["asset"] ?? json["work_order_assets"] ?? json["workOrder_assets"];
     if (rawAssets is List) {
+      final woAssignedTo = (json["assignedTo"] ?? json["assigned_to"])?.toString();
       for (var item in rawAssets) {
         if (item is ExRegister) {
+          if ((item.assignedTo == null || item.assignedTo!.isEmpty || item.assignedTo == 'null') && woAssignedTo != null) {
+            item.assignedTo = woAssignedTo;
+          }
           parsedAssets.add(item);
         } else if (item is Map<String, dynamic>) {
           try {
-            parsedAssets.add(ExRegister.fromJson(item));
+            final parsed = ExRegister.fromJson(item);
+            if ((parsed.assignedTo == null || parsed.assignedTo!.isEmpty || parsed.assignedTo == 'null') && woAssignedTo != null) {
+              parsed.assignedTo = woAssignedTo;
+            }
+            parsedAssets.add(parsed);
           } catch (_) {}
         } else if (item is Map) {
           try {
-            parsedAssets.add(
-                ExRegister.fromJson(Map<String, dynamic>.from(item)));
+            final parsed = ExRegister.fromJson(Map<String, dynamic>.from(item));
+            if ((parsed.assignedTo == null || parsed.assignedTo!.isEmpty || parsed.assignedTo == 'null') && woAssignedTo != null) {
+              parsed.assignedTo = woAssignedTo;
+            }
+            parsedAssets.add(parsed);
           } catch (_) {}
         }
       }
     } else if (rawAssets is Map) {
       try {
-        parsedAssets.add(
-            ExRegister.fromJson(Map<String, dynamic>.from(rawAssets)));
+        final woAssignedTo = (json["assignedTo"] ?? json["assigned_to"])?.toString();
+        final parsed = ExRegister.fromJson(Map<String, dynamic>.from(rawAssets));
+        if ((parsed.assignedTo == null || parsed.assignedTo!.isEmpty || parsed.assignedTo == 'null') && woAssignedTo != null) {
+          parsed.assignedTo = woAssignedTo;
+        }
+        parsedAssets.add(parsed);
       } catch (_) {}
     }
 

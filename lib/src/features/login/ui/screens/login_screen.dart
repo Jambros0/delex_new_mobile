@@ -45,6 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
       dbHelper: DBHelper(),
     );
 
+    _loadSavedCredentials();
+
     userfocusNode.addListener(() {
       setState(() {
         _isUserFocused = userfocusNode.hasFocus;
@@ -56,6 +58,29 @@ class _LoginScreenState extends State<LoginScreen> {
         _isPassFocused = passwordfocusNode.hasFocus;
       });
     });
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final creds = await _authRepository.authUtils.getSavedCredentials();
+      final username = creds['username'] ?? '';
+      final password = creds['password'] ?? '';
+      if (username.isNotEmpty || password.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            if (username.isNotEmpty) {
+              userController.text = username;
+            }
+            if (password.isNotEmpty) {
+              passwordController.text = password;
+            }
+            _rememberMe = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading saved credentials: $e');
+    }
   }
 
   @override
@@ -93,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final userLogin = UserLogin(username: username, password: password);
       await _authRepository.authenticate(userLogin);
+      await _authRepository.authUtils.saveCredentials(username, password);
       final dropdownRepository = DropdownRepository();
       final checklistRepository = InspectionChecklistRepo();
 

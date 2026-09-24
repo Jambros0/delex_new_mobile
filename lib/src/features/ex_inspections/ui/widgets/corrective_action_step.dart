@@ -317,7 +317,10 @@ class CorrectiveActionsStepState extends State<CorrectiveActionsStep> {
       final checklistData = request.checkList ?? [];
       final defectData = _extractDefectData(checklistData);
       _filterDropdownItems(defectData, request.correctiveDefectCategory);
-      if (_selectedRepairPriority.isNotEmpty) {
+      if (defectData.isNotEmpty && defectData.every((d) => d['isDone'] == true)) {
+        _selectedRepairPriority = "Not Applicable";
+        _setDropdownValues(_selectedRepairPriority);
+      } else if (_selectedRepairPriority.isNotEmpty) {
         _setDropdownValues(_selectedRepairPriority);
       }
       _remarksIfAny.text = request.remarksIfAny ?? '';
@@ -391,13 +394,24 @@ class CorrectiveActionsStepState extends State<CorrectiveActionsStep> {
       }
     }
     defectData.sort((a, b) {
-      int priorityComparison = a['priority'].compareTo(b['priority']);
+      int priorityComparison = (a['priority'] as int).compareTo(b['priority'] as int);
       if (priorityComparison == 0) {
-        return a['defectCode'].compareTo(b['defectCode']);
+        return (a['defectCode'] as String).compareTo(b['defectCode'] as String);
       }
       return priorityComparison;
     });
     return defectData;
+  }
+
+  String? _findDropdownMatch(List<String> items, String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    if (items.contains(value)) return value;
+    for (var item in items) {
+      if (item.trim().toLowerCase() == value.trim().toLowerCase()) {
+        return item;
+      }
+    }
+    return null;
   }
 
   void _updateRepairPriority() {
@@ -405,7 +419,12 @@ class CorrectiveActionsStepState extends State<CorrectiveActionsStep> {
     for (var checkList
         in widget.exInspectionRequest.equipmentTagRequest?.checkList ?? []) {
       for (var defectCode in checkList.defectCodes) {
-        int priority = defectCode.defectPriority['priority'] as int;
+        int priority = 1;
+        if (defectCode.defectPriority != null &&
+            defectCode.defectPriority is Map &&
+            defectCode.defectPriority.containsKey('priority')) {
+          priority = (int.tryParse(defectCode.defectPriority['priority'].toString()) ?? 1);
+        }
         for (var finding in defectCode.findingsAndActions) {
           if (!finding.isDone) {
             priorities.add(priority);
@@ -2101,7 +2120,25 @@ class CorrectiveActionsStepState extends State<CorrectiveActionsStep> {
             ?.map((item) => item.toString())
             .toList() ?? ['Major Repair Required', 'Minor Repair Required', 'Good to Use'];
 
-    bool isGreenStatus = _currentStatus.text == 'Green';
+    final String? currentStatusValue = _findDropdownMatch(
+          inspectionStatusList,
+          _currentStatus.text.isNotEmpty ? _currentStatus.text : 'Green',
+        ) ??
+        _findDropdownMatch(inspectionStatusList, 'Green') ??
+        (inspectionStatusList.isNotEmpty ? inspectionStatusList.first : null);
+
+    final String? currentConditionValue = _findDropdownMatch(
+          currentConditionList,
+          _currentCondition.text.isNotEmpty
+              ? _currentCondition.text
+              : 'Good to Use',
+        ) ??
+        _findDropdownMatch(currentConditionList, 'Good to Use') ??
+        (currentConditionList.isNotEmpty ? currentConditionList.first : null);
+
+    bool isGreenStatus =
+        (_currentStatus.text.trim().toLowerCase() == 'green') ||
+            (_selectedRepairPriority == 'Not Applicable');
 
     return Padding(
       padding: const EdgeInsets.only(left: 24, right: 24),
@@ -2151,37 +2188,25 @@ class CorrectiveActionsStepState extends State<CorrectiveActionsStep> {
               ),
               _buildLabeledDropdownField(
                 label: 'Current Status',
-                value: _selectedRepairPriority == 'Not Applicable'
-                    ? 'Not Applicable'
-                    : (inspectionStatusList.contains(_currentStatus.text)
-                        ? _currentStatus.text
-                        : null),
-                items: _selectedRepairPriority == 'Not Applicable'
-                    ? ['Not Applicable']
-                    : inspectionStatusList,
+                value: currentStatusValue,
+                items: inspectionStatusList,
                 onChanged: (value) {
                   setState(() {
                     _currentStatus.text = value ?? '';
                   });
                 },
-                isNotApplicable: _selectedRepairPriority == 'Not Applicable',
+                isNotApplicable: false,
               ),
               _buildLabeledDropdownField(
                 label: 'Current Condition',
-                value: _selectedRepairPriority == 'Not Applicable'
-                    ? 'Not Applicable'
-                    : (currentConditionList.contains(_currentCondition.text)
-                        ? _currentCondition.text
-                        : null),
-                items: _selectedRepairPriority == 'Not Applicable'
-                    ? ['Not Applicable']
-                    : currentConditionList,
+                value: currentConditionValue,
+                items: currentConditionList,
                 onChanged: (value) {
                   setState(() {
                     _currentCondition.text = value ?? '';
                   });
                 },
-                isNotApplicable: _selectedRepairPriority == 'Not Applicable',
+                isNotApplicable: false,
               ),
               _buildLabeledDropdownField(
                 label: 'Isolation For Requirements',

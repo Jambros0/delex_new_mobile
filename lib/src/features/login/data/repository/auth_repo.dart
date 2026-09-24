@@ -54,10 +54,14 @@ class AuthRepository {
       }
       if (NetworkUtils().isNetworkAvailable) {
         logger.i('Network available. Using API for authentication.');
-        return _apiLogin(userLogin);
+        final tokens = await _apiLogin(userLogin);
+        await authUtils.saveCredentials(userLogin.username, userLogin.password);
+        return tokens;
       } else {
         logger.i('Network not available. Using local authentication.');
-        return _localLogin(userLogin);
+        final tokens = await _localLogin(userLogin);
+        await authUtils.saveCredentials(userLogin.username, userLogin.password);
+        return tokens;
       }
     } catch (e) {
       logger.e('Authentication error: $e');
@@ -87,15 +91,30 @@ class AuthRepository {
       email: response['userDetails']['email'] ?? '',
       userRole: response['userDetails']['userRole'] ?? '',
       signature: response['userDetails']['signature'] ?? '',
-      userName: response['userDetails']['userName'] ?? '',
+      userName: (response['userDetails']?['userName'] != null &&
+              response['userDetails']['userName'].toString().isNotEmpty)
+          ? response['userDetails']['userName'].toString()
+          : userLogin.username,
       password: userLogin.password,
       accessToken: response['accessToken'] ?? '',
       refreshToken: response['refreshToken'] ?? '',
     );
 
+    final String rawUserType = (response['userDetails']?['userType'] ??
+            response['userDetails']?['userRole'] ??
+            response['userType'] ??
+            response['userDetails']?['role'] ??
+            '')
+        .toString();
+    final String? resolvedType = rawUserType.isNotEmpty ? rawUserType : null;
+
     await authUtils.saveSessionTokens(
-        userDetails.accessToken, userDetails.refreshToken, userDetails.userId);
-    final userType = await AuthUtils().getUserType();
+        userDetails.accessToken, userDetails.refreshToken, userDetails.userId,
+        userType: resolvedType);
+    if (userDetails.userName.isNotEmpty) {
+      await authUtils.saveUsername(userDetails.userName);
+    }
+    final userType = resolvedType ?? await AuthUtils().getUserType();
     final apiUrl = dotenv.env['API_URL'];
     if (userDetails.signature.isNotEmpty) {
       final signatureUrl =
