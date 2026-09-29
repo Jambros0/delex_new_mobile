@@ -9,7 +9,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('Save and retrieve credentials persists across logout session clear', () async {
+  test('Save and retrieve credentials persists across logout session clear',
+      () async {
     final authUtils = AuthUtils();
 
     // 1. Save credentials and session tokens as if user logged in
