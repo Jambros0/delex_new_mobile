@@ -726,7 +726,7 @@ class DeviceToServerSync {
             if (currentAssetId.isNotEmpty && currentAssetId != originalLocalId) {
               await dbHelper.deleteExRegisterByIdOnshore(currentAssetId, '');
             }
-            if (asset.locationId != null && asset.locationId.toString().isNotEmpty) {
+            if (asset.locationId.toString().isNotEmpty) {
               await dbHelper.deleteFunctionalAreaOnshore(asset.locationId);
             }
           } else {
@@ -734,7 +734,7 @@ class DeviceToServerSync {
             if (currentAssetId.isNotEmpty && currentAssetId != originalLocalId) {
               await dbHelper.deleteExRegisterById(currentAssetId, '');
             }
-            if (asset.locationId != null && asset.locationId.toString().isNotEmpty) {
+            if (asset.locationId.toString().isNotEmpty) {
               await dbHelper.deleteFunctionalArea(asset.locationId);
             }
           }

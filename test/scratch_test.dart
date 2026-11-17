@@ -1,7 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/data/services/device_sync_services.dart';
-import 'package:deex_bloc_mobile_app_dev/src/utils/auth_util.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {

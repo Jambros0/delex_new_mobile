@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/equipment_tag_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_inspections/data/models/functional_area_request.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/functional_areas/data/models/location_model.dart';

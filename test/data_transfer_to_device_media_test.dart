@@ -65,7 +65,7 @@ void main() {
     });
 
     test('Candidate URL builder handles onshore, offshore, and direct paths correctly', () {
-      final baseUrl = 'http://94.136.185.87:16000';
+      const baseUrl = 'http://94.136.185.87:16000';
       final testCases = [
         {
           'path': 'media/workorders/attachments/sample.pdf',

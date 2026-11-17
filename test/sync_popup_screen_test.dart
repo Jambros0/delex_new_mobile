@@ -6,7 +6,6 @@ import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/to_server
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/to_server_event.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/to_server_state.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_bloc.dart';
-import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_state.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/data/services/device_sync_services.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/ui/screens/device_sync.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex_register_model.dart';

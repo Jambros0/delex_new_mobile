@@ -193,7 +193,7 @@ void main() {
       expect(loadedState.assets.length, 2);
 
       // Now simulate user transferring asset_01 to local DB:
-      bloc.add(RemoveTransferredAssetsFromDeviceSync(['asset_01']));
+      bloc.add(RemoveTransferredAssetsFromDeviceSync(const ['asset_01']));
       await Future.delayed(const Duration(milliseconds: 100));
 
       final updatedState = bloc.state as WorkOrderLoaded;

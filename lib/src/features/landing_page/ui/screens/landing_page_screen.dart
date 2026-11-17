@@ -2,7 +2,6 @@
 
 import 'package:deex_bloc_mobile_app_dev/src/custom_widgets/nfc_tag_widget.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_bloc.dart';
-import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_event.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/bloc/device_sync_state.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/device_sync/ui/screens/device_sync.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/landing_page/bloc/landing_bloc.dart';
@@ -21,7 +20,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../utils/common_util.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/data/models/ex_register_model.dart';
 
 class LandingScreen extends StatefulWidget {

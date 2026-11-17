@@ -103,7 +103,6 @@ class ExRegisterTableState extends State<ServerToDeviceTable> {
     String getCleanString(List<String>? items) {
       if (items == null || items.isEmpty) return '';
       final filtered = items.where((e) {
-        if (e == null) return false;
         final val = e.toString().trim().toLowerCase();
         return val.isNotEmpty &&
             val != 'not available' &&

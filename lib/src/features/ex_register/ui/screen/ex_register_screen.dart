@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/bloc/ex_register_bloc.dart';
@@ -9,8 +8,6 @@ import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/ui/widgets/dat
 import 'package:deex_bloc_mobile_app_dev/src/features/ex_register/ui/widgets/ex_register_table.dart';
 import 'package:deex_bloc_mobile_app_dev/src/features/functional_areas/ui/widgets/download_ex_option_popup.dart';
 import 'package:deex_bloc_mobile_app_dev/src/utils/common_util.dart';
-import 'package:deex_bloc_mobile_app_dev/src/utils/database_helper.dart';
-import 'package:deex_bloc_mobile_app_dev/src/utils/network_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';

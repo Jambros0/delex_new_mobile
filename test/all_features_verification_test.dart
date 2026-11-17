@@ -9,7 +9,7 @@ void main() {
 
   group('Item 1: Work Order Data Transfer by User ID', () {
     test('Constructs correct work-order endpoint with user ID', () {
-      final userId = '6aad40175fa208c9dce875c0';
+      const userId = '6aad40175fa208c9dce875c0';
       final endpoint = '/work-order/$userId';
       expect(endpoint, equals('/work-order/6aad40175fa208c9dce875c0'));
     });
@@ -146,7 +146,7 @@ void main() {
 
   group('Item 3: Ex-Inspection Image Path Resolution', () {
     test('Resolves remote image URL correctly without duplicate base URLs', () {
-      final apiUrl = 'http://94.136.185.87:16000';
+      const apiUrl = 'http://94.136.185.87:16000';
 
       String getResolvedImageUrl(String path) {
         if (path.startsWith('http://') || path.startsWith('https://')) {

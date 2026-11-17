@@ -195,7 +195,7 @@ class ExInspectionsBloc extends Bloc<ExInspectionsEvent, ExInspectionsState> {
         emit(
           ExInspectionSuccess(
             "Area Detail Clear Successfully",
-            request?.locationId ?? "",
+            request.locationId ?? "",
             false,
           ),
         );

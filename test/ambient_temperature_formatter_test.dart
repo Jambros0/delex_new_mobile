@@ -18,7 +18,7 @@ void main() {
 
     test('Typing number and pressing 1 space autotypes °C', () {
       // User types '40'
-      var val = TextEditingValue(text: '40', selection: const TextSelection.collapsed(offset: 2));
+      var val = const TextEditingValue(text: '40', selection: TextSelection.collapsed(offset: 2));
       
       // User presses space -> '40 '
       val = apply(val, '40 ');
@@ -28,7 +28,7 @@ void main() {
 
     test('Negative number and pressing 1 space autotypes °C', () {
       // User types '-40'
-      var val = TextEditingValue(text: '-40', selection: const TextSelection.collapsed(offset: 3));
+      var val = const TextEditingValue(text: '-40', selection: TextSelection.collapsed(offset: 3));
       
       // User presses space -> '-40 '
       val = apply(val, '-40 ');
@@ -37,7 +37,7 @@ void main() {
 
     test('Positive number with sign and pressing 1 space autotypes °C', () {
       // User types '+55'
-      var val = TextEditingValue(text: '+55', selection: const TextSelection.collapsed(offset: 3));
+      var val = const TextEditingValue(text: '+55', selection: TextSelection.collapsed(offset: 3));
       
       // User presses space -> '+55 '
       val = apply(val, '+55 ');
@@ -45,7 +45,7 @@ void main() {
     });
 
     test('Pressing space on 40°C (double space step) autotypes " to "', () {
-      var val = TextEditingValue(text: '40°C', selection: const TextSelection.collapsed(offset: 4));
+      var val = const TextEditingValue(text: '40°C', selection: TextSelection.collapsed(offset: 4));
       
       // User presses space after 40°C -> '40°C '
       val = apply(val, '40°C ');
@@ -102,12 +102,12 @@ void main() {
 
     test('Deleting characters allows smooth backspacing', () {
       // From '40°C to ' backspacing
-      var val = TextEditingValue(text: '40°C to ', selection: const TextSelection.collapsed(offset: 8));
+      var val = const TextEditingValue(text: '40°C to ', selection: TextSelection.collapsed(offset: 8));
       
       // User deletes trailing space -> '40°C to'
       val = formatter.formatEditUpdate(
         val,
-        TextEditingValue(text: '40°C to', selection: const TextSelection.collapsed(offset: 7)),
+        const TextEditingValue(text: '40°C to', selection: TextSelection.collapsed(offset: 7)),
       );
       // Formatter deletes whole ' to ' cleanly
       expect(val.text, '40°C');
@@ -115,7 +115,7 @@ void main() {
       // User deletes 'C' from '40°C' -> '40°'
       val = formatter.formatEditUpdate(
         val,
-        TextEditingValue(text: '40°', selection: const TextSelection.collapsed(offset: 3)),
+        const TextEditingValue(text: '40°', selection: TextSelection.collapsed(offset: 3)),
       );
       // Formatter deletes '°C' cleanly to '40'
       expect(val.text, '40');
@@ -123,7 +123,7 @@ void main() {
       // User deletes '0' -> '4'
       val = formatter.formatEditUpdate(
         val,
-        TextEditingValue(text: '4', selection: const TextSelection.collapsed(offset: 1)),
+        const TextEditingValue(text: '4', selection: TextSelection.collapsed(offset: 1)),
       );
       expect(val.text, '4');
     });

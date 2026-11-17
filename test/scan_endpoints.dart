@@ -58,8 +58,9 @@ void main() async {
       try {
         final d = jsonDecode(r['body']);
         int len = -1;
-        if (d is List) len = d.length;
-        else if (d is Map) {
+        if (d is List) {
+          len = d.length;
+        } else if (d is Map) {
           final l = d['data'] ?? d['workOrders'] ?? d['assets'] ?? d['result'];
           if (l is List) len = l.length;
         }

@@ -38,7 +38,7 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
     super.initState();
 
     _rowSelection = List<bool>.filled(widget.assets.length, false, growable: true);
-    _chunkSize = widget.assets.length > 0 ? widget.assets.length : 50;
+    _chunkSize = widget.assets.isNotEmpty ? widget.assets.length : 50;
     rows = [];
 
     _loadNextChunkSync();
@@ -103,7 +103,6 @@ class DeviceToServerTableState extends State<DeviceToServerTable> {
     String getCleanString(List<String>? items) {
       if (items == null || items.isEmpty) return '';
       final filtered = items.where((e) {
-        if (e == null) return false;
         final val = e.toString().trim().toLowerCase();
         return val.isNotEmpty &&
             val != 'not available' &&

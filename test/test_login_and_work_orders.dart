@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 void main() async {
   print('=== STEP 1: Attempting Login with mobile_offshore / Test@123 ===');
-  final loginUrl = 'http://94.136.185.87:16000/admin/login';
+  const loginUrl = 'http://94.136.185.87:16000/admin/login';
   try {
     final loginRes = await http.post(
       Uri.parse(loginUrl),
@@ -20,7 +20,7 @@ void main() async {
       final userId = user?['_id'] ?? user?['userId'] ?? user?['id'];
       print('Logged in user ID: $userId');
 
-      final targetUserId = '6ab0d7c769bbfa6fbed32d6f';
+      const targetUserId = '6ab0d7c769bbfa6fbed32d6f';
       for (final endpoint in ['onshore', 'offshore']) {
         print('\n=== STEP 2: Fetching Work Orders ($endpoint) for user: $targetUserId ===');
         final woUrl = 'http://94.136.185.87:16000/$endpoint/user-work-orders/$targetUserId';
@@ -60,7 +60,7 @@ void main() async {
                   final filePath = entry.value;
                   print('Field: $field => $filePath');
                   if (filePath != null && filePath.toString().isNotEmpty && filePath != "null") {
-                    final baseUrl = 'http://94.136.185.87:16000';
+                    const baseUrl = 'http://94.136.185.87:16000';
                     final userType = endpoint;
                     final url = Uri.parse('$baseUrl/$userType/$filePath');
                     print('  Downloading $field from: $url');

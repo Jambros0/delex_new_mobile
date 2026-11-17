@@ -41,7 +41,7 @@ void main() {
       expect(duplicateAsset.eqpmtTag, equals('TAG-0010'));
 
       // Step 2: In postAsset, cloned functional area generates new unique locationId
-      final String clonedLocationId = 'loc_duplicate_20';
+      const String clonedLocationId = 'loc_duplicate_20';
       duplicateAsset.locationId = clonedLocationId;
       duplicateAsset.isDuplicate = true;
 
@@ -157,7 +157,7 @@ void main() {
       final loadingState = ExRegisterLoading();
       final errorState = ExRegisterError('Custom error message');
       final loadedState = ExRegisterLoaded(
-        tableHeaders: ['Tag', 'Desc'],
+        tableHeaders: const ['Tag', 'Desc'],
         assets: [
           ExRegister.fromJson({'id': '1', 'primaryId': 1, 'eqpmtTag': 'TAG-1'}),
           ExRegister.fromJson({'id': '2', 'primaryId': 2, 'eqpmtTag': 'TAG-2'}),

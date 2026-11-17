@@ -301,8 +301,8 @@ void main() {
     test('Stage weight progress calculation matches specification across all 7 steps', () {
       const int totalAssets = 1;
       const int assetIndex = 0;
-      final double assetBase = (assetIndex / totalAssets) * 100;
-      final double assetWeight = 100 / totalAssets;
+      const double assetBase = (assetIndex / totalAssets) * 100;
+      const double assetWeight = 100 / totalAssets;
 
       final stage1 = (assetBase + assetWeight * 0.15).round(); // Drawings uploaded
       final stage2 = (assetBase + assetWeight * 0.30).round(); // Functional area submitted
